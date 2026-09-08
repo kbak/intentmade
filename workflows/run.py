@@ -11,7 +11,7 @@ from typing import Literal
 
 from agent import converse, worktree
 from cleanup import job_directory
-from common import DATA, evidence, git, github, identifier, issues, job_id, lock, token
+from common import DATA, api, evidence, git, github, identifier, issues, job_id, lock, token
 from openhands.sdk.workspace.repo import RepoSource, clone_repos
 from pydantic import BaseModel, Field, model_validator
 from reporting import NeedsInput, outcome, phase, run_report
@@ -118,13 +118,11 @@ def task_repository(config, task, base, credential):
     return repository, branch
 
 
-def publish(config, task, repo, branch, artifact, request, credential, issue=None):
+def publish(config, task, repo, branch, artifact, request, credential, issue=None, *, summary=None):
     title = (f"[#{issue}] " if issue else "") + request.splitlines()[0].lstrip("# ")[:180]
     body = (
-        "Implemented by the local OpenHands factory.\n\n"
-        + request[:35000]
-        + "\n\n### Validation\n\nTests passed; independent review returned PASS.\n\n"
-        + f"Factory task: `{task}`. Evidence: `{artifact.parent.name}/{artifact.name}` in local Canvas.\n"
+        (summary or request.splitlines()[0]).strip()[:35000]
+        + "\n\n### Validation\n\n- Tests passed.\n- Independent code review passed.\n"
         + (f"\nCloses #{issue}\n" if issue else "")
     )
     if issue:
@@ -190,8 +188,19 @@ def build_group(configs, task, request, bases, credential="", issue=None, publis
         )
 
 
+def git_identity():
+    """Use the same application preferences as interactive Canvas workspaces."""
+    preferences = api("GET", "/api/settings")["misc_settings"]["app_preferences"]
+    name = (preferences.get("git_user_name") or "").strip()
+    email = (preferences.get("git_user_email") or "").strip()
+    if not name or not email:
+        raise RuntimeError("Set your Git name and email in OpenHands Application settings")
+    return name, email
+
+
 def prepare_sources(root, states):
     """Clone trusted retained stores before any untrusted process starts."""
+    name, email = git_identity()
     sources = []
     for state in states.values():
         for key in ("worktree", "source", "conversation"):
@@ -206,8 +215,8 @@ def prepare_sources(root, states):
         source = Path(cloned.repo_mappings[Path(state["repository"]).as_uri()].local_path)
         git(["checkout", "-B", "main", "HEAD"], cwd=source)
         git(["remote", "remove", "origin"], cwd=source)
-        git(["config", "user.name", "OpenHands Factory"], cwd=source)
-        git(["config", "user.email", "factory@localhost"], cwd=source)
+        git(["config", "user.name", name], cwd=source)
+        git(["config", "user.email", email], cwd=source)
         state["source"] = str(source)
     return root / "source"
 
@@ -259,7 +268,11 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                         "Read any open maintainer questions in the issue; do not silently decide "
                         "behavior-changing options that the specification leaves unresolved. "
                         "Do not ask for blanket approval to perform this already authorized task. "
-                        "Return IMPLEMENTED only when the implementation is complete.",
+                        "Return IMPLEMENTED only when the implementation is complete. "
+                        "Write the summary for a pull request reviewer: explain the problem and "
+                        "the resulting behavior across ALL changes since the listed base, "
+                        "including retained work from earlier attempts. Omit orchestration "
+                        "details, local artifact paths, tool branding, and conversation history.",
                         "agent-full-access",
                         "Implementation",
                         conversation_id,
@@ -270,6 +283,8 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                         implementation.model_dump_json(indent=2)
                     )
                     (artifact / f"implementation-{attempt}.md").write_text(implementation.summary)
+                    for state in states.values():
+                        state["summary"] = implementation.summary
                     if implementation.status == "NEEDS_INPUT":
                         raise NeedsInput(
                             implementation.summary
@@ -378,6 +393,8 @@ def review_changes(configs, states, request, results):
 
 
 def execute_build(configs, task, request, credential, issue, publish_draft, artifact, states):
+    for state in states.values():
+        state["commit_message"] = request.splitlines()[0].lstrip("# ")[:180]
     outcome = {"task": task, "status": "RUNNING", "repositories": states}
 
     def save():
@@ -450,6 +467,7 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
                     request,
                     credential,
                     issue,
+                    summary=state.get("summary"),
                 )
                 save()
     except BaseException as exc:

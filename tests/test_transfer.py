@@ -15,6 +15,11 @@ import transfer
 
 
 class TransferTests(unittest.TestCase):
+    def setUp(self):
+        identity = patch.object(run, "git_identity", return_value=("Fixture", "fixture@localhost"))
+        identity.start()
+        self.addCleanup(identity.stop)
+
     def seed(self, root):
         source, bare = root / "seed", root / "task.git"
         common.git(["init", "-b", "factory/task", str(source)])

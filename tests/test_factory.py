@@ -322,10 +322,18 @@ class UpstreamTests(unittest.TestCase):
                     root,
                     "Approved feature",
                     "fixture-token",
+                    summary="Allow users to retry failed invitation validation.",
                 )
             self.assertTrue(captured[0]["draft"])
             self.assertEqual(captured[0]["base"], "trunk")
             self.assertEqual(captured[0]["head"], "factory/feature")
+            self.assertTrue(
+                captured[0]["body"].startswith("Allow users to retry failed invitation validation.")
+            )
+            self.assertNotIn("Approved feature", captured[0]["body"])
+            self.assertNotIn("Factory", captured[0]["body"])
+            self.assertNotIn("Canvas", captured[0]["body"])
+            self.assertNotIn(str(root), captured[0]["body"])
             pushed = common.git(
                 ["--git-dir", str(remote), "rev-parse", "refs/heads/factory/feature"]
             ).stdout.strip()
@@ -393,6 +401,11 @@ class ReviewResponseTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
+    def setUp(self):
+        identity = patch.object(run, "git_identity", return_value=("Fixture", "fixture@localhost"))
+        identity.start()
+        self.addCleanup(identity.stop)
+
     def test_failed_tests_or_review_keep_branch_and_never_publish(self):
         for exit_code, verdict in ((1, "PASS"), (0, "CHANGES_REQUESTED")):
             with (

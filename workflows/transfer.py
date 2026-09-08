@@ -27,7 +27,13 @@ def export_task(workspace, state, destination, task):
     if changed.exit_code:
         worker_git(
             workspace,
-            ["-c", "core.hooksPath=/dev/null", "commit", "-m", "Factory task " + task],
+            [
+                "-c",
+                "core.hooksPath=/dev/null",
+                "commit",
+                "-m",
+                state.get("commit_message") or "Implement " + task,
+            ],
             checkout,
         )
     branch = "refs/heads/" + state["branch"]

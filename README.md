@@ -139,6 +139,11 @@ Each enabled repository has a **Factory — NAME** automation. Defaults allow a
 poll every ten minutes and two task attempts per poll, with no daily cap.
 `daily_tasks: null` disables the daily cap; a positive number sets a UTC-day limit.
 
+Commits use the Git name and email from Canvas **Application settings**, read
+when each worker starts. Set both before running a build; use an email linked
+to your GitHub account for attribution. PR descriptions summarize the complete
+change and validation; run details and artifact paths stay in Canvas.
+
 | Work | Eligibility and result |
 | --- | --- |
 | Issue implementation | Open, unassigned issues, oldest first. The workflow claims the issue for the configured assignee, implements, tests, reviews and opens a draft PR. |
