@@ -37,6 +37,14 @@ removes the daily cap; per-poll batching and repository locks still apply.
 - Independent review uses a fresh clone in a new worker after implementation
   exits. Triage also runs in a worker, with a copy of the catalog. Neither runs
   repository tools in the credential-bearing Canvas process.
+- Review runs the Code Reviewer and Application Security Engineer roles in
+  parallel under a read-only coordinator. The adapter obtains role identities,
+  parent/child relationships, completion and final messages from native Codex
+  thread records. The factory validates both reports and computes a verdict
+  from blocking findings; it does not trust a coordinator's claim of success.
+  Minor findings are advisory. Missing or malformed review evidence prevents
+  publication. Classification and review completeness still depend on model
+  judgment; these reviews do not replace dedicated security scanning.
 - The pinned adapter's read-only mode uses a read-only sandbox, no command
   network access, and no escalation. The SDK also refuses permission requests
   for these sessions. Building and interactive coordinator modes retain their

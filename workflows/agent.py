@@ -37,6 +37,7 @@ def converse(
     conversation_id=None,
     response_model=None,
     transcript=None,
+    event_log=None,
 ):
     conversation = Conversation(
         agent=worker_agent(mode),
@@ -79,6 +80,8 @@ def converse(
                     "Do not use tools or add commentary." + schema
                 )
     finally:
+        if event_log is not None:
+            event_log.extend(event.model_dump(mode="json") for event in conversation.state.events)
         if transcript:
             # Save before the disposable agent server exits, including failures
             # and requests for input. This contains agent events, not its secrets.

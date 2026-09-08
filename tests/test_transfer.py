@@ -236,7 +236,7 @@ class TransferTests(unittest.TestCase):
                 if mode == "agent-full-access":
                     self.assertIn("Approved fixture", prompt)
                     if builder_roots:
-                        self.assertIn("Fix the failed tests and review findings", prompt)
+                        self.assertIn("Fix the failed tests and blocking review findings", prompt)
                     builder_roots.append(active_workers[0])
                     (checkout / "code.txt").write_text("implemented\n")
                     subprocess.run(
@@ -277,6 +277,7 @@ class TransferTests(unittest.TestCase):
                 patch.object(run, "worker", worker),
                 patch.object(run, "worktree", worktree),
                 patch.object(run, "converse", converse),
+                patch.object(run, "review_code", converse),
             ):
                 result = run.execute_build(
                     [config],

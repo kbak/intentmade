@@ -9,6 +9,8 @@ COPY runtime/patch_review_policy.py /opt/factory/patch_review_policy.py
 RUN python /opt/factory/patch_review_policy.py
 COPY runtime/patch_agency_agents.py /opt/factory/patch_agency_agents.py
 RUN python /opt/factory/patch_agency_agents.py
+COPY runtime/patch_specialist_review.py /opt/factory/patch_specialist_review.py
+RUN python /opt/factory/patch_specialist_review.py
 COPY runtime/patch_workspace_runtime.py /opt/factory/patch_workspace_runtime.py
 RUN python /opt/factory/patch_workspace_runtime.py
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py
@@ -31,6 +33,7 @@ COPY workflows/ /opt/factory/workflows/
 COPY runtime/factory_context.py /opt/factory/workflows/factory_context.py
 COPY runtime/factory-context.mjs /opt/factory/factory-context.mjs
 COPY runtime/factory-agents.mjs /opt/factory/factory-agents.mjs
+COPY runtime/factory-review.mjs /opt/factory/factory-review.mjs
 COPY runtime/codex-seccomp.json /opt/factory/codex-seccomp.json
 COPY runtime/LICENSE.moby-profiles /opt/factory/LICENSE.moby-profiles
 COPY coordinator/AGENTS.md /opt/factory/coordinator.md

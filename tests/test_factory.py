@@ -463,6 +463,7 @@ class PipelineTests(unittest.TestCase):
                     patch.object(run, "worker", worker),
                     patch.object(run, "worktree", worktree),
                     patch.object(run, "converse", converse),
+                    patch.object(run, "review_code", converse),
                     patch.object(run, "publish") as publish,
                 ):
                     with self.assertRaises(RuntimeError):
@@ -585,6 +586,7 @@ class PipelineTests(unittest.TestCase):
                     patch.object(run, "worker", worker),
                     patch.object(run, "worktree", worktree),
                     patch.object(run, "converse", converse),
+                    patch.object(run, "review_code", converse),
                     patch.object(run, "publish", side_effect=publish) as published,
                 ):
 

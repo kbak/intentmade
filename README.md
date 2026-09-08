@@ -66,6 +66,32 @@ for its lifetime and retains its role's permissions (reviews stay read-only).
 Editing the profile affects subsequent workers without rebuilding the image.
 Rerunning `configure` preserves the existing profile and its model selection.
 
+### Independent code and security review
+
+Automatic reviews and `factoryctl review` use a coordinator that starts the
+bundled **Code Reviewer** and **Application Security Engineer** as two native
+Codex subagents in parallel. Both inspect the same change in a fresh read-only
+worker and inherit the selected model and reasoning effort. The factory verifies
+their native role identities, completion and final reports before calculating
+the overall verdict; a coordinator summary cannot substitute for either review.
+
+`PASS` means both reviews completed with no blocking findings. Low/informational
+security findings, hardening suggestions and style preferences remain in the
+report and do not trigger repairs. Material code defects and high/critical
+security vulnerabilities block publication. Medium security findings block only
+when supported by demonstrated exploitability and material impact. A review with
+no findings is valid. Reviewers must cite evidence and a concrete failure or
+attack scenario for every blocker.
+
+`CHANGES_REQUESTED` sends only blocking findings back to the builder, alongside
+any failed tests. `BLOCKED` means a required review or its native execution
+evidence is incomplete and stops publication without spending code repair
+attempts. Each specialist's findings are retained in the review JSON; the
+transcript preserves their original responses. The Markdown report separates
+blockers from advisory findings.
+These are source reviews using available test/CI evidence, not a guarantee that
+SAST, DAST, secret scanning or current dependency vulnerability scans ran.
+
 ### Agency agents
 
 The runtime includes 273 native Codex custom agents from

@@ -34,6 +34,25 @@ Recovery regressions cover root-owned cleanup failures, retained work after a
 branch rename or failed export, bounded test/review repair, structured questions,
 explicit Canvas replies, and SKIPPED callbacks with persistent conversation links.
 They also distinguish blocked review infrastructure from actionable code defects.
+Specialist review regressions check that both native roles completed, that minor
+findings never trigger code repairs, that material blockers cannot be hidden by a
+PASS summary, and that missing or malformed reports stop publication.
+
+Verify native parallel role selection and evidence capture with a local scripted
+model endpoint (no login, external network, or production state):
+
+```bash
+docker run --rm --network none --entrypoint python \
+  -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
+  -v "$PWD/tests:/tests:ro" \
+  openhands-factory:dev /tests/check_specialist_review.py
+```
+
+This checks the actual pinned Codex/ACP protocol, both installed role prompts,
+concurrent execution, inherited model/read-only policy, and a passing result with
+an advisory finding. It does not measure model review quality. Rerun it after
+Codex, ACP, or agency role upgrades; rebuild the image first after runtime edits.
+
 Verify the pinned Codex sandbox against the real kernel and factory container profile:
 
 ```bash
