@@ -46,7 +46,7 @@ def write_report(config, task, record):
     temp.replace(path)
 
 
-def post(conversation_id, message):
+def post(conversation_id, message, run=False):
     api(
         "POST",
         f"/api/conversations/{conversation_id}/events",
@@ -55,7 +55,7 @@ def post(conversation_id, message):
             # generated reports explicitly; never impersonate an agent turn.
             "role": "user",
             "content": [{"type": "text", "text": "Factory update\n\n" + message}],
-            "run": False,
+            "run": run,
         },
     )
 
@@ -128,7 +128,11 @@ class TaskReport:
                 f"/api/conversations/{self.record['conversation_id']}",
                 json={"title": f"{self.config['project']} — {self.task} — {status}"},
             )
-            post(self.record["conversation_id"], f"**{status}**\n\n{message}")
+            post(
+                self.record["conversation_id"],
+                f"**{status}**\n\n{message}",
+                run=status == "NEEDS_INPUT",
+            )
         except Exception as exc:
             print(f"Canvas report update unavailable: {type(exc).__name__}", flush=True)
 

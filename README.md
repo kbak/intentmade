@@ -156,7 +156,8 @@ tests, independent review, repair and publication. Empty or busy scans report
 **Skipped**, not a successful implementation.
 
 Material unanswered questions stop implementation with **NEEDS_INPUT**, before
-tests or publication. Reply in the task conversation with `resume: YOUR ANSWER`;
+tests or publication, and wake the read-only report assistant to ask them in Canvas.
+Reply in the task conversation with `resume: YOUR ANSWER`;
 the next scheduled scan consumes that explicit reply once and continues the same
 task branch and specification. A normal discussion message does not restart work.
 No blanket approval or extra label is required. To retry immediately after fixing
