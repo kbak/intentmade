@@ -20,6 +20,9 @@ def worker_git(workspace, args, cwd, check=True):
 def export_task(workspace, state, destination, task):
     """All commands consuming mutable Git configuration execute in the worker."""
     checkout = state["worktree"]
+    conflicts = worker_git(workspace, ["ls-files", "--unmerged"], checkout)
+    if conflicts.stdout.strip():
+        raise RuntimeError("Unresolved merge conflicts; retain the workspace for recovery")
     worker_git(workspace, ["add", "-A"], checkout)
     changed = worker_git(workspace, ["diff", "--cached", "--quiet"], checkout, check=False)
     if changed.exit_code not in (0, 1):
@@ -40,7 +43,11 @@ def export_task(workspace, state, destination, task):
     head = worker_git(workspace, ["rev-parse", "HEAD"], checkout).stdout.strip()
     # Repository guidance can rename the branch. Export the current work under
     # the task ref; the parent still enforces a fast-forward of retained history.
-    worker_git(workspace, ["merge-base", "--is-ancestor", state["base"], head], checkout)
+    worker_git(
+        workspace,
+        ["merge-base", "--is-ancestor", state.get("retention_base", state["base"]), head],
+        checkout,
+    )
     worker_git(workspace, ["update-ref", branch, head], checkout)
     worker_git(workspace, ["bundle", "create", str(destination), branch], checkout)
 

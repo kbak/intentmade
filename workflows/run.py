@@ -12,6 +12,7 @@ from typing import Literal
 from agent import converse, worktree
 from cleanup import job_directory
 from common import DATA, api, evidence, git, github, identifier, issues, job_id, lock, token
+from naming import branch_name, change_title
 from openhands.sdk.workspace.repo import RepoSource, clone_repos
 from pydantic import BaseModel, Field, model_validator
 from reporting import NeedsInput, outcome, phase, run_report
@@ -27,6 +28,7 @@ class ReviewResult(BaseModel):
 class ImplementationResult(BaseModel):
     status: Literal["IMPLEMENTED", "NEEDS_INPUT"]
     summary: str
+    title: str | None = None
     questions: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -38,11 +40,11 @@ class ImplementationResult(BaseModel):
         return self
 
 
-def task_repository(config, task, base, credential):
+def task_repository(config, task, base, credential, request=""):
     from urllib.parse import urlsplit
 
     repository = DATA / "tasks" / config["project"] / (identifier(task) + ".git")
-    branch = config["branch_prefix"] + "/" + task
+    branch = branch_name(task, request or task, config.get("branch_prefix"))
     if not repository.exists():
         repository.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -67,6 +69,7 @@ def task_repository(config, task, base, credential):
                     git(["clone", "--bare", str(source), str(repository)])
             git(["--git-dir", str(repository), "update-ref", "refs/heads/" + branch, base])
             git(["--git-dir", str(repository), "config", "factory.base", base])
+            git(["--git-dir", str(repository), "config", "factory.branch", branch])
         except BaseException:
             shutil.rmtree(repository, ignore_errors=True)
             raise
@@ -112,14 +115,38 @@ def task_repository(config, task, base, credential):
         )
     if not matches:
         raise RuntimeError("Retained task uses a different base branch; use a new task ID")
+    stored_task_branch = git([*args, "config", "--get", "factory.branch"], check=False)
+    if stored_task_branch.returncode == 0:
+        branch = stored_task_branch.stdout.strip()
+    else:
+        # Preserve published branches when naming defaults or issue titles change.
+        branch = git([*args, "symbolic-ref", "--short", "HEAD"]).stdout.strip()
+        if branch == config["branch"]:
+            legacy = (config.get("branch_prefix") or "factory") + "/" + task
+            branch = legacy
+    git(["check-ref-format", "--branch", branch])
+    git([*args, "show-ref", "--verify", "refs/heads/" + branch])
+    git([*args, "config", "factory.branch", branch])
     git([*args, "config", "factory.repository", identity])
     git([*args, "config", "factory.baseBranch", config["branch"]])
     git(["--git-dir", str(repository), "symbolic-ref", "HEAD", "refs/heads/" + branch])
     return repository, branch
 
 
-def publish(config, task, repo, branch, artifact, request, credential, issue=None, *, summary=None):
-    title = (f"[#{issue}] " if issue else "") + request.splitlines()[0].lstrip("# ")[:180]
+def publish(
+    config,
+    task,
+    repo,
+    branch,
+    artifact,
+    request,
+    credential,
+    issue=None,
+    *,
+    summary=None,
+    title=None,
+):
+    title = change_title(title or request)
     body = (
         (summary or request.splitlines()[0]).strip()[:35000]
         + "\n\n### Validation\n\n- Tests passed.\n- Independent code review passed.\n"
@@ -140,12 +167,24 @@ def publish(config, task, repo, branch, artifact, request, credential, issue=Non
         if not config.get("issue_approval"):
             raise RuntimeError("Issue approval snapshot is missing; publication withheld")
         approved_issue(config, issue, credential, expected=config["issue_approval"])
+    repair = config.get("repair_pr")
+    if repair:
+        from followup import verify_revision
+
+        verify_revision(config, repair, credential)
     # Use upstream authenticated Git operations and idempotent draft PR creation.
     issues._push_branch(repo, branch, credential)
-    result = issues._open_pull_request(
-        credential, config["repository"], branch, config["branch"], title, body
+    result = (
+        github(credential, "GET", f"/repos/{config['repository']}/pulls/{repair['number']}")
+        if repair
+        else issues._open_pull_request(
+            credential, config["repository"], branch, config["branch"], title, body
+        )
     )
     (artifact / "pull-request.json").write_text(json.dumps(result, indent=2))
+    from followup import track
+
+    track(config, task, repo, branch, result, request, issue)
     return result["html_url"]
 
 
@@ -175,7 +214,7 @@ def build_group(configs, task, request, bases, credential="", issue=None, publis
         states = {}
         for config in configs:
             project = config["project"]
-            repository, branch = task_repository(config, task, bases[project], credential)
+            repository, branch = task_repository(config, task, bases[project], credential, request)
             states[project] = {
                 "branch": branch,
                 "base": git(
@@ -183,6 +222,16 @@ def build_group(configs, task, request, bases, credential="", issue=None, publis
                 ).stdout.strip(),
                 "repository": str(repository),
             }
+            if config["repository"] and states[project]["base"] != bases[project]:
+                git(
+                    ["--git-dir", str(repository), "fetch", "--no-tags", "origin", bases[project]],
+                    token=credential,
+                )
+                states[project].update(
+                    retention_base=states[project]["base"],
+                    base=bases[project],
+                    merge_base=bases[project],
+                )
         return execute_build(
             configs, task, request, credential, issue, publish_draft, artifact, states
         )
@@ -214,6 +263,11 @@ def prepare_sources(root, states):
     for project, state in states.items():
         source = Path(cloned.repo_mappings[Path(state["repository"]).as_uri()].local_path)
         git(["checkout", "-B", "main", "HEAD"], cwd=source)
+        if state.get("merge_base"):
+            git(
+                ["fetch", "--no-tags", Path(state["repository"]).as_uri(), state["merge_base"]],
+                cwd=source,
+            )
         git(["remote", "remove", "origin"], cwd=source)
         git(["config", "user.name", name], cwd=source)
         git(["config", "user.email", email], cwd=source)
@@ -243,6 +297,24 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                         state["conversation"] = worktree(workspace)
                         state["worktree"] = workspace.working_dir
                         worker_git(workspace, ["branch", "-M", state["branch"]], state["worktree"])
+                        if state.get("merge_base"):
+                            merged = worker_git(
+                                workspace,
+                                [
+                                    "-c",
+                                    "core.hooksPath=/dev/null",
+                                    "merge",
+                                    "--no-edit",
+                                    state["merge_base"],
+                                ],
+                                state["worktree"],
+                                check=False,
+                            )
+                            if merged.exit_code not in (0, 1):
+                                raise RuntimeError(
+                                    "Could not merge the current base: " + merged.stderr[-2000:]
+                                )
+                            state["merge_output"] = (merged.stdout + merged.stderr)[-4000:]
                         (active / project).symlink_to(state["worktree"], target_is_directory=True)
                     workspace.working_dir = (
                         str(active) if len(states) > 1 else next(iter(states.values()))["worktree"]
@@ -255,6 +327,8 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                         prompt
                         + "\n\nTask repositories:\n"
                         + task_context(states)
+                        + "\nBase-branch merge results (resolve any conflicts, preserving both sides' intended behavior):\n"
+                        + "\n".join(s.get("merge_output", "") for s in states.values())
                         + "\nImplement the approved specification. Read each repository's guidance. "
                         "Keep the listed branches. Change only these task worktrees. "
                         "The factory has already created the task branch and selected its base. "
@@ -272,7 +346,9 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                         "Write the summary for a pull request reviewer: explain the problem and "
                         "the resulting behavior across ALL changes since the listed base, "
                         "including retained work from earlier attempts. Omit orchestration "
-                        "details, local artifact paths, tool branding, and conversation history.",
+                        "details, local artifact paths, tool branding, and conversation history. "
+                        "Include a concise Conventional Commits title describing the resulting "
+                        "change, such as 'fix(telegram): restore scanning after /stop'.",
                         "agent-full-access",
                         "Implementation",
                         conversation_id,
@@ -285,6 +361,9 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                     (artifact / f"implementation-{attempt}.md").write_text(implementation.summary)
                     for state in states.values():
                         state["summary"] = implementation.summary
+                        if implementation.title:
+                            state["title"] = change_title(implementation.title)
+                            state["commit_message"] = state["title"]
                     if implementation.status == "NEEDS_INPUT":
                         raise NeedsInput(
                             implementation.summary
@@ -394,7 +473,7 @@ def review_changes(configs, states, request, results):
 
 def execute_build(configs, task, request, credential, issue, publish_draft, artifact, states):
     for state in states.values():
-        state["commit_message"] = request.splitlines()[0].lstrip("# ")[:180]
+        state["commit_message"] = change_title(request)
     outcome = {"task": task, "status": "RUNNING", "repositories": states}
 
     def save():
@@ -446,6 +525,17 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
         raise
     finally:
         save()
+        for state in states.values():
+            if state.get("merge_base") and state.get("commit"):
+                args = ["--git-dir", state["repository"]]
+                if (
+                    git(
+                        [*args, "merge-base", "--is-ancestor", state["base"], state["commit"]],
+                        check=False,
+                    ).returncode
+                    == 0
+                ):
+                    git([*args, "config", "factory.base", state["base"]])
     outcome["status"] = "PASSED"
     try:
         outcome["phase"] = "PUBLISHING"
@@ -468,6 +558,7 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
                     credential,
                     issue,
                     summary=state.get("summary"),
+                    title=state.get("title"),
                 )
                 save()
     except BaseException as exc:

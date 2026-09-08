@@ -58,6 +58,38 @@ class TransferTests(unittest.TestCase):
                 "valuable uncommitted fix",
             )
 
+    def test_unresolved_merge_cannot_be_committed_by_export(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source, state = self.seed(root)
+            common.git(["checkout", "-b", "upstream"], cwd=source)
+            (source / "code.txt").write_text("upstream behavior")
+            common.git(["commit", "-am", "upstream change"], cwd=source)
+            common.git(["checkout", "factory/task"], cwd=source)
+            (source / "code.txt").write_text("task behavior")
+            common.git(["commit", "-am", "task change"], cwd=source)
+            head = common.git(["rev-parse", "HEAD"], cwd=source).stdout
+            self.assertEqual(
+                common.git(["merge", "upstream"], cwd=source, check=False).returncode, 1
+            )
+            state["worktree"] = str(source)
+
+            def execute(command, cwd, **kwargs):
+                result = subprocess.run(
+                    ["bash", "-c", command], cwd=cwd, capture_output=True, text=True
+                )
+                return SimpleNamespace(
+                    exit_code=result.returncode, stdout=result.stdout, stderr=result.stderr
+                )
+
+            with self.assertRaisesRegex(RuntimeError, "Unresolved merge conflicts"):
+                transfer.export_task(
+                    SimpleNamespace(execute_command=execute), state, root / "task.bundle", "task"
+                )
+            self.assertEqual(common.git(["rev-parse", "HEAD"], cwd=source).stdout, head)
+            self.assertIn("<<<<<<<", (source / "code.txt").read_text())
+            self.assertFalse((root / "task.bundle").exists())
+
     def test_group_retains_later_valid_export_when_first_bundle_is_corrupt(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

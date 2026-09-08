@@ -171,6 +171,18 @@ class TaskIdentityTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "different base branch"):
             run.task_repository({**CONFIG, "branch": "trunk"}, "issue-42", self.base, "")
 
+    def test_new_naming_defaults_preserve_a_retained_published_branch(self):
+        _, branch = run.task_repository(
+            {**CONFIG, "branch_prefix": None},
+            "issue-42",
+            self.base,
+            "",
+            "fix: different descriptive title",
+        )
+        self.assertEqual(branch, "factory/issue-42")
+        self.assertEqual(self.git("config", "factory.branch"), branch)
+        self.assertEqual(self.git("rev-parse", branch), self.tip)
+
 
 class SchedulerTests(unittest.TestCase):
     def setUp(self):

@@ -144,11 +144,30 @@ when each worker starts. Set both before running a build; use an email linked
 to your GitHub account for attribution. PR descriptions summarize the complete
 change and validation; run details and artifact paths stay in Canvas.
 
+New branches use `<type>/<issue-number>-<description>`, for example
+`fix/1402-telegram-restore-scanning-after-stop`. Manual tasks use their task ID
+in place of the issue number. `branch_prefix: null` derives the type from the
+task title; an explicit prefix overrides that category. The chosen branch is
+stored with the task, so changing defaults or titles preserves existing PRs.
+PR titles and commits use Conventional Commits, with `bug` normalized to `fix`.
+
 | Work | Eligibility and result |
 | --- | --- |
 | Issue implementation | Open, unassigned issues, oldest first. The workflow claims the issue for the configured assignee, implements, tests, reviews and opens a draft PR. |
 | Issue proposals | When an optional approval label is configured, changed, unassigned issues without that label may receive proposals in Canvas when polling capacity is available. |
 | PR review | Open, non-draft PRs whose required CI checks are present and whose reported checks have accepted results. Reports remain in Canvas and local artifacts. |
+| Published PR maintenance | PRs recorded as published by this instance, including drafts. Check CI, repair failures and merge newer base commits into the existing task branch. |
+
+Publication starts CI monitoring. Recorded PR updates take priority over new
+issues. Repairs receive CI annotations and available job logs, then run the
+configured tests and independent review against the current base before pushing.
+The PR head, branch ownership and base are rechecked immediately before push;
+concurrent changes withhold publication. Successful CI resets the consecutive
+repair count. `ci_repair_attempts` defaults to three consecutive CI repairs per
+PR; it is independent of daily task limits. Unresolved failures or product
+questions are reported in the PR's Canvas conversation and accept an explicit
+`resume:` reply. A branch name or shared GitHub login alone never grants repair
+scope over someone else's PR.
 
 `issue_label: null` makes open, unassigned issues eligible without a label. Enabling
 the repository's schedule authorizes that work; the issue title and body provide

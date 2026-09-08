@@ -10,6 +10,7 @@ import tempfile
 import urllib.error
 from pathlib import Path
 
+import followup
 import reporting
 from agent import converse
 from cleanup import job_directory
@@ -249,6 +250,8 @@ def poll(config, credential):
             state[key] = dict(list(state[key].items())[-150:])
         issues._kv_set("factory", state)
 
+    # Adopt durable publication receipts from the previous workflow version.
+    followup.adopt_reports(config)
     # Readiness is polled on every tick, independent of PR updated_at.
     candidates = []
     items = (
@@ -291,20 +294,32 @@ def poll(config, credential):
                 if report and report.get("snapshot") == issue_snapshot(config, item)[1]:
                     continue
                 candidates.append(("issue", key, item))
+    maintenance = []
     for item in reviews._list_open_prs(credential, repo):
         key = f"pr:{item['number']}:{item['head']['sha']}"
-        if key not in state["done"] and not item.get("draft"):
+        tracked = followup.read(config, item["number"])
+        if tracked or (key not in state["done"] and not item.get("draft")):
             try:
                 fresh = reviews._get_pr(credential, repo, item["number"])
+                action = followup.plan(config, fresh, credential) if tracked else None
                 fresh_key = f"pr:{fresh['number']}:{fresh['head']['sha']}"
-                if fresh_key not in state["done"] and pr_eligible(credential, fresh, config):
+                if action:
+                    maintenance.append(
+                        (
+                            "maintenance",
+                            f"maintenance:{fresh['number']}:{action['key']}",
+                            {**fresh, "maintenance": action},
+                        )
+                    )
+                elif fresh_key not in state["done"] and pr_eligible(credential, fresh, config):
                     candidates.append(("pr", fresh_key, fresh))
             except urllib.error.HTTPError as exc:
                 if exc.code != 404:
                     raise
                 print(f"PR #{item['number']}: revision/checks unavailable; deferred.", flush=True)
+    candidates = maintenance + candidates
     print(
-        f"Ready: {sum(kind == 'issue' for kind, _, _ in candidates)} issues, "
+        f"Ready: {len(maintenance)} PR updates, {sum(kind == 'issue' for kind, _, _ in candidates)} issues, "
         f"{sum(kind == 'pr' for kind, _, _ in candidates)} PR reviews; "
         f"up to {remaining} tasks this scan.",
         flush=True,
@@ -335,6 +350,14 @@ def poll(config, credential):
                 else:
                     state["done"][key] = "completed" if result else "ineligible"
                     processed += bool(result)
+            elif kind == "maintenance":
+                phase(f"Updating PR #{item['number']}")
+                if followup.maintain(config, item, item["maintenance"], credential):
+                    state["done"][key] = "updated"
+                    processed += 1
+                else:
+                    state["done"][key] = "needs-input"
+                    waiting += 1
             else:
                 phase(f"Reviewing PR #{item['number']}")
                 if review_pr(config, item, credential):

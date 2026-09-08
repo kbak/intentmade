@@ -42,15 +42,8 @@ def checks_pass(checks, config):
     )
 
 
-def checks_for(token, repo, sha):
+def latest_check_runs(token, repo, sha):
     checks = {}
-
-    def record(name, value):
-        # Two providers can report the same name; a successful result must not
-        # overwrite another provider's pending or failed result.
-        if name not in checks or checks[name] in {"success", "neutral", "skipped"}:
-            checks[name] = value
-
     page = 1
     while True:
         data = github(
@@ -60,13 +53,34 @@ def checks_for(token, repo, sha):
             params={"per_page": 100, "page": page, "filter": "latest"},
         )
         for check in data["check_runs"]:
-            record(
-                check["name"],
-                (check.get("conclusion") if check["status"] == "completed" else "pending"),
+            provider = (check.get("app") or {}).get("id")
+            # A title edit or rerun can create another suite on the same SHA.
+            # Supersede an older result from the same provider, but retain
+            # failures from other providers with the same check name.
+            key = (
+                (provider, check["name"])
+                if provider is not None and check.get("id")
+                else ("unknown", len(checks))
             )
+            if key not in checks or check.get("id", 0) > checks[key].get("id", 0):
+                checks[key] = check
         if len(data["check_runs"]) < 100:
             break
         page += 1
+    return list(checks.values())
+
+
+def checks_for(token, repo, sha):
+    checks = {}
+
+    def record(name, value):
+        if name not in checks or checks[name] in {"success", "neutral", "skipped"}:
+            checks[name] = value
+
+    for check in latest_check_runs(token, repo, sha):
+        record(
+            check["name"], check.get("conclusion") if check["status"] == "completed" else "pending"
+        )
     # The combined endpoint includes the latest status per context.
     page = 1
     while True:
