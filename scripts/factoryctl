@@ -61,6 +61,7 @@ p.add_argument(
         "configure",
         "submit",
         "review",
+        "retry-issue",
         "refresh",
         "projects",
         "factories",
@@ -134,6 +135,14 @@ elif a.action == "submit":
     native("submit", a.args[0], "-", *a.args[2:], input=Path(a.args[1]).read_text(), text=True)
 elif a.action == "review":
     native("review", *a.args)
+elif a.action == "retry-issue":
+    if "--answer-file" in a.args:
+        index = a.args.index("--answer-file") + 1
+        answer = Path(a.args[index]).read_text()
+        a.args[index] = "-"
+        native("retry-issue", *a.args, input=answer, text=True)
+    else:
+        native("retry-issue", *a.args)
 elif a.action == "refresh":
     for name, project in projects().items():
         if project["repository"] and (not a.args or name in a.args):

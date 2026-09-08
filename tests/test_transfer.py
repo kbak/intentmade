@@ -27,6 +27,32 @@ class TransferTests(unittest.TestCase):
         common.git(["clone", "--bare", str(source), str(bare)])
         return source, {"repository": str(bare), "base": base, "branch": "factory/task"}
 
+    def test_agent_branch_rename_retains_current_work_under_the_task_branch(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source, state = self.seed(root)
+            state["worktree"] = str(source)
+            common.git(["branch", "-m", "fix/issue-name-from-guidance"], cwd=source)
+            (source / "code.txt").write_text("valuable uncommitted fix")
+
+            def execute(command, cwd, **kwargs):
+                result = subprocess.run(
+                    ["bash", "-c", command], cwd=cwd, text=True, capture_output=True
+                )
+                return SimpleNamespace(
+                    exit_code=result.returncode, stdout=result.stdout, stderr=result.stderr
+                )
+
+            bundle = root / "export.bundle"
+            transfer.export_task(SimpleNamespace(execute_command=execute), state, bundle, "task")
+            transfer.import_task(state, bundle)
+            self.assertEqual(
+                common.git(
+                    ["--git-dir", state["repository"], "show", "factory/task:code.txt"]
+                ).stdout,
+                "valuable uncommitted fix",
+            )
+
     def test_group_retains_later_valid_export_when_first_bundle_is_corrupt(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -61,12 +87,12 @@ class TransferTests(unittest.TestCase):
                 workspace.working_dir = str(checkout)
                 return "fixture"
 
-            def converse(workspace, *args):
+            def converse(workspace, *args, **kwargs):
                 for project in states:
                     (Path(workspace.working_dir) / project / "code.txt").write_text(
                         "retained change\n"
                     )
-                return "Implemented"
+                return run.ImplementationResult(status="IMPLEMENTED", summary="Implemented")
 
             def export(workspace, state, destination, task):
                 transfer.export_task(workspace, state, destination, task)
@@ -90,7 +116,8 @@ class TransferTests(unittest.TestCase):
                 ).stdout,
                 "retained change\n",
             )
-            self.assertEqual(list(root.glob("job-*")), [])
+            self.assertEqual(len(list(root.glob("job-*"))), 1)
+            self.assertTrue((artifact / "recovery-workspace.txt").exists())
 
     def test_reject_symlink_and_fifo_exports_without_reading_them(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -185,7 +212,7 @@ class TransferTests(unittest.TestCase):
                         cwd=checkout,
                         check=True,
                     )
-                    return "Implemented"
+                    return run.ImplementationResult(status="IMPLEMENTED", summary="Implemented")
                 self.assertNotEqual(active_workers[0], builder_roots[-1])
                 self.assertFalse(builder_roots[-1].exists())
                 self.assertEqual((checkout / "code.txt").read_text(), "implemented\n")

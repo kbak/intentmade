@@ -26,6 +26,7 @@ def converse(
     title="Factory discussion",
     conversation_id=None,
     response_model=None,
+    transcript=None,
 ):
     conversation = Conversation(
         agent=ACPAgent(acp_command=["codex-acp"], acp_server="codex", acp_session_mode=mode),
@@ -64,10 +65,19 @@ def converse(
                 # ACP can aggregate progress text with the final response. Ask the
                 # same reviewer to restate its decision; never guess from prose.
                 conversation.send_message(
-                    "Restate your completed review decision. Do not use tools or add commentary."
-                    + schema
+                    "Restate your final response in the required JSON format. "
+                    "Do not use tools or add commentary." + schema
                 )
     finally:
+        if transcript:
+            # Save before the disposable agent server exits, including failures
+            # and requests for input. This contains agent events, not its secrets.
+            try:
+                with transcript.open("w") as handle:
+                    for event in conversation.state.events:
+                        handle.write(event.model_dump_json() + "\n")
+            except Exception as exc:
+                print(f"Could not save conversation transcript: {type(exc).__name__}", flush=True)
         conversation.close()
 
 

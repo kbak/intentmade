@@ -32,9 +32,10 @@ def export_task(workspace, state, destination, task):
         )
     branch = "refs/heads/" + state["branch"]
     head = worker_git(workspace, ["rev-parse", "HEAD"], checkout).stdout.strip()
-    tip = worker_git(workspace, ["rev-parse", branch], checkout).stdout.strip()
-    if head != tip:
-        raise RuntimeError("Worker left the approved task branch")
+    # Repository guidance can rename the branch. Export the current work under
+    # the task ref; the parent still enforces a fast-forward of retained history.
+    worker_git(workspace, ["merge-base", "--is-ancestor", state["base"], head], checkout)
+    worker_git(workspace, ["update-ref", branch, head], checkout)
     worker_git(workspace, ["bundle", "create", str(destination), branch], checkout)
 
 

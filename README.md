@@ -149,9 +149,33 @@ poll every ten minutes and two task attempts per poll, with no daily cap.
 the repository's schedule authorizes that work; the issue title and body provide
 the specification. A running task must still match that specification before
 publication. On failure, the workflow releases only its own assignment and records
-the attempted specification so it is not retried on every poll. Inspect the failed
-run and update the issue specification to request another attempt, or continue
-the retained task manually.
+the attempted specification so it is not retried on every poll. Each issue gets
+a persistent Canvas conversation with its result, questions and evidence path.
+The run links to that conversation; live phases distinguish implementation,
+tests, independent review, repair and publication. Empty or busy scans report
+**Skipped**, not a successful implementation.
+
+Material unanswered questions stop implementation with **NEEDS_INPUT**, before
+tests or publication. Reply in the task conversation with `resume: YOUR ANSWER`;
+the next scheduled scan consumes that explicit reply once and continues the same
+task branch and specification. A normal discussion message does not restart work.
+No blanket approval or extra label is required. To retry immediately after fixing
+a failure, or supply an answer from a file:
+
+```bash
+./scripts/factoryctl retry-issue example-app 123
+./scripts/factoryctl retry-issue example-app 123 --answer-file ./answer.md
+```
+
+Changing an issue's specification invalidates a pending continuation. A fresh
+scan can pick up the changed issue under the ordinary eligibility rules. Failed
+exports keep the complete job workspace and write `recovery-workspace.txt` in
+the evidence directory. Successfully retained work continues through review even
+if cleanup must be deferred; `cleanup-warnings.log` identifies any leftover job.
+
+The pinned Canvas callback needs a small compatibility patch to accept its
+existing **SKIPPED** status and save task outcome metadata. The factory uses the
+native completion and phase APIs; it does not rewrite automation database rows.
 
 To opt into label-based approval, set `issue_label` to a label name. In that mode,
 applying the label authorizes implementation and draft publication; remove and

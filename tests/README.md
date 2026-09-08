@@ -30,6 +30,10 @@ pagination and durable deduplication. It uses local Git repositories and mocked
 GitHub and agent responses. No model calls, GitHub mutations, subscription login
 or private deployment are required.
 
+Recovery regressions cover root-owned cleanup failures, retained work after a
+branch rename or failed export, bounded test/review repair, structured questions,
+explicit Canvas replies, and SKIPPED callbacks with persistent conversation links.
+
 Check the real Docker network boundary separately:
 
 ```bash

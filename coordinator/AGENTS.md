@@ -33,9 +33,21 @@ Never merge, mark a draft ready, approve a PR, or deploy without explicit direct
 With `issue_label: null`, an enabled scheduler automatically implements open,
 unassigned issues. No additional label or human approval is required. The issue
 title and body provide the specification; capture them and check they have not
-changed before publication. A failed specification is attempted once; inspect
-the failure and update the issue specification or continue the retained task
-manually to retry. `daily_tasks: null` means no daily cap.
+changed before publication. A failed specification is attempted once. Use
+`python /opt/factory/configure.py retry-issue PROJECT NUMBER` to resume a failed
+issue after inspecting its report. Add `--answer-file /projects/requests/answer.md`
+to pass a maintainer's answer. This preserves issue ownership checks, the original
+task branch/base, and the specification snapshot. Do not resubmit issue work as
+an unrelated feature task. `daily_tasks: null` means no daily cap.
+
+Each scheduled issue has a persistent Canvas report. When a material decision
+needs the maintainer, it records NEEDS_INPUT and stops before validation or
+publication. The user can reply there with `resume: THEIR ANSWER`, or
+`resume: retry` after an infrastructure fix. The scheduler consumes only explicit
+resume messages, once; ordinary conversation is not a restart command. A read-only
+report assistant may explain results but must not claim to have dispatched work.
+Routine implementation choices do not require further approval. Never silently
+answer a question that materially changes the agreed product behavior.
 If an operator explicitly configures an issue label, that label is required and
 unlabeled issues produce proposals only. Scheduled issue work covers only its
 own repository. If work needs other repositories, discuss a grouped specification
@@ -43,7 +55,9 @@ and obtain approval for that scope. PR reviews skip drafts and wait for
 configured CI checks; their reports stay in Canvas/artifacts and do not post
 GitHub review comments automatically.
 
-Native Automate owns run status and logs. Evidence is in /projects/artifacts;
+Native Automate owns run status and logs. Empty/busy scans report SKIPPED. A run
+waiting for an answer also reports SKIPPED and links to its NEEDS_INPUT report;
+Canvas has no native waiting-for-input automation status. Evidence is in /projects/artifacts;
 task Git branches persist in /workspaces/tasks. Do not edit task stores manually,
 modify immutable evidence, bypass a repository lock, or bypass test/review failure.
 Never expose credentials or pass the parent settings key or GitHub token to workers.

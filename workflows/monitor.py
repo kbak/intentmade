@@ -10,22 +10,39 @@ import tempfile
 import urllib.error
 from pathlib import Path
 
+import reporting
 from agent import converse
+from cleanup import job_directory
 from common import DATA, evidence, github, issues, job_id, lock, reviews, token
-from openhands.sdk.workspace import LocalWorkspace
 from policy import issue_eligible, issue_snapshot, pr_eligible
+from reporting import NeedsInput, TaskReport, outcome, phase, resume_reply, run_report
 from run import build
 from sandbox import worker
 
 
 def review_pr(config, pr, credential):
+    report = TaskReport(config, f"pr-{pr['number']}") if reporting.ACTIVE else None
+    if report:
+        report.update("REVIEWING", f"Reviewing commit {pr['head']['sha']}.")
+    try:
+        current = _review_pr(config, pr, credential)
+        if report:
+            artifact = evidence(job_id() + "-pr-" + str(pr["number"]))
+            report.update("REVIEWED" if current else "STALE", (artifact / "review.md").read_text())
+        return current
+    except BaseException as exc:
+        if report:
+            report.update("FAILED", str(exc))
+        raise
+
+
+def _review_pr(config, pr, credential):
     repo, number, sha = config["repository"], pr["number"], pr["head"]["sha"]
     artifact = evidence(job_id() + "-pr-" + str(number))
     with (
         lock(config["project"] + ".build"),
-        tempfile.TemporaryDirectory(dir=DATA, prefix="job-") as temp,
+        job_directory(DATA, artifact) as root,
     ):
-        root = Path(temp)
         old_base = os.environ.get("WORKSPACE_BASE")
         try:
             os.environ["WORKSPACE_BASE"] = str(root)
@@ -69,14 +86,25 @@ def review_pr(config, pr, credential):
         return current
 
 
-def implement_issue(config, issue, credential):
+def implement_issue(config, issue, credential, resume=None):
     from approval import approved_issue
 
     repo, number = config["repository"], issue["number"]
     issue = issues._get_issue(credential, repo, number)
     if not issue_eligible(issue, config):
         return None
-    content, approval = approved_issue(config, number, credential)
+    content, approval = approved_issue(
+        config, number, credential, expected=resume["snapshot"] if resume else None
+    )
+    report = TaskReport(config, "issue-" + str(number), approval) if reporting.ACTIVE else None
+    if report:
+        if resume:
+            report.record.setdefault("answers", []).append(resume["answer"])
+        report.update(
+            "RUNNING",
+            f"Working on https://github.com/{repo}/issues/{number}.",
+            answer_id=resume.get("id") if resume else None,
+        )
     identity = config["assignee"]
     if identity == "@token-owner":
         identity = github(credential, "GET", "/user")["login"]
@@ -104,8 +132,11 @@ def implement_issue(config, issue, credential):
             + "\n\nDiscussion (context, not authorization):\n"
             + json.dumps(discussion)
         )
+        if resume:
+            answers = report.record["answers"] if report else [resume["answer"]]
+            request += "\n\nMaintainer responses for this specification:\n" + "\n\n".join(answers)
         base = github(credential, "GET", f"/repos/{repo}/commits/{config['branch']}")["sha"]
-        return build(
+        result = build(
             {**config, "assignee": identity, "issue_approval": approval},
             "issue-" + str(number),
             request,
@@ -113,7 +144,27 @@ def implement_issue(config, issue, credential):
             credential,
             issue=number,
         )
-    except BaseException:
+        if report:
+            urls = [
+                s["pull_request"] for s in result["repositories"].values() if s.get("pull_request")
+            ]
+            report.update(
+                "PASSED", "\n".join(urls) or "Validated; no new draft was published.", result=result
+            )
+        return result
+    except BaseException as exc:
+        status = "NEEDS_INPUT" if isinstance(exc, NeedsInput) else "FAILED"
+        if report:
+            report.update(
+                status,
+                str(exc)
+                + "\n\nWork/evidence: /projects/artifacts/"
+                + job_id()
+                + "-issue-"
+                + str(number)
+                + "\n\nReply `resume: YOUR ANSWER` to continue, or `resume: retry` "
+                "after an infrastructure fix. No PR has been confirmed by this run.",
+            )
         # Release only the ownership this run acquired, never somebody else's.
         current = issues._get_issue(credential, repo, number)
         if {a["login"] for a in current.get("assignees", [])} == {identity}:
@@ -123,6 +174,8 @@ def implement_issue(config, issue, credential):
                 f"/repos/{repo}/issues/{number}/assignees",
                 body={"assignees": [identity]},
             )
+        if isinstance(exc, NeedsInput):
+            return {"status": "NEEDS_INPUT", "questions": str(exc)}
         raise
 
 
@@ -142,6 +195,7 @@ def poll(config, credential):
         remaining = min(remaining, config["daily_tasks"] - state["count"])
     if remaining <= 0:
         print("Daily task limit reached.", flush=True)
+        outcome("SKIPPED", "Configured daily task limit reached")
         return
 
     # Native KV is limited to 64 KiB across all keys for an automation. Keep a
@@ -211,7 +265,16 @@ def poll(config, credential):
                 _, snapshot = issue_snapshot(config, item)
                 revision = "content-" + snapshot["content_sha256"]
             key = f"issue:{item['number']}:{revision}"
-            if key not in state["done"] and not attempted(key):
+            resume = resume_reply(config, "issue-" + str(item["number"]))
+            if resume:
+                item = {**item, "factory_resume": resume}
+                # A new, explicit answer retries this exact specification.
+                state["done"].pop(key, None)
+                candidates.append(("issue", key, item))
+            elif key not in state["done"] and not attempted(key):
+                report = reporting.read_report(config, "issue-" + str(item["number"]))
+                if report and report.get("snapshot") == issue_snapshot(config, item)[1]:
+                    continue
                 candidates.append(("issue", key, item))
     for item in reviews._list_open_prs(credential, repo):
         key = f"pr:{item['number']}:{item['head']['sha']}"
@@ -231,7 +294,7 @@ def poll(config, credential):
         f"up to {remaining} tasks this scan.",
         flush=True,
     )
-    errors = []
+    errors, processed, waiting = [], 0, 0
     for kind, key, item in candidates:
         if remaining <= 0:
             break
@@ -245,11 +308,23 @@ def poll(config, credential):
         try:
             if kind == "issue":
                 print(f"Implementing issue #{item['number']}: {item['title']}", flush=True)
-                result = implement_issue(config, item, credential)
-                state["done"][key] = "completed" if result else "ineligible"
+                if item.get("factory_resume"):
+                    result = implement_issue(
+                        config, item, credential, resume=item["factory_resume"]
+                    )
+                else:
+                    result = implement_issue(config, item, credential)
+                if result and result.get("status") == "NEEDS_INPUT":
+                    waiting += 1
+                    state["done"][key] = "needs-input:" + job_id()
+                else:
+                    state["done"][key] = "completed" if result else "ineligible"
+                    processed += bool(result)
             else:
+                phase(f"Reviewing PR #{item['number']}")
                 if review_pr(config, item, credential):
                     state["done"][key] = "reviewed"
+                    processed += 1
                 else:
                     state["done"].pop(key, None)
         except BlockingIOError:
@@ -263,6 +338,7 @@ def poll(config, credential):
         except Exception as exc:
             state["done"][key] = "failed:" + job_id()
             errors.append(f"{key}: {type(exc).__name__}: {exc}")
+            print(errors[-1], flush=True)
         finally:
             save()
     # Preserve discussion-first triage without treating every unassigned issue
@@ -305,6 +381,12 @@ def poll(config, credential):
             save()
     if errors:
         raise RuntimeError("\n".join(errors))
+    outcome(
+        "SKIPPED" if waiting or not processed else "COMPLETED",
+        f"{processed} tasks completed; {waiting} waiting for input"
+        if processed or waiting
+        else "No eligible work; previous attempts remain recorded",
+    )
 
 
 if __name__ == "__main__":
@@ -313,19 +395,32 @@ if __name__ == "__main__":
         raise InterruptedError("Cancelled")
 
     signal.signal(signal.SIGTERM, cancelled)
-    with LocalWorkspace(working_dir=os.getcwd()):
+    with run_report():
         job = json.loads(Path("job.json").read_text())
         config = job["config"]
         try:
-            with lock(config["project"] + ".poll"):
+            if job.get("retry_issue"):
+                phase(f"Issue #{job['retry_issue']}: waiting for {config['project']} repository")
+            with lock(config["project"] + ".poll", blocking=bool(job.get("retry_issue"))):
                 credential = token()
-                if job.get("review_pr"):
+                if job.get("retry_issue"):
+                    item = issues._get_issue(credential, config["repository"], job["retry_issue"])
+                    result = implement_issue(config, item, credential, resume=job["resume"])
+                    outcome(
+                        "SKIPPED"
+                        if not result or result["status"] == "NEEDS_INPUT"
+                        else "COMPLETED",
+                        "Issue continuation finished; inspect the linked task report",
+                    )
+                elif job.get("review_pr"):
                     pr = reviews._get_pr(credential, config["repository"], job["review_pr"])
                     if not pr_eligible(credential, pr, config):
                         raise RuntimeError("PR is draft, closed, or does not satisfy CI policy")
                     if not review_pr(config, pr, credential):
                         raise RuntimeError("PR changed during review; report marked stale")
+                    outcome("COMPLETED", "PR reviewed; report retained locally")
                 else:
                     poll(config, credential)
         except BlockingIOError:
             print("Previous repository scan is still running.", flush=True)
+            outcome("SKIPPED", "Repository is busy; no work started")

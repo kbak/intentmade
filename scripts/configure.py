@@ -195,6 +195,58 @@ def review(project, number):
     print("Native review run:", result["id"])
 
 
+def retry_issue(project, number, answer=None):
+    """Resume one issue without clearing scheduler history or changing its spec."""
+    from approval import approved_issue
+    from common import lock
+    from reporting import read_report
+
+    config = projects()[project]
+    # Serialize submissions, but let a different issue queue behind a running
+    # build. Execution takes the repository locks before touching task stores.
+    with lock(project + ".queue"):
+        record = read_report(config, "issue-" + str(number))
+        _, snapshot = approved_issue(
+            config, number, token(), expected=record.get("snapshot") if record else None
+        )
+        response = (
+            (sys.stdin.read() if answer == "-" else Path(answer).read_text())
+            if answer
+            else "Retry the retained task after the factory repair."
+        )
+        name = f"Continue — {project} — issue {number}"
+        previous = next((x for x in records() if x["name"] == name), None)
+        if previous:
+            active = api(
+                "GET", "/api/automation/v1/" + previous["id"] + "/runs", params={"limit": 100}
+            )["runs"]
+            if any(r["status"] in {"PENDING", "RUNNING"} for r in active):
+                raise RuntimeError("This issue already has an active continuation")
+        result = install(
+            {
+                "name": name,
+                "trigger": {
+                    "type": "event",
+                    "source": "custom",
+                    "on": "factory.continue-issue",
+                    "filter": "`false`",
+                },
+                "entrypoint": "python monitor.py",
+                "timeout": 7200,
+            },
+            files(
+                {
+                    "config": config,
+                    "retry_issue": number,
+                    "resume": {"snapshot": snapshot, "answer": response},
+                }
+            ),
+            previous["id"] if previous else None,
+        )
+        result = api("POST", "/api/automation/v1/" + result["id"] + "/dispatch")
+        print("Native continuation run:", result["id"])
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
@@ -205,6 +257,10 @@ if __name__ == "__main__":
     review_command = sub.add_parser("review")
     review_command.add_argument("project")
     review_command.add_argument("number", type=int)
+    retry = sub.add_parser("retry-issue")
+    retry.add_argument("project")
+    retry.add_argument("number", type=int)
+    retry.add_argument("--answer-file")
     command = sub.add_parser("submit")
     command.add_argument("project")
     command.add_argument("spec")
@@ -226,5 +282,7 @@ if __name__ == "__main__":
         configure(args.paused)
     elif args.action == "review":
         review(args.project, args.number)
+    elif args.action == "retry-issue":
+        retry_issue(args.project, args.number, args.answer_file)
     else:
         submit(args.project, args.spec, args.task, args.run, False if args.no_publish else None)

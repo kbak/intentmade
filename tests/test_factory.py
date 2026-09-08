@@ -437,7 +437,7 @@ class PipelineTests(unittest.TestCase):
                 def converse(workspace, prompt, mode="read-only", *args, **kwargs):
                     if mode == "agent-full-access":
                         (Path(workspace.working_dir) / "code.txt").write_text("implemented")
-                        return "Implemented"
+                        return run.ImplementationResult(status="IMPLEMENTED", summary="Implemented")
                     return run.ReviewResult(verdict=verdict, summary="Review findings")
 
                 config = {**CONFIG, "repair_attempts": 0, "test_command": "unused"}
@@ -550,7 +550,9 @@ class PipelineTests(unittest.TestCase):
                             target = Path(workspace.working_dir) / project / "code.txt"
                             # On continuation the previous task change must be present.
                             target.write_text(target.read_text() + " implemented")
-                        return "Implemented both"
+                        return run.ImplementationResult(
+                            status="IMPLEMENTED", summary="Implemented both"
+                        )
                     self.assertIn("first", prompt)
                     self.assertIn("second", prompt)
                     return run.ReviewResult(verdict=verdict, summary="Review findings")
