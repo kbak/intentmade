@@ -9,4 +9,5 @@ export OH_SESSION_API_KEYS_0="$(cat /run/secrets/canvas-key)"
 export OH_SECRET_KEY="$(cat /run/secrets/encryption-key)"
 export AGENT_SERVER_URL=http://127.0.0.1:8000
 export AUTOMATION_KV_SECRET="$OH_SECRET_KEY"
+export FACTORY_REPLY_DISPATCH=1
 exec /opt/agent-canvas/entrypoint.sh

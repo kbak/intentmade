@@ -191,9 +191,14 @@ tests or publication, and wake the read-only report assistant to ask them in Can
 The issue stays assigned while waiting. The scheduler also checks recorded,
 assigned tasks for answers; an issue assigned to the same GitHub user without
 a matching task record is not eligible for automatic continuation.
-Reply in the task conversation with `resume: YOUR ANSWER`;
-the next scheduled scan consumes that explicit reply once and continues the same
-task branch and specification. A normal discussion message does not restart work.
+Reply in the task conversation with `resume: YOUR ANSWER`. Once Canvas saves the
+message, it immediately queues a native **Resume** automation. It starts without
+waiting for the next scan, or waits for the active repository run to finish.
+This continuation handles answered tasks only and rechecks each reply under the
+repository lock before consuming it once. Duplicate notifications and a concurrent
+scheduled scan cannot apply an answer twice. The scan remains a recovery fallback
+if immediate dispatch is unavailable. Pausing the repository schedule also prevents
+new reply dispatches. A normal discussion message does not restart work.
 No blanket approval or extra label is required. To retry immediately after fixing
 a failure, or supply an answer from a file:
 

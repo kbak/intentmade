@@ -104,8 +104,10 @@ class TaskReport:
                 "This is a persistent factory task report. The implementation runs in an "
                 "isolated worker. If it needs your answer, reply here starting with `resume:` "
                 "followed by your answer. To retry a failure, reply `resume: retry`. "
-                "The scheduler checks explicit resume messages on its next scan. "
-                "The report assistant is read-only; it must not claim to run or resume work itself.",
+                "An explicit resume message queues the continuation immediately. "
+                "If the repository is busy, it waits for the current work to finish. "
+                "The report assistant is read-only; native automation runs the continuation. "
+                "Only report that it has started when its RUNNING update appears.",
             )
         if ACTIVE:
             self.record["run_id"] = ACTIVE["run_id"]

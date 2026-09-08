@@ -54,7 +54,11 @@ class ConfigurationTests(unittest.TestCase):
 
     def test_configuration_finds_and_disables_a_schedule_after_the_first_page(self):
         old = {"id": "original-scan", "name": "Factory — example", "enabled": True}
-        automations = [{"id": str(i), "name": f"Build — feature-{i}"} for i in range(105)] + [old]
+        reply = {"id": "original-replies", "name": "Resume — example", "enabled": True}
+        automations = [{"id": str(i), "name": f"Build — feature-{i}"} for i in range(105)] + [
+            old,
+            reply,
+        ]
 
         for configured in ({"example": CONFIG}, {}):
             with self.subTest(removed=not configured):
@@ -80,20 +84,34 @@ class ConfigurationTests(unittest.TestCase):
                     patch.object(self.configure, "token", return_value="offline-token"),
                     patch.object(self.configure, "github", return_value={}),
                     patch.object(self.configure, "files", return_value={}),
-                    patch.object(self.configure, "install") as install,
+                    patch.object(
+                        self.configure, "install", side_effect=lambda d, f, i: {"id": i}
+                    ) as install,
+                    patch("reporting.write_report") as route,
                 ):
                     self.configure.configure()
                 self.assertEqual(
                     pages, [{"limit": 100, "offset": 0}, {"limit": 100, "offset": 100}]
                 )
                 if configured:
-                    definition, _, previous = install.call_args.args
+                    definition, _, previous = install.call_args_list[0].args
                     self.assertFalse(definition["enabled"])
                     self.assertEqual(previous, old["id"])
+                    continuation, _, previous = install.call_args_list[1].args
+                    self.assertFalse(continuation["enabled"])
+                    self.assertEqual(previous, reply["id"])
+                    route.assert_called_once_with(
+                        CONFIG,
+                        "reply-trigger",
+                        {"automation_id": reply["id"], "scheduler_id": old["id"]},
+                    )
                 else:
                     install.assert_not_called()
                     calls.assert_any_call(
                         "PATCH", "/api/automation/v1/original-scan", json={"enabled": False}
+                    )
+                    calls.assert_any_call(
+                        "PATCH", "/api/automation/v1/original-replies", json={"enabled": False}
                     )
 
 

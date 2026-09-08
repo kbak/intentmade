@@ -116,11 +116,37 @@ def configure(paused=False):
             "timeout": 7200,
         }
         previous = existing.get(definition["name"], {}).get("id")
-        install(definition, files({"config": config}), previous)
+        scheduler = install(definition, files({"config": config}), previous)
+        from reporting import write_report
+
+        reply_name = "Resume — " + project
+        continuation = install(
+            {
+                "name": reply_name,
+                "enabled": definition["enabled"],
+                "trigger": {
+                    "type": "event",
+                    "source": "custom",
+                    "on": "factory.reply",
+                    "filter": "`false`",
+                },
+                "entrypoint": "python monitor.py",
+                "timeout": 7200,
+            },
+            files({"config": config, "resume_replies": True}),
+            existing.get(reply_name, {}).get("id"),
+        )
+        write_report(
+            config,
+            "reply-trigger",
+            {"automation_id": continuation["id"], "scheduler_id": scheduler["id"]},
+        )
     # Old scans cannot run alongside their replacement and duplicate work.
     for item in existing.values():
-        if item["name"].startswith("GitHub triage — ") or (
-            item["name"].startswith("Factory — ") and item["name"][10:] not in configured
+        if (
+            item["name"].startswith("GitHub triage — ")
+            or (item["name"].startswith("Factory — ") and item["name"][10:] not in configured)
+            or (item["name"].startswith("Resume — ") and item["name"][9:] not in configured)
         ):
             api("PATCH", "/api/automation/v1/" + item["id"], json={"enabled": False})
 

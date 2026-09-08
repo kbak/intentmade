@@ -243,7 +243,7 @@ def implement_issue(config, issue, credential, resume=None):
         raise
 
 
-def poll(config, credential):
+def poll(config, credential, replies_only=False):
     repo = config["repository"]
     identity = issues.normalize_repo(repo).casefold()
     issues.TRIGGER_LABEL = config.get("issue_label")
@@ -348,13 +348,20 @@ def poll(config, credential):
                 # A new, explicit answer retries this exact specification.
                 state["done"].pop(key, None)
                 candidates.append(("issue", key, item))
-            elif issue_eligible(item, config) and key not in state["done"] and not attempted(key):
+            elif (
+                not replies_only
+                and issue_eligible(item, config)
+                and key not in state["done"]
+                and not attempted(key)
+            ):
                 report = reporting.read_report(config, "issue-" + str(item["number"]))
                 if report and report.get("snapshot") == issue_snapshot(config, item)[1]:
                     continue
                 candidates.append(("issue", key, item))
     maintenance = []
     for item in reviews._list_open_prs(credential, repo):
+        if replies_only and not resume_reply(config, f"pr-{item['number']}"):
+            continue
         key = f"pr:{item['number']}:{item['head']['sha']}"
         tracked = followup.read(config, item["number"])
         if tracked or (key not in state["done"] and not item.get("draft")):
@@ -440,7 +447,7 @@ def poll(config, credential):
             save()
     # Preserve discussion-first triage without treating every unassigned issue
     # as an implementation request. No approval label means report only.
-    if config.get("issue_label") and remaining > 0 and not candidates:
+    if not replies_only and config.get("issue_label") and remaining > 0 and not candidates:
         items = issues._github_paginate(
             credential, f"/repos/{repo}/issues", {"state": "open", "assignee": "none"}
         )
@@ -498,7 +505,12 @@ if __name__ == "__main__":
         try:
             if job.get("retry_issue"):
                 phase(f"Issue #{job['retry_issue']}: waiting for {config['project']} repository")
-            with lock(config["project"] + ".poll", blocking=bool(job.get("retry_issue"))):
+            if job.get("resume_replies"):
+                phase(f"Answered tasks: waiting for {config['project']} repository")
+            with lock(
+                config["project"] + ".poll",
+                blocking=bool(job.get("retry_issue") or job.get("resume_replies")),
+            ):
                 credential = token()
                 if job.get("retry_issue"):
                     item = issues._get_issue(credential, config["repository"], job["retry_issue"])
@@ -517,7 +529,7 @@ if __name__ == "__main__":
                         raise RuntimeError("PR changed during review; report marked stale")
                     outcome("COMPLETED", "PR reviewed; report retained locally")
                 else:
-                    poll(config, credential)
+                    poll(config, credential, replies_only=bool(job.get("resume_replies")))
         except BlockingIOError:
             print("Previous repository scan is still running.", flush=True)
             outcome("SKIPPED", "Repository is busy; no work started")

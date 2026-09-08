@@ -134,6 +134,18 @@ class PausedOwnershipTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASSED")
         self.assertEqual(self.mutations, ["POST"])
 
+    def test_reply_job_skips_new_work_and_consumes_answer_once_across_scheduler_race(self):
+        monitor.poll(CONFIG, "offline-token", replies_only=True)
+        self.build.assert_not_called()
+        self.pause()
+        self.reply()
+        monitor.poll(CONFIG, "offline-token", replies_only=True)
+        self.build.assert_called_once()
+        monitor.poll(CONFIG, "offline-token")
+        monitor.poll(CONFIG, "offline-token", replies_only=True)
+        self.build.assert_called_once()
+        self.assertEqual(self.mutations, ["POST"])
+
     def test_same_login_without_record_does_not_authorize_implementation(self):
         self.issue["assignees"] = [{"login": "kbak"}]
         resume = {"snapshot": monitor.issue_snapshot(CONFIG, self.issue)[1], "answer": "retry"}

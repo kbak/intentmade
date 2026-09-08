@@ -9,6 +9,16 @@ COPY runtime/patch_review_policy.py /opt/factory/patch_review_policy.py
 RUN python /opt/factory/patch_review_policy.py
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py
 RUN python /opt/factory/patch_run_outcomes.py
+COPY runtime/reply_hook.py /opt/agent-canvas/tools/factory_reply_hook.py
+RUN python - <<'PY'
+from pathlib import Path
+path = Path('/opt/agent-canvas/entrypoint.sh')
+source = path.read_text()
+old = 'AGENT_SERVER_IMPORT_MODULES="canvas_ui_tool"'
+if source.count(old) != 1:
+    raise RuntimeError('Pinned Canvas extension loader changed; review reply integration')
+path.write_text(source.replace(old, 'AGENT_SERVER_IMPORT_MODULES="canvas_ui_tool,factory_reply_hook"'))
+PY
 ADD --checksum=sha256:75d15075b678c87f48d42efb78fd9e6705e0d557fdf6d689a2a6175ab89f1ce3 https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/skills/github-issue-to-pr/scripts/main.py /opt/factory/upstream/issues.py
 ADD --checksum=sha256:d3c38b6f79bb024774c09e1f0600f531a8ca658ba6798c9ba1269d0bca4dcef5 https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/skills/github-pr-reviewer/scripts/main.py /opt/factory/upstream/reviews.py
 ADD --checksum=sha256:fe425248fc51d1d1805ab1442ba8add98d770ad8a132051eaac8c93d7eee3ebe https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/LICENSE /opt/factory/upstream/LICENSE
@@ -18,6 +28,7 @@ COPY scripts/configure.py /opt/factory/configure.py
 COPY upstream.lock.json /opt/factory/upstream.lock.json
 RUN chmod -R a+rX /opt/factory/upstream && chmod +x /opt/factory/entrypoint
 USER openhands
+ENV PYTHONPATH=/opt/factory/workflows
 ENV OH_CONVERSATIONS_PATH=/home/openhands/.openhands/conversations
 ENV OH_PERSISTENCE_DIR=/home/openhands/.openhands
 ENV OH_BASH_EVENTS_DIR=/home/openhands/.openhands/bash_events
