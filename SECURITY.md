@@ -41,10 +41,16 @@ removes the daily cap; per-poll batching and repository locks still apply.
   network access, and no escalation. The SDK also refuses permission requests
   for these sessions. Building and interactive coordinator modes retain their
   capabilities. Image builds fail if an upstream version or patch target changes.
-  Codex 0.153.4 uses its supported Landlock backend here because Docker's default
-  seccomp blocks bubblewrap's user namespaces. No Docker capabilities or seccomp
-  exceptions are added. The real sandbox smoke checks reads, denied writes and
-  denied network sockets; rerun it when upgrading Codex or the host kernel.
+  Codex 0.153.4 uses its namespace sandbox with the legacy Landlock backend
+  disabled. Canvas and disposable workers use a custom seccomp profile based on
+  Moby's default, permitting `clone`, `unshare`, `mount`, `umount2`, and `pivot_root`
+  for the unprivileged namespace sandbox. No extra Docker capabilities,
+  `CAP_SYS_ADMIN`, or host namespaces are granted to Canvas or agent workers.
+  The profile's source and exact changes are documented in
+  [runtime/codex-seccomp.md](runtime/codex-seccomp.md). The real sandbox smoke
+  verifies allowed coordinator edits, denied reviewer writes, protected Git
+  metadata, and denied network sockets; rerun it when upgrading Docker, Codex,
+  or the host kernel.
 
 Workers still receive the Codex subscription credential needed to run agents.
 Containers, including privileged Docker test daemons, share the Docker host's

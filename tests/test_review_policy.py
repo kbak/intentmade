@@ -15,7 +15,7 @@ from openhands.sdk.agent.acp_agent import ACPAgent, _OpenHandsACPBridge
 
 
 class InstalledReviewPolicyTests(unittest.TestCase):
-    def mode(self, name):
+    def mode(self, name, coordinator=False):
         source = Path(
             "/acp-node/lib/node_modules/@agentclientprotocol/codex-acp/dist/index.js"
         ).read_text()
@@ -34,6 +34,7 @@ class InstalledReviewPolicyTests(unittest.TestCase):
             check=True,
             capture_output=True,
             text=True,
+            env={"FACTORY_COORDINATOR": "1" if coordinator else ""},
         )
         return json.loads(result.stdout)
 
@@ -52,6 +53,13 @@ class InstalledReviewPolicyTests(unittest.TestCase):
         self.assertEqual(coordinator[4], "on-request")
         self.assertEqual(coordinator[5], "auto_review")
         self.assertEqual(coordinator[6]["type"], "workspaceWrite")
+
+    def test_factory_marker_does_not_expand_review_or_agent_permissions(self):
+        self.assertEqual(self.mode("Agent", coordinator=True)[6]["writableRoots"], [])
+        self.assertEqual(self.mode("Agent")[6]["writableRoots"], [])
+        self.assertEqual(
+            self.mode("ReadOnly", coordinator=True)[6], {"type": "readOnly", "networkAccess": False}
+        )
 
     def test_read_only_bridge_refuses_even_when_an_allow_option_is_first(self):
         client = _OpenHandsACPBridge()

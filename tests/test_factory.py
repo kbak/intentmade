@@ -1,6 +1,7 @@
 """Regression checks for policy, ownership, retained work and upstream publication."""
 
 import json
+import os
 import shlex
 import subprocess
 import tempfile
@@ -387,7 +388,10 @@ class ReviewResponseTests(unittest.TestCase):
                     )
 
                 conversation.run.side_effect = respond
-                with patch.object(agent, "Conversation", return_value=conversation):
+                with (
+                    patch.object(agent, "Conversation", return_value=conversation),
+                    patch.dict(os.environ, {"FACTORY_CODEX_MODEL": "gpt-6-astra/xhigh"}),
+                ):
                     if final.startswith("{"):
                         result = agent.converse(
                             workspace, "Review", response_model=run.ReviewResult

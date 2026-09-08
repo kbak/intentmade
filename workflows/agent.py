@@ -19,6 +19,16 @@ def canvas():
     )
 
 
+def worker_agent(mode):
+    """Use the model captured from factory-codex when this worker started."""
+    return ACPAgent(
+        acp_command=["codex-acp"],
+        acp_server="codex",
+        acp_session_mode=mode,
+        acp_model=os.environ["FACTORY_CODEX_MODEL"] or None,
+    )
+
+
 def converse(
     workspace,
     prompt,
@@ -29,7 +39,7 @@ def converse(
     transcript=None,
 ):
     conversation = Conversation(
-        agent=ACPAgent(acp_command=["codex-acp"], acp_server="codex", acp_session_mode=mode),
+        agent=worker_agent(mode),
         workspace=workspace,
         delete_on_close=False,
         conversation_id=UUID(conversation_id) if conversation_id else None,
@@ -88,9 +98,7 @@ def worktree(workspace):
         json={
             "workspace": {"working_dir": workspace.working_dir},
             "worktree": True,
-            "agent": ACPAgent(
-                acp_command=["codex-acp"], acp_server="codex", acp_session_mode="agent-full-access"
-            ).model_dump(mode="json"),
+            "agent": worker_agent("agent-full-access").model_dump(mode="json"),
         },
     )
     response.raise_for_status()

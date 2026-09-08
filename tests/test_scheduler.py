@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import common
+import httpx
 import monitor
 import run
 
@@ -74,7 +75,7 @@ class ConfigurationTests(unittest.TestCase):
                             "total": len(automations),
                         }
                     if method == "GET" and path == "/api/agent-profiles/factory-codex":
-                        return {"profile": {"id": "profile"}}
+                        return {"profile": {"id": "profile", "acp_model": "gpt-6-astra/xhigh"}}
                     return {}
 
                 with (
@@ -90,6 +91,13 @@ class ConfigurationTests(unittest.TestCase):
                     patch("reporting.write_report") as route,
                 ):
                     self.configure.configure()
+                self.assertFalse(
+                    any(
+                        c.args == ("POST", "/api/agent-profiles/factory-codex")
+                        for c in calls.call_args_list
+                    ),
+                    "Reconfiguring must preserve the operator's saved model and profile edits",
+                )
                 self.assertEqual(
                     pages, [{"limit": 100, "offset": 0}, {"limit": 100, "offset": 100}]
                 )
@@ -113,6 +121,38 @@ class ConfigurationTests(unittest.TestCase):
                     calls.assert_any_call(
                         "PATCH", "/api/automation/v1/original-replies", json={"enabled": False}
                     )
+
+    def test_profile_is_created_only_when_missing(self):
+        for status in (404, 500):
+            with self.subTest(status=status):
+                response = httpx.Response(
+                    status, request=httpx.Request("GET", "http://canvas/profile")
+                )
+                error = httpx.HTTPStatusError(
+                    "Unavailable", request=response.request, response=response
+                )
+                with (
+                    patch.object(
+                        self.configure,
+                        "api",
+                        side_effect=[error, {}, {"profile": {"id": "new"}}, {}, {}],
+                    ) as api,
+                    patch.object(self.configure, "projects", return_value={}),
+                    patch.object(self.configure, "factories", return_value={}),
+                    patch.object(self.configure, "records", return_value=[]),
+                    patch.object(self.configure, "token", return_value="offline-token"),
+                ):
+                    if status == 404:
+                        self.configure.configure()
+                        self.assertEqual(
+                            api.call_args_list[1].args,
+                            ("POST", "/api/agent-profiles/factory-codex"),
+                        )
+                        api.assert_any_call("POST", "/api/agent-profiles/new/activate")
+                    else:
+                        with self.assertRaises(httpx.HTTPStatusError):
+                            self.configure.configure()
+                        self.assertEqual(api.call_count, 1)
 
 
 class TaskIdentityTests(unittest.TestCase):

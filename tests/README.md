@@ -34,15 +34,17 @@ Recovery regressions cover root-owned cleanup failures, retained work after a
 branch rename or failed export, bounded test/review repair, structured questions,
 explicit Canvas replies, and SKIPPED callbacks with persistent conversation links.
 They also distinguish blocked review infrastructure from actionable code defects.
-Verify the pinned Codex sandbox against the real kernel and Docker defaults:
+Verify the pinned Codex sandbox against the real kernel and factory container profile:
 
 ```bash
 python3 tests/check_review_sandbox.py
 ```
 
-This uses no model or credentials. Reads must succeed; writes and network socket
-creation must be denied. The pinned runtime selects Codex's Landlock backend
-because Docker's default seccomp blocks the user namespaces needed by bubblewrap.
+This uses no model or credentials. It checks both workspace-write and read-only
+profiles: workspace edits and request creation must work for coordinators, while
+review writes, Git metadata writes, unrelated writes, and network socket creation
+must be denied. The modern Codex sandbox uses the narrowly extended Docker seccomp
+profile documented in [codex-seccomp.md](../runtime/codex-seccomp.md).
 
 Check the real Docker network boundary separately:
 

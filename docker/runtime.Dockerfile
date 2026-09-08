@@ -9,6 +9,8 @@ COPY runtime/patch_review_policy.py /opt/factory/patch_review_policy.py
 RUN python /opt/factory/patch_review_policy.py
 COPY runtime/patch_agency_agents.py /opt/factory/patch_agency_agents.py
 RUN python /opt/factory/patch_agency_agents.py
+COPY runtime/patch_workspace_runtime.py /opt/factory/patch_workspace_runtime.py
+RUN python /opt/factory/patch_workspace_runtime.py
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py
 RUN python /opt/factory/patch_run_outcomes.py
 COPY runtime/reply_hook.py /opt/agent-canvas/tools/factory_reply_hook.py
@@ -26,7 +28,12 @@ ADD --checksum=sha256:d3c38b6f79bb024774c09e1f0600f531a8ca658ba6798c9ba1269d0bca
 ADD --checksum=sha256:fe425248fc51d1d1805ab1442ba8add98d770ad8a132051eaac8c93d7eee3ebe https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/LICENSE /opt/factory/upstream/LICENSE
 COPY runtime/entrypoint /opt/factory/entrypoint
 COPY workflows/ /opt/factory/workflows/
+COPY runtime/factory_context.py /opt/factory/workflows/factory_context.py
+COPY runtime/factory-context.mjs /opt/factory/factory-context.mjs
 COPY runtime/factory-agents.mjs /opt/factory/factory-agents.mjs
+COPY runtime/codex-seccomp.json /opt/factory/codex-seccomp.json
+COPY runtime/LICENSE.moby-profiles /opt/factory/LICENSE.moby-profiles
+COPY coordinator/AGENTS.md /opt/factory/coordinator.md
 COPY scripts/configure.py /opt/factory/configure.py
 COPY upstream.lock.json /opt/factory/upstream.lock.json
 RUN chmod -R a+rX /opt/factory/upstream && chmod +x /opt/factory/entrypoint
@@ -46,8 +53,9 @@ ENV PYTHONPATH=/opt/factory/workflows
 ENV OH_CONVERSATIONS_PATH=/home/openhands/.openhands/conversations
 ENV OH_PERSISTENCE_DIR=/home/openhands/.openhands
 ENV OH_BASH_EVENTS_DIR=/home/openhands/.openhands/bash_events
-# The pinned Codex still supports Landlock, which enforces the same read-only
-# policy without requiring namespaces blocked by Docker's default seccomp.
-ENV CODEX_CONFIG='{"features.use_legacy_landlock":true}'
+# Workspace permission profiles require the modern namespace sandbox. Both
+# Canvas and native DockerWorkspace workers use the matching seccomp profile.
+ENV CODEX_CONFIG='{"features.use_legacy_landlock":false}'
+ENV FACTORY_SECCOMP_PROFILE=/opt/factory/codex-seccomp.json
 WORKDIR /projects
 ENTRYPOINT ["tini", "--", "/opt/factory/entrypoint"]

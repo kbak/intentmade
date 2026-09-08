@@ -5,6 +5,8 @@ if [ "$#" -gt 0 ]; then
   cd /home/openhands
   exec openhands-agent-server "$@"
 fi
+export FACTORY_COORDINATOR=1
+python -m factory_context
 export OH_SESSION_API_KEYS_0="$(cat /run/secrets/canvas-key)"
 export OH_SECRET_KEY="$(cat /run/secrets/encryption-key)"
 export AGENT_SERVER_URL=http://127.0.0.1:8000

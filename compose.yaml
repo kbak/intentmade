@@ -16,6 +16,8 @@ services:
       AUTOMATION_MAX_RUN_DURATION: "7200"
       DOCKER_HOST: unix:///run/factory-docker/docker.sock
     group_add: ["2375"]
+    security_opt:
+      - seccomp=./runtime/codex-seccomp.json
     volumes:
       - canvas-state:/home/openhands/.openhands
       - sandbox-control:/run/factory-docker

@@ -53,6 +53,19 @@ install the configured automations:
 `configure` imports your GitHub credential into native secret storage and applies
 the configured schedules. It creates an approval label only if one is configured.
 
+Choose the factory model in **Settings → Agent → factory-codex**. Select
+**GPT-6 Astra (Extra high)** for extra-high reasoning (`gpt-6-astra/xhigh`).
+The same option appears in the chat model picker for existing conversations.
+The **Default** badge identifies
+the profile used for new chats; the separate profile named `default` does not
+need the same edit. Existing chats retain their model selection.
+
+Each new implementation, triage, or review worker reads the model from the saved
+`factory-codex` profile, including its reasoning suffix. It keeps that selection
+for its lifetime and retains its role's permissions (reviews stay read-only).
+Editing the profile affects subsequent workers without rebuilding the image.
+Rerunning `configure` preserves the existing profile and its model selection.
+
 ### Agency agents
 
 The runtime includes 273 native Codex custom agents from
@@ -97,6 +110,12 @@ this factory requires its native role installation, session setup, credentials,
 and worker integration; the bundled Codex TOML files do not provide that support.
 
 ## Feature work
+
+You can select a repository under `/projects/repos` in the Canvas workspace
+picker. This is a read-only catalog for discussion; the chat receives the factory
+instructions even when the selected repository has its own Git root. Approved
+implementation requests are submitted to a disposable worker with a writable
+worktree. Selecting a catalog does not require changing ownership or permissions.
 
 Discuss an idea in Canvas until its scope, tradeoffs and acceptance criteria are
 clear. Explicitly approve the specification and ask to implement it. The

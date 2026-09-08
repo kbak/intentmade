@@ -5,7 +5,7 @@ import secrets
 import subprocess
 from contextlib import contextmanager
 
-from common import ROOT
+from common import ROOT, api
 from openhands.agent_server.persistence import FileSecretsStore
 from openhands.sdk.utils.cipher import Cipher
 from openhands.workspace import DockerWorkspace
@@ -35,6 +35,9 @@ def mounts(root, config):
 
 @contextmanager
 def worker(root, config):
+    # Resolve against Canvas before replacing its API key with the worker's.
+    # Only the model/effort crosses this boundary; permissions remain per role.
+    profile = api("GET", "/api/agent-profiles/factory-codex")["profile"]
     name = root.name
     compose = ["docker", "compose", "-p", name, "-f", str(ROOT / "workflows/sandbox.yaml")]
     env = dict(os.environ, JOB_WORKSPACE=str(root))
@@ -44,6 +47,7 @@ def worker(root, config):
         "OH_SESSION_API_KEYS_0": secrets.token_urlsafe(32),
         "OH_CONVERSATION_WORKTREE_ROOT": str(root / "worktrees"),
         "PYTHONDONTWRITEBYTECODE": "1",
+        "FACTORY_CODEX_MODEL": profile.get("acp_model") or "",
     }
     old = {key: os.environ.get(key) for key in settings}
     try:

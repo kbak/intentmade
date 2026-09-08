@@ -1,4 +1,4 @@
-"""Backport Astra picker metadata while the base image is pinned to Canvas 1.16.
+"""Backport Astra and extra-high picker metadata to the pinned Canvas 1.16.
 
 The SDK and compiled frontend each contain the Codex provider registry. Fail
 the image build if either changes so this backport is reviewed on a base-image
@@ -24,7 +24,8 @@ def main() -> None:
         registry.read_text(),
         "_CODEX_MODELS: tuple[ACPModelOption, ...] = (\n",
         "_CODEX_MODELS: tuple[ACPModelOption, ...] = (\n"
-        '    ACPModelOption(id="gpt-6-astra", label="GPT-6 Astra"),\n',
+        '    ACPModelOption(id="gpt-6-astra", label="GPT-6 Astra"),\n'
+        '    ACPModelOption(id="gpt-6-astra/xhigh", label="GPT-6 Astra (Extra high)"),\n',
     )
     source = replace_once(source, 'CODEX_ACP_VERSION = "1.1.7"', 'CODEX_ACP_VERSION = "1.10.0"')
 
@@ -37,7 +38,9 @@ def main() -> None:
     patched = replace_once(
         bundle.read_text(),
         old_models,
-        "available_models:[{id:`gpt-6-astra`,label:`GPT-6 Astra`},{id:`gpt-5.6`,label:`GPT-5.6`}",
+        "available_models:[{id:`gpt-6-astra`,label:`GPT-6 Astra`},"
+        "{id:`gpt-6-astra/xhigh`,label:`GPT-6 Astra (Extra high)`},"
+        "{id:`gpt-5.6`,label:`GPT-5.6`}",
     )
     patched = replace_once(
         patched,

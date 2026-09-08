@@ -8,6 +8,8 @@ import urllib.error
 import uuid
 from pathlib import Path
 
+import httpx
+
 os.environ.setdefault("OH_SESSION_API_KEYS_0", Path("/run/secrets/canvas-key").read_text().strip())
 sys.path.insert(0, "/opt/factory/workflows")
 from common import ROOT, api, factories, git, github, identifier, projects, token  # noqa: E402
@@ -57,18 +59,23 @@ def files(job):
 
 def configure(paused=False):
     factories()  # Validate group references before changing native configuration.
-    api(
-        "POST",
-        "/api/agent-profiles/factory-codex",
-        json={
-            "agent_kind": "acp",
-            "acp_server": "codex",
-            "acp_command": "codex-acp",
-            "acp_session_mode": "agent",
-            "mcp_server_refs": [],
-        },
-    )
-    profile = api("GET", "/api/agent-profiles/factory-codex")["profile"]
+    try:
+        profile = api("GET", "/api/agent-profiles/factory-codex")["profile"]
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code != 404:
+            raise
+        api(
+            "POST",
+            "/api/agent-profiles/factory-codex",
+            json={
+                "agent_kind": "acp",
+                "acp_server": "codex",
+                "acp_command": "codex-acp",
+                "acp_session_mode": "agent",
+                "mcp_server_refs": [],
+            },
+        )
+        profile = api("GET", "/api/agent-profiles/factory-codex")["profile"]
     api("POST", "/api/agent-profiles/" + profile["id"] + "/activate")
     api(
         "PATCH",
