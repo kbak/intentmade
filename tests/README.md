@@ -16,7 +16,7 @@ Build the default runtime image and run the regression suite:
 
 ```bash
 docker compose build canvas
-docker run --rm --entrypoint python \
+docker run --rm --network none --entrypoint python \
   -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
   -v "$PWD/tests:/tests:ro" -v "$PWD/examples/config:/opt/factory/config:ro" \
   openhands-factory:dev -m unittest discover -s /tests -p 'test_*.py' -v
@@ -24,8 +24,24 @@ docker run --rm --entrypoint python \
 
 The suite checks issue eligibility and ownership, CI gating, branch retention,
 review decisions, draft publication, credential refresh and repository groups.
-It uses local Git repositories and mocked GitHub and agent responses. No model
-calls, GitHub mutations, subscription login or private deployment are required.
+Security regressions cover hostile Git configuration, unsafe bundle exports,
+fresh review workers, strict read-only permissions, approval history, scheduler
+pagination and durable deduplication. It uses local Git repositories and mocked
+GitHub and agent responses. No model calls, GitHub mutations, subscription login
+or private deployment are required.
+
+Check the real Docker network boundary separately:
+
+```bash
+python3 tests/check_isolation.py
+```
+
+This creates a temporary privileged DinD instance and fake job/parent services,
+using the cached `docker:29.4.1-dind` image. It checks management socket access,
+blocked parent/cross-job traffic, and working job-local services and public npm
+HTTPS. It does not mount deployment state or credentials, and removes its own
+containers, networks and volumes when finished. It requires local Docker access
+and public internet access for the registry check.
 
 ## Live smoke checks
 

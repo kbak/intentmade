@@ -1,6 +1,8 @@
 """Regression checks for policy, ownership, retained work and upstream publication."""
 
 import json
+import shlex
+import subprocess
 import tempfile
 import unittest
 from contextlib import contextmanager
@@ -28,6 +30,13 @@ CONFIG = {
     "branch_prefix": "factory",
     "publish_draft": True,
 }
+
+
+def local_git_command(command, cwd):
+    result = subprocess.run(shlex.split(command), cwd=cwd, capture_output=True, text=True)
+    return SimpleNamespace(exit_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
+
+
 ISSUE = {
     "number": 42,
     "title": "A feature",
@@ -406,8 +415,12 @@ class PipelineTests(unittest.TestCase):
                 def worker(job, config):
                     yield SimpleNamespace(
                         working_dir=str(job / "source"),
-                        execute_command=lambda *a, **k: SimpleNamespace(
-                            exit_code=exit_code, stdout="test evidence", stderr=""
+                        execute_command=lambda command, cwd, **k: (
+                            local_git_command(command, cwd)
+                            if command.startswith("git ")
+                            else SimpleNamespace(
+                                exit_code=exit_code, stdout="test evidence", stderr=""
+                            )
                         ),
                     )
 
@@ -507,6 +520,8 @@ class PipelineTests(unittest.TestCase):
                 tested = []
 
                 def execute(command, cwd, **kwargs):
+                    if command.startswith("git "):
+                        return local_git_command(command, cwd)
                     tested.append(Path(cwd).name)
                     return SimpleNamespace(
                         exit_code=test_exit if Path(cwd).name == "second" else 0,

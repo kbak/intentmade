@@ -14,8 +14,15 @@ from common import ROOT, api, factories, git, github, identifier, projects, toke
 
 
 def records():
-    data = api("GET", "/api/automation/v1")
-    return data if isinstance(data, list) else data.get("items", data.get("automations", []))
+    result = []
+    while True:
+        data = api("GET", "/api/automation/v1", params={"limit": 100, "offset": len(result)})
+        if isinstance(data, list):
+            return result + data
+        page = data.get("items", data.get("automations", []))
+        result.extend(page)
+        if not page or (len(result) >= data["total"] if "total" in data else len(page) < 100):
+            return result
 
 
 def install(definition, files, existing=None):

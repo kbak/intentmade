@@ -5,6 +5,8 @@ RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global \
     @agentclientprotocol/codex-acp@1.10.0 @openai/codex@0.153.4
 COPY runtime/patch_codex_catalog.py /opt/factory/patch_codex_catalog.py
 RUN python /opt/factory/patch_codex_catalog.py
+COPY runtime/patch_review_policy.py /opt/factory/patch_review_policy.py
+RUN python /opt/factory/patch_review_policy.py
 ADD --checksum=sha256:75d15075b678c87f48d42efb78fd9e6705e0d557fdf6d689a2a6175ab89f1ce3 https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/skills/github-issue-to-pr/scripts/main.py /opt/factory/upstream/issues.py
 ADD --checksum=sha256:d3c38b6f79bb024774c09e1f0600f531a8ca658ba6798c9ba1269d0bca4dcef5 https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/skills/github-pr-reviewer/scripts/main.py /opt/factory/upstream/reviews.py
 ADD --checksum=sha256:fe425248fc51d1d1805ab1442ba8add98d770ad8a132051eaac8c93d7eee3ebe https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/LICENSE /opt/factory/upstream/LICENSE

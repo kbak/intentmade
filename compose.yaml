@@ -14,9 +14,11 @@ services:
       OH_PERSISTENCE_DIR: /home/openhands/.openhands
       AUTOMATION_BASE_URL: http://canvas:8000
       AUTOMATION_MAX_RUN_DURATION: "7200"
-      DOCKER_HOST: tcp://sandboxes:2375
+      DOCKER_HOST: unix:///run/factory-docker/docker.sock
+    group_add: ["2375"]
     volumes:
       - canvas-state:/home/openhands/.openhands
+      - sandbox-control:/run/factory-docker
       - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/catalog:/projects/repos:ro
       - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/requests:/projects/requests
       - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/artifacts:/projects/artifacts
@@ -37,18 +39,22 @@ services:
     privileged: true
     restart: unless-stopped
     environment: {DOCKER_TLS_CERTDIR: ""}
-    command: [dockerd, --host=tcp://0.0.0.0:2375, --host=unix:///var/run/docker.sock, --storage-driver=overlay2]
+    entrypoint: [sh, /opt/factory/sandbox-daemon]
+    command: [dockerd, --host=unix:///run/factory-docker/docker.sock, --host=unix:///var/run/docker.sock, --group=2375, --storage-driver=overlay2]
     volumes:
       - sandbox-images:/var/lib/docker
+      - sandbox-control:/run/factory-docker
+      - ./runtime/sandbox-daemon:/opt/factory/sandbox-daemon:ro
       - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/workspaces:/workspaces
       - ${FACTORY_PROFILES_DIR:-../factory-deployment/profiles}:/profiles:ro
     mem_limit: 18g
     cpus: 10
     healthcheck:
-      test: [CMD, docker, info]
+      test: [CMD-SHELL, "test -f /run/factory-network-ready && docker info >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 30
 volumes:
   canvas-state:
   sandbox-images:
+  sandbox-control:

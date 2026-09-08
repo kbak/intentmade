@@ -1,0 +1,47 @@
+#!/bin/sh
+# Policy lives in the outer daemon's network namespace, outside all job mounts.
+set -eu
+rm -f /run/factory-network-ready
+
+chain() {
+    tool=$1
+    name=$2
+    "$tool" -w -nL "$name" >/dev/null 2>&1 || "$tool" -w -N "$name"
+    "$tool" -w -F "$name"
+}
+
+for tool in iptables ip6tables; do
+    # A kernel with IPv6 entirely disabled has no IPv6 worker egress to filter.
+    if [ "$tool" = ip6tables ] && [ "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6 2>/dev/null || echo 1)" = 1 ]; then
+        continue
+    fi
+    chain "$tool" FACTORY-INPUT
+    chain "$tool" FACTORY-EGRESS
+    "$tool" -w -nL DOCKER-USER >/dev/null 2>&1 || "$tool" -w -N DOCKER-USER
+    "$tool" -w -C INPUT -j FACTORY-INPUT 2>/dev/null || "$tool" -w -I INPUT 1 -j FACTORY-INPUT
+    "$tool" -w -C DOCKER-USER -j FACTORY-EGRESS 2>/dev/null || "$tool" -w -I DOCKER-USER 1 -j FACTORY-EGRESS
+    "$tool" -w -A FACTORY-INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+    "$tool" -w -A FACTORY-EGRESS -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+    for bridge in docker0 'br-+'; do
+        # Jobs cannot open connections to the outer daemon/gateway namespace.
+        "$tool" -w -A FACTORY-INPUT -i "$bridge" -j REJECT
+        # Publishing a sibling worker port must not bypass bridge isolation
+        # through DNAT at the gateway. Same-bridge test traffic remains allowed.
+        for destination_bridge in docker0 'br-+'; do
+            "$tool" -w -A FACTORY-EGRESS -i "$bridge" -o "$destination_bridge" -m physdev ! --physdev-is-bridged -j REJECT
+        done
+        if [ "$tool" = iptables ]; then
+            # Public internet remains available for package installation/model
+            # traffic. Job-local Docker services stay on their own bridge.
+            for network in 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16 224.0.0.0/4 240.0.0.0/4; do
+                "$tool" -w -A FACTORY-EGRESS -i "$bridge" -o eth0 -d "$network" -j REJECT
+            done
+        else
+            # Docker job networks use IPv4; do not leave an alternate IPv6
+            # route to the host, Canvas or tailnet when the host supports it.
+            "$tool" -w -A FACTORY-EGRESS -i "$bridge" -o eth0 -j REJECT
+        fi
+    done
+done
+touch /run/factory-network-ready
+exec /usr/local/bin/dockerd-entrypoint.sh "$@"

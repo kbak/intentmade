@@ -1,0 +1,73 @@
+"""Transfer task commits without running parent Git on worker-owned metadata."""
+
+import os
+import shlex
+import shutil
+import stat
+import tempfile
+from pathlib import Path
+
+from common import git
+
+
+def worker_git(workspace, args, cwd, check=True):
+    result = workspace.execute_command(shlex.join(["git", *args]), cwd=str(cwd), timeout=300)
+    if check and result.exit_code:
+        raise RuntimeError(f"Worker Git failed: {result.stderr[-1000:]}")
+    return result
+
+
+def export_task(workspace, state, destination, task):
+    """All commands consuming mutable Git configuration execute in the worker."""
+    checkout = state["worktree"]
+    worker_git(workspace, ["add", "-A"], checkout)
+    changed = worker_git(workspace, ["diff", "--cached", "--quiet"], checkout, check=False)
+    if changed.exit_code not in (0, 1):
+        raise RuntimeError("Could not inspect worker changes")
+    if changed.exit_code:
+        worker_git(
+            workspace,
+            ["-c", "core.hooksPath=/dev/null", "commit", "-m", "Factory task " + task],
+            checkout,
+        )
+    branch = "refs/heads/" + state["branch"]
+    head = worker_git(workspace, ["rev-parse", "HEAD"], checkout).stdout.strip()
+    tip = worker_git(workspace, ["rev-parse", branch], checkout).stdout.strip()
+    if head != tip:
+        raise RuntimeError("Worker left the approved task branch")
+    worker_git(workspace, ["bundle", "create", str(destination), branch], checkout)
+
+
+def import_task(state, bundle):
+    """Copy a regular bundle after worker teardown; never import its Git config."""
+    # A worker can replace its export with a symlink, FIFO or device. Open without
+    # following links or blocking, and consume only a regular file.
+    fd = os.open(bundle, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as source, tempfile.TemporaryDirectory() as temp:
+        if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+            raise RuntimeError("Worker export is not a regular bundle")
+        trusted_bundle = Path(temp) / "task.bundle"
+        with trusted_bundle.open("wb") as target:
+            shutil.copyfileobj(source, target)
+        branch = "refs/heads/" + state["branch"]
+        heads = git(["bundle", "list-heads", str(trusted_bundle)]).stdout.splitlines()
+        if len(heads) != 1 or heads[0].split()[1:] != [branch]:
+            raise RuntimeError("Worker bundle contains unexpected refs")
+        # Fetch only the expected branch, without force. Git validates object
+        # integrity and rejects a rewritten/unrelated retained task history.
+        git(
+            [
+                "-c",
+                "fetch.fsckObjects=true",
+                "-c",
+                "transfer.fsckObjects=true",
+                "--git-dir",
+                state["repository"],
+                "fetch",
+                "--no-tags",
+                "--no-write-fetch-head",
+                str(trusted_bundle),
+                f"{branch}:{branch}",
+            ]
+        )
+    state["commit"] = git(["--git-dir", state["repository"], "rev-parse", branch]).stdout.strip()

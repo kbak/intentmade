@@ -1,6 +1,6 @@
 # OpenHands factory
 
-A local software factory for WSL and Docker. Discuss ideas and approve
+A local software factory for Linux and Docker. Discuss ideas and approve
 specifications in OpenHands Agent Canvas, then run implementation, tests and an
 independent agent review in disposable containers. Passing changes are published
 as draft pull requests. Scheduled agents triage GitHub issues and review PRs.
@@ -11,8 +11,8 @@ worktree in every selected repository, plus its own Docker daemon for tests.
 
 ## Setup
 
-Requirements: WSL with Docker Engine and Compose, Git, Python 3, GitHub CLI (`gh`)
-access to your repositories, and a Codex login for the agents.
+Requirements: a Linux host with Docker Engine and Compose, Git, Python 3, GitHub
+CLI (`gh`) access to your repositories, and a Codex login for the agents.
 
 Keep the tooling and your private deployment configuration in sibling directories:
 
@@ -182,8 +182,8 @@ Run commands from the tooling checkout:
 | `./scripts/factoryctl down` | Stop services while retaining data. |
 
 Use Canvas's **Automate** view to inspect runs and pause schedules. Let active jobs
-finish before restarting services. WSL and Docker must remain running for polling;
-Windows boot startup must be arranged separately.
+finish before restarting services. The host and Docker must remain running for
+polling; configure Docker to start at boot if unattended operation is needed.
 
 `FACTORY_DATA_DIR` defaults to `../factory-deployment/.factory`. Task branches live
 under `workspaces/tasks/`; reports, test logs, patches and PR metadata are under
@@ -192,8 +192,13 @@ Keep runtime data and `.env` out of Git, and preserve volumes during routine
 shutdowns (`down`, without `-v`).
 
 Workers receive the Codex credential; the GitHub credential stays in the parent
-workflow. Disposable containers share the WSL kernel. Normal completion and
-handled failures clean up job resources; a host crash can require manual cleanup.
+workflow. Implementation, triage and independent review run in separate disposable
+workers. Builders retain public internet access and Docker tests; worker access
+to the management daemon, other jobs and the host's private networks is blocked.
+See [SECURITY.md](SECURITY.md) for the single-operator trust model, retained state
+and update procedure. Containers share the Docker host's Linux kernel. Normal
+completion and handled failures clean up job resources; a host crash can require
+manual cleanup.
 
 ## Development
 
