@@ -7,6 +7,8 @@ COPY runtime/patch_codex_catalog.py /opt/factory/patch_codex_catalog.py
 RUN python /opt/factory/patch_codex_catalog.py
 COPY runtime/patch_review_policy.py /opt/factory/patch_review_policy.py
 RUN python /opt/factory/patch_review_policy.py
+COPY runtime/patch_agency_agents.py /opt/factory/patch_agency_agents.py
+RUN python /opt/factory/patch_agency_agents.py
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py
 RUN python /opt/factory/patch_run_outcomes.py
 COPY runtime/reply_hook.py /opt/agent-canvas/tools/factory_reply_hook.py
@@ -24,9 +26,21 @@ ADD --checksum=sha256:d3c38b6f79bb024774c09e1f0600f531a8ca658ba6798c9ba1269d0bca
 ADD --checksum=sha256:fe425248fc51d1d1805ab1442ba8add98d770ad8a132051eaac8c93d7eee3ebe https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/LICENSE /opt/factory/upstream/LICENSE
 COPY runtime/entrypoint /opt/factory/entrypoint
 COPY workflows/ /opt/factory/workflows/
+COPY runtime/factory-agents.mjs /opt/factory/factory-agents.mjs
 COPY scripts/configure.py /opt/factory/configure.py
 COPY upstream.lock.json /opt/factory/upstream.lock.json
 RUN chmod -R a+rX /opt/factory/upstream && chmod +x /opt/factory/entrypoint
+# Pin agency-agents and use its native Codex converter. Only the generated
+# instructions and license remain in the runtime; no host Codex home is mounted.
+ADD --checksum=sha256:bac8380e180c047dd21bb90653da6404559108f88d4c93bd36d056bd522d74dc https://codeload.github.com/msitarzewski/agency-agents/tar.gz/647c8baa42b6842afb4a97bf2c0950d45ba88e8b /tmp/agency-agents.tar.gz
+RUN mkdir /tmp/agency-agents && \
+    tar -xzf /tmp/agency-agents.tar.gz -C /tmp/agency-agents --strip-components=1 && \
+    /tmp/agency-agents/scripts/convert.sh --tool codex > /tmp/agency-convert.log && \
+    CODEX_AGENTS_DIR=/opt/factory/agency-agents/agents \
+      /tmp/agency-agents/scripts/install.sh --tool codex --no-interactive --no-convert && \
+    cp /tmp/agency-agents/LICENSE /opt/factory/agency-agents/LICENSE && \
+    chmod -R a+rX /opt/factory/agency-agents && \
+    rm -rf /tmp/agency-agents /tmp/agency-agents.tar.gz /tmp/agency-convert.log
 USER openhands
 ENV PYTHONPATH=/opt/factory/workflows
 ENV OH_CONVERSATIONS_PATH=/home/openhands/.openhands/conversations

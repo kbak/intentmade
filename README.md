@@ -53,6 +53,49 @@ install the configured automations:
 `configure` imports your GitHub credential into native secret storage and applies
 the configured schedules. It creates an approval label only if one is configured.
 
+### Agency agents
+
+The runtime includes 273 native Codex custom agents from
+[agency-agents](https://github.com/msitarzewski/agency-agents/tree/647c8baa42b6842afb4a97bf2c0950d45ba88e8b),
+pinned by revision and archive checksum in `docker/runtime.Dockerfile`. Both
+Canvas conversations and disposable workers receive the roles. For example:
+"Use the Frontend Developer agent to review this component."
+
+Following the setup above with `./scripts/factoryctl up` automatically downloads
+and installs these roles while building the image. An uncached build needs access
+to GitHub. No separate agency-agents installation is required for the factory.
+Cloning this repository alone does not install roles into a developer's local
+Codex, Claude Code, or other coding tools.
+
+OpenHands gives subscription sessions an isolated `CODEX_HOME`, so installing
+agents in the host's `~/.codex/agents` alone does not expose them to OpenHands.
+The ACP launcher copies the bundled TOML files into each session's `agents/`
+directory before Codex starts, preserving existing files. The definitions contain
+only names, descriptions and instructions; model selection and permissions inherit
+from the parent session. The host's login and configuration are not mounted.
+
+Run `./scripts/factoryctl up` after changing the pinned source to rebuild Canvas
+and refresh the worker image. Newly started Codex sessions receive the updated roles.
+
+#### Claude Code and other agents
+
+This factory currently provisions agency roles for Codex only. Its automated
+workers explicitly launch `codex-acp`; selecting another provider for a Canvas
+chat does not switch those workers or install that provider's role format.
+
+For a local coding tool outside the factory, use the
+[upstream installer](https://github.com/msitarzewski/agency-agents/blob/647c8baa42b6842afb4a97bf2c0950d45ba88e8b/scripts/install.sh)
+with that tool's target. For example, from an agency-agents checkout:
+
+```bash
+./scripts/install.sh --tool claude-code --no-interactive
+```
+
+The upstream project also provides integrations for other tools, each with its
+own installation location and supported behavior. Adding another provider to
+this factory requires its native role installation, session setup, credentials,
+and worker integration; the bundled Codex TOML files do not provide that support.
+
 ## Feature work
 
 Discuss an idea in Canvas until its scope, tradeoffs and acceptance criteria are
