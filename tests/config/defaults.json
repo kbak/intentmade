@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "publish_draft": false,
+  "branch_prefix": "factory",
+  "repair_attempts": 1,
+  "required_checks": ["*"],
+  "accepted_check_results": ["success"]
+}

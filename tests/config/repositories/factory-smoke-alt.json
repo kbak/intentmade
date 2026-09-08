@@ -1,0 +1,7 @@
+{
+  "repository": null,
+  "fixture": "../fixtures/smoke",
+  "branch": "trunk",
+  "test_profile": "smoke",
+  "test_command": "bash \"$FACTORY_TESTS/run.sh\" smoke"
+}

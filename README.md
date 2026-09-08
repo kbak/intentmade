@@ -1,0 +1,195 @@
+# OpenHands factory
+
+A local software factory for WSL and Docker. Discuss ideas and approve
+specifications in OpenHands Agent Canvas, then run implementation, tests and an
+independent agent review in disposable containers. Passing changes are published
+as draft pull requests. Scheduled agents triage GitHub issues and review PRs.
+
+The agent uses Codex through OpenHands ACP with your subscription login. Canvas
+provides chat, schedules, run history and logs. Each task gets a branch and Git
+worktree in every selected repository, plus its own Docker daemon for tests.
+
+## Setup
+
+Requirements: WSL with Docker Engine and Compose, Git, Python 3, GitHub CLI (`gh`)
+access to your repositories, and a Codex login for the agents.
+
+Keep the tooling and your private deployment configuration in sibling directories:
+
+```text
+openhands-factory/       # Tooling, generic examples and tests
+factory-deployment/     # Private repository
+  config/               # Repository registrations, groups and scheduling policy
+  profiles/             # Optional application test adapters
+  .factory/             # Ignored credentials, catalogs, task branches and artifacts
+```
+
+Clone your private deployment there, or create one from the examples. From the
+tooling checkout, copy these into an empty directory:
+
+```bash
+mkdir -p ../factory-deployment
+cp -R examples/. ../factory-deployment/
+```
+
+Replace the example repositories and groups with your own. Set each repository's
+test command and required CI checks, and review `config/defaults.json`. Examples
+have scheduling disabled; set `enabled: true` for repositories you want polled.
+
+Authenticate `gh`, then initialize the deployment and start the services:
+
+```bash
+./scripts/factoryctl init
+./scripts/factoryctl up
+```
+
+Open [Agent Canvas](http://localhost:8000/canvas), complete Codex onboarding, then
+install the configured automations:
+
+```bash
+./scripts/factoryctl configure
+```
+
+`configure` imports your GitHub credential into native secret storage, creates
+missing approval labels and applies the configured schedules.
+
+## Feature work
+
+Discuss an idea in Canvas until its scope, tradeoffs and acceptance criteria are
+clear. Explicitly approve the specification and ask to implement it. The
+coordinator can submit the job from chat, or you can submit an approved file:
+
+```bash
+./scripts/factoryctl submit example-app ./approved-spec.md --run
+```
+
+Omit `--run` to inspect the prepared job in **Automate** before starting it.
+A job implements the specification, runs the configured tests and requests an
+independent review. It allows one repair attempt by default. Tests and review
+must pass before draft publication; merging and deployment remain manual.
+
+Continue a task with `--task TASK_ID` to preserve its branch and original base
+while allocating a fresh worktree. Add `--no-publish` to retain the branch and
+results locally. Failed tasks also retain their branches for inspection or retry.
+
+## Repository configuration
+
+Each `config/repositories/NAME.json` in the private deployment inherits
+`config/defaults.json`. For example:
+
+```json
+{
+  "repository": "your-org/your-project",
+  "branch": "main",
+  "test_command": "docker compose -f compose.test.yaml run --rm tests",
+  "required_checks": ["Unit tests", "Integration tests"]
+}
+```
+
+`test_command` runs in the task worktree with `PROJECT_DIR` set to that path and
+access to the job's Docker daemon. Use the application's own test command and
+containers where available.
+
+For an external test adapter, put its files under `profiles/NAME/` and set
+`test_profile` to `NAME`. A command such as `bash "$FACTORY_TESTS/run.sh" unit`
+uses that profile's read-only mount; escape the quotes in JSON. Multiple
+repositories can share a profile. A profile is optional.
+
+After adding repositories, run `init` and `configure` from the tooling checkout.
+Use `refresh NAME` to update the local code catalog used in discussions. Build
+submissions resolve the remote base commit independently of that catalog.
+
+### Repository groups
+
+A `config/factories/NAME.json` groups registered repositories for one task:
+
+```json
+{
+  "repositories": ["example-app", "example-web"]
+}
+```
+
+Submit the group name instead of a repository name. The approved specification
+must cover all selected repositories. Their worktrees share one agent workspace;
+`FACTORY_WORKSPACE/PROJECT` provides access to each repository for integration tests.
+Every repository's tests and the review of the complete change must pass before
+publication. Each changed repository receives its own draft PR.
+
+PR creation is sequential. If publication stops partway through, inspect the
+recorded PR URLs and continue with the same group and task ID. Scheduled issue
+work remains scoped to the issue's own repository.
+
+### Separate instances
+
+One Canvas can manage multiple repositories and groups. Work is serialized per
+repository; unrelated repositories can run concurrently.
+
+For separate instances, give each distinct `COMPOSE_PROJECT_NAME`, `CANVAS_PORT`,
+`FACTORY_CONFIG_DIR` and `FACTORY_DATA_DIR` values using `.env` or exported
+environment variables. `FACTORY_PROFILES_DIR` selects the test adapters. Defaults
+and paths are listed in [.env.example](.env.example).
+
+Groups select task scope. To restrict repository access, use separate instances
+with appropriately scoped GitHub credentials. Keep one enabled scheduler owner
+per repository across instances.
+
+## GitHub scheduling
+
+Each enabled repository has a **Factory — NAME** automation. Defaults allow a
+poll every ten minutes, four task attempts per UTC day and two per poll.
+
+| Work | Eligibility and result |
+| --- | --- |
+| Issue implementation | Open, unassigned issues with the configured approval label (`factory:approved` by default). The workflow claims the issue for the configured assignee, implements, tests, reviews and opens a draft PR. |
+| Issue proposals | Changed, unassigned issues without approval may receive proposals in Canvas when polling capacity is available. |
+| PR review | Open, non-draft PRs whose required CI checks are present and whose reported checks have accepted results. Reports remain in Canvas and local artifacts. |
+
+Applying the approval label authorizes implementation and draft publication; the
+issue should contain the agreed specification. On failure, the workflow releases
+only its own assignment. Reapply the label to request another attempt after
+inspecting the failed run. Failed scheduled work is not retried on every poll.
+
+Missing, pending or failed CI blocks PR review. Accepted results default to
+`success`, `neutral` and `skipped`; explicit check names detect missing jobs.
+Reviews use the exact PR head's source archive and recheck eligibility before
+recording completion. They rely on CI rather than rerunning application tests and
+do not post GitHub comments or approvals. To request a review manually:
+
+```bash
+./scripts/factoryctl review example-app 123
+```
+
+## Operations
+
+Run commands from the tooling checkout:
+
+| Command | Purpose |
+| --- | --- |
+| `./scripts/factoryctl status` | Show service health. |
+| `./scripts/factoryctl logs` | Read service logs. |
+| `./scripts/factoryctl projects` | List repository configuration. |
+| `./scripts/factoryctl factories` | List repository groups. |
+| `./scripts/factoryctl up` | Build and start the runtime. |
+| `./scripts/factoryctl configure` | Apply configuration and workflow changes. |
+| `./scripts/factoryctl down` | Stop services while retaining data. |
+
+Use Canvas's **Automate** view to inspect runs and pause schedules. Let active jobs
+finish before restarting services. WSL and Docker must remain running for polling;
+Windows boot startup must be arranged separately.
+
+`FACTORY_DATA_DIR` defaults to `../factory-deployment/.factory`. Task branches live
+under `workspaces/tasks/`; reports, test logs, patches and PR metadata are under
+`artifacts/`. Back up this directory and the Compose native state volume together.
+Keep runtime data and `.env` out of Git, and preserve volumes during routine
+shutdowns (`down`, without `-v`).
+
+Workers receive the Codex credential; the GitHub credential stays in the parent
+workflow. Disposable containers share the WSL kernel. Normal completion and
+handled failures clean up job resources; a host crash can require manual cleanup.
+
+## Development
+
+See [tests/README.md](tests/README.md) for lint, regression and live smoke checks.
+Runtime dependencies are pinned in `docker/runtime.Dockerfile` and
+`upstream.lock.json`; run the checks when changing workflows or those pins.
+Local builds use the `openhands-factory:dev` image tag.

@@ -1,0 +1,18 @@
+# Runs inside the factory Docker daemon. Each job has a separate test daemon.
+services:
+  docker:
+    image: docker:29.4.1-dind
+    privileged: true
+    environment: {DOCKER_TLS_CERTDIR: ""}
+    volumes:
+      - ${JOB_WORKSPACE:?}:${JOB_WORKSPACE:?}
+      - data:/var/lib/docker
+    mem_limit: 10g
+    cpus: 6
+    healthcheck:
+      test: [CMD, docker, info]
+      interval: 2s
+      timeout: 5s
+      retries: 45
+volumes:
+  data:

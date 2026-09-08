@@ -1,0 +1,20 @@
+{
+  "schedule": "*/10 * * * *",
+  "timezone": "UTC",
+  "enabled": false,
+  "issue_label": "factory:approved",
+  "assignee": "@token-owner",
+  "branch_prefix": "factory",
+  "daily_tasks": 4,
+  "max_tasks_per_poll": 2,
+  "repair_attempts": 1,
+  "required_checks": [
+    "*"
+  ],
+  "accepted_check_results": [
+    "success",
+    "neutral",
+    "skipped"
+  ],
+  "publish_draft": true
+}

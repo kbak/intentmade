@@ -1,0 +1,118 @@
+"""Shared configuration, native APIs and upstream OpenHands helpers."""
+
+import fcntl
+import importlib.util
+import json
+import os
+import re
+from contextlib import contextmanager
+from pathlib import Path
+
+import httpx
+
+ROOT = Path(os.environ.get("FACTORY_ROOT", "/opt/factory"))
+DATA = Path(os.environ.get("FACTORY_DATA", "/workspaces"))
+
+
+def load_upstream(name):
+    spec = importlib.util.spec_from_file_location(name, ROOT / "upstream" / (name + ".py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# Immutable upstream sources, downloaded and verified when building the image.
+issues = load_upstream("issues")
+reviews = load_upstream("reviews")
+git = issues._git
+
+
+def identifier(value, max_length=80):
+    if not re.fullmatch(rf"[a-zA-Z0-9][a-zA-Z0-9_.-]{{0,{max_length - 1}}}", value):
+        raise ValueError(
+            "Use a short repository/task identifier containing letters, numbers, . _ -"
+        )
+    return value
+
+
+def projects(config_dir=None):
+    directory = Path(config_dir) if config_dir is not None else ROOT / "config"
+    defaults = json.loads((directory / "defaults.json").read_text())
+    result = {}
+    for file in sorted((directory / "repositories").glob("*.json")):
+        name = identifier(file.stem)
+        config = {**defaults, **json.loads(file.read_text()), "project": name}
+        if config.get("test_profile"):
+            identifier(config["test_profile"])
+        if config["repository"]:
+            config["repository"] = issues.normalize_repo(config["repository"])
+        if not config["test_command"].strip() or not config["required_checks"]:
+            raise ValueError(f"{name}: test_command and required_checks must not be empty")
+        result[name] = config
+    return result
+
+
+def factories(config_dir=None):
+    """Optional repository groups; schedules and test settings remain per repository."""
+    directory = Path(config_dir) if config_dir is not None else ROOT / "config"
+    configured = projects(directory)
+    result = {}
+    for file in sorted((directory / "factories").glob("*.json")):
+        name = identifier(file.stem)
+        definition = json.loads(file.read_text())
+        members = definition.get("repositories")
+        if name in configured:
+            raise ValueError(f"{name}: factory and repository names must be distinct")
+        if (
+            set(definition) != {"repositories"}
+            or not isinstance(members, list)
+            or not members
+            or any(not isinstance(member, str) or member not in configured for member in members)
+            or len(set(members)) != len(members)
+        ):
+            raise ValueError(f"{name}: specify a nonempty list of unique registered repositories")
+        remotes = [configured[member]["repository"] for member in members]
+        remotes = [remote for remote in remotes if remote]
+        if len(set(remotes)) != len(remotes):
+            raise ValueError(f"{name}: the same GitHub repository cannot appear twice")
+        result[name] = members
+    return result
+
+
+def api(method, path, **kwargs):
+    with httpx.Client(
+        base_url="http://127.0.0.1:8000",
+        headers={"X-Session-API-Key": os.environ["OH_SESSION_API_KEYS_0"]},
+        timeout=120,
+    ) as client:
+        response = client.request(method, path, **kwargs)
+        response.raise_for_status()
+        return response.json() if response.content else None
+
+
+def github(token, method, path, **kwargs):
+    return issues._github_request(token, method, path, **kwargs)[0]
+
+
+def token():
+    # Native secret storage; never copy the GitHub token into a worker.
+    return issues.get_secret("GITHUB_PERSONAL_ACCESS_TOKEN")
+
+
+@contextmanager
+def lock(name, blocking=False):
+    directory = DATA / "locks"
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / (identifier(name, 86) + ".lock")).open("w") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+        yield
+
+
+def job_id():
+    return os.environ["AUTOMATION_RUN_ID"]
+
+
+def evidence(name):
+    path = Path("/projects/artifacts") / identifier(name, 117)
+    path.mkdir(exist_ok=True, mode=0o755)
+    return path

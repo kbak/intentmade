@@ -1,0 +1,9 @@
+{
+  "repository": "your-org/example-web",
+  "branch": "main",
+  "test_command": "docker compose -f compose.test.yaml run --rm tests",
+  "required_checks": [
+    "Unit tests",
+    "Integration tests"
+  ]
+}

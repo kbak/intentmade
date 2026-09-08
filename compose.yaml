@@ -1,0 +1,54 @@
+name: openhands-factory
+services:
+  canvas:
+    image: ${FACTORY_IMAGE:-openhands-factory:dev}
+    build:
+      context: .
+      dockerfile: docker/runtime.Dockerfile
+    restart: unless-stopped
+    ports: ["127.0.0.1:${CANVAS_PORT:-8000}:8000"]
+    environment:
+      FACTORY_IMAGE: ${FACTORY_IMAGE:-openhands-factory:dev}
+      AGENT_SERVER_URL: http://127.0.0.1:8000
+      DO_NOT_TRACK: "1"
+      OH_PERSISTENCE_DIR: /home/openhands/.openhands
+      AUTOMATION_BASE_URL: http://canvas:8000
+      AUTOMATION_MAX_RUN_DURATION: "7200"
+      DOCKER_HOST: tcp://sandboxes:2375
+    volumes:
+      - canvas-state:/home/openhands/.openhands
+      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/catalog:/projects/repos:ro
+      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/requests:/projects/requests
+      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/artifacts:/projects/artifacts
+      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/workspaces:/workspaces
+      - ${FACTORY_CONFIG_DIR:-../factory-deployment/config}:/opt/factory/config:ro
+      - ./coordinator/AGENTS.md:/projects/AGENTS.md:ro
+      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/secrets/canvas-key:/run/secrets/canvas-key:ro
+      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/secrets/encryption-key:/run/secrets/encryption-key:ro
+    mem_limit: 6g
+    cpus: 4
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/canvas')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+  sandboxes:
+    image: docker:29.4.1-dind
+    privileged: true
+    restart: unless-stopped
+    environment: {DOCKER_TLS_CERTDIR: ""}
+    command: [dockerd, --host=tcp://0.0.0.0:2375, --host=unix:///var/run/docker.sock, --storage-driver=overlay2]
+    volumes:
+      - sandbox-images:/var/lib/docker
+      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/workspaces:/workspaces
+      - ${FACTORY_PROFILES_DIR:-../factory-deployment/profiles}:/profiles:ro
+    mem_limit: 18g
+    cpus: 10
+    healthcheck:
+      test: [CMD, docker, info]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+volumes:
+  canvas-state:
+  sandbox-images:

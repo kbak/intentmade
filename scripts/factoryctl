@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""Operate native OpenHands; no additional service or task database."""
+
+import argparse
+import json
+import secrets
+import shutil
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+# Ask Compose to resolve .env, exported overrides and relative bind paths.
+# This keeps setup, deployment and image caching on the same configuration.
+DEPLOYMENT = json.loads(
+    subprocess.check_output(
+        ["docker", "compose", "config", "--format", "json"], cwd=ROOT, text=True
+    )
+)
+CANVAS = DEPLOYMENT["services"]["canvas"]
+MOUNTS = {item["target"]: item["source"] for item in CANVAS["volumes"] if item["type"] == "bind"}
+DATA = Path(MOUNTS["/workspaces"]).parent
+CONFIG = Path(MOUNTS["/opt/factory/config"])
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, cwd=ROOT, check=True, **kwargs)
+
+
+def native(*args, **kwargs):
+    return run(
+        "docker",
+        "compose",
+        "exec",
+        "-T",
+        "canvas",
+        "python",
+        "/opt/factory/configure.py",
+        *args,
+        **kwargs,
+    )
+
+
+def projects():
+    defaults = json.loads((CONFIG / "defaults.json").read_text())
+    return {
+        path.stem: {**defaults, **json.loads(path.read_text())}
+        for path in (CONFIG / "repositories").glob("*.json")
+    }
+
+
+p = argparse.ArgumentParser(description=__doc__)
+p.add_argument(
+    "action",
+    choices=[
+        "init",
+        "up",
+        "down",
+        "status",
+        "open",
+        "logs",
+        "configure",
+        "submit",
+        "review",
+        "refresh",
+        "projects",
+        "factories",
+    ],
+)
+p.add_argument("args", nargs=argparse.REMAINDER)
+a = p.parse_args()
+if a.action == "init":
+    DATA.mkdir(exist_ok=True, parents=True, mode=0o700)
+    (DATA / "secrets").mkdir(exist_ok=True, mode=0o700)
+    for name in ("canvas-key", "encryption-key"):
+        path = DATA / "secrets" / name
+        if not path.exists():
+            path.write_text(secrets.token_urlsafe(32))
+            path.chmod(0o444)
+    for name in ("workspaces", "artifacts", "requests"):
+        (DATA / name).mkdir(exist_ok=True)
+        (DATA / name).chmod(0o777)
+    (DATA / "catalog").mkdir(exist_ok=True)
+    for name, project in projects().items():
+        destination = DATA / "catalog" / name
+        if destination.exists():
+            continue
+        if project["repository"]:
+            run(
+                "gh",
+                "repo",
+                "clone",
+                project["repository"],
+                str(destination),
+                "--",
+                "--branch",
+                project["branch"],
+            )
+        else:
+            shutil.copytree(CONFIG / project["fixture"], destination)
+            run("git", "-C", str(destination), "init", "-b", project["branch"])
+            run("git", "-C", str(destination), "add", ".")
+            run(
+                "git",
+                "-C",
+                str(destination),
+                "-c",
+                "user.name=Factory Fixture",
+                "-c",
+                "user.email=fixture@localhost",
+                "commit",
+                "-m",
+                "Disposable test fixture",
+            )
+    print("Initialized. Configure Codex login in native Canvas for a fresh instance.")
+elif a.action == "up":
+    run("docker", "compose", "build", "canvas")
+    # Cache the matching worker image before Canvas can dispatch a scheduled job.
+    run("docker", "compose", "up", "-d", "--wait", "--wait-timeout", "300", "sandboxes")
+    image = CANVAS["image"]
+    with subprocess.Popen(
+        ["docker", "save", image, "docker:29.4.1-dind"], stdout=subprocess.PIPE
+    ) as source:
+        run("docker", "compose", "exec", "-T", "sandboxes", "docker", "load", stdin=source.stdout)
+        if source.wait():
+            raise RuntimeError("Could not transfer sandbox images")
+    run("docker", "compose", "up", "-d", "--remove-orphans", "--wait", "--wait-timeout", "300")
+elif a.action == "configure":
+    credential = run("gh", "auth", "token", capture_output=True, text=True).stdout
+    native("github-login", input=credential, text=True)
+    native("configure", *a.args)
+elif a.action == "submit":
+    if len(a.args) < 2:
+        p.error("submit requires REPOSITORY_OR_FACTORY SPEC_FILE [--task ID] [--run] [--no-publish]")
+    native("submit", a.args[0], "-", *a.args[2:], input=Path(a.args[1]).read_text(), text=True)
+elif a.action == "review":
+    native("review", *a.args)
+elif a.action == "refresh":
+    for name, project in projects().items():
+        if project["repository"] and (not a.args or name in a.args):
+            run("git", "-C", str(DATA / "catalog" / name), "pull", "--ff-only")
+elif a.action == "projects":
+    print(json.dumps(projects(), indent=2))
+elif a.action == "factories":
+    native("factories")
+elif a.action == "open":
+    address = run(
+        "docker", "compose", "port", "canvas", "8000", capture_output=True, text=True
+    ).stdout.strip()
+    print("http://" + address + "/canvas")
+elif a.action == "status":
+    run("docker", "compose", "ps")
+elif a.action == "logs":
+    run("docker", "compose", "logs", "--tail", "100", "canvas")
+else:
+    run("docker", "compose", "down")
