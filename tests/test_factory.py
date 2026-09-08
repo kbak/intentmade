@@ -160,6 +160,7 @@ class OwnershipTests(unittest.TestCase):
         with (
             patch.object(monitor.issues, "_get_issue", return_value=ISSUE),
             patch.object(monitor.issues, "_github_paginate", return_value=[]),
+            patch("approval.approved_issue", return_value=(ISSUE, {"label_event": "fixture"})),
             patch.object(monitor, "github", side_effect=api),
             patch.object(monitor, "build", side_effect=build),
         ):
@@ -185,6 +186,7 @@ class OwnershipTests(unittest.TestCase):
                     side_effect=[ISSUE, {**ISSUE, "assignees": current}],
                 ),
                 patch.object(monitor.issues, "_github_paginate", return_value=[]),
+                patch("approval.approved_issue", return_value=(ISSUE, {"label_event": "fixture"})),
                 patch.object(monitor, "github", side_effect=api),
                 patch.object(monitor, "build", side_effect=RuntimeError("tests failed")),
             ):

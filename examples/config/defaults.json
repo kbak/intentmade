@@ -2,10 +2,10 @@
   "schedule": "*/10 * * * *",
   "timezone": "UTC",
   "enabled": false,
-  "issue_label": "factory:approved",
+  "issue_label": null,
   "assignee": "@token-owner",
   "branch_prefix": "factory",
-  "daily_tasks": 4,
+  "daily_tasks": null,
   "max_tasks_per_poll": 2,
   "repair_attempts": 1,
   "required_checks": [

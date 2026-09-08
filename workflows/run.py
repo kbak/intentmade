@@ -67,13 +67,20 @@ def publish(config, task, repo, branch, artifact, request, credential, issue=Non
         + (f"\nCloses #{issue}\n" if issue else "")
     )
     if issue:
+        from approval import approved_issue
+
         current = github(credential, "GET", f"/repos/{config['repository']}/issues/{issue}")
         if (
             current["state"] != "open"
-            or config["issue_label"] not in issues._labels(current)
+            or (config.get("issue_label") and config["issue_label"] not in issues._labels(current))
             or {a["login"] for a in current.get("assignees", [])} != {config["assignee"]}
         ):
-            raise RuntimeError("Issue closed or approval label removed; publication withheld")
+            raise RuntimeError(
+                "Issue closed, ownership changed or required label removed; publication withheld"
+            )
+        if not config.get("issue_approval"):
+            raise RuntimeError("Issue approval snapshot is missing; publication withheld")
+        approved_issue(config, issue, credential, expected=config["issue_approval"])
     # Use upstream authenticated Git operations and idempotent draft PR creation.
     issues._push_branch(repo, branch, credential)
     result = issues._open_pull_request(

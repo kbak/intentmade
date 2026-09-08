@@ -19,7 +19,7 @@ docker compose build canvas
 docker run --rm --entrypoint python \
   -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
   -v "$PWD/tests:/tests:ro" -v "$PWD/examples/config:/opt/factory/config:ro" \
-  openhands-factory:dev -m unittest discover -s /tests -p test_factory.py -v
+  openhands-factory:dev -m unittest discover -s /tests -p 'test_*.py' -v
 ```
 
 The suite checks issue eligibility and ownership, CI gating, branch retention,

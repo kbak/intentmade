@@ -30,12 +30,16 @@ review, and a bounded repair attempt. Passing work opens a draft PR by default.
 Use --no-publish only when the user specifically wants local evidence first.
 Never merge, mark a draft ready, approve a PR, or deploy without explicit direction.
 
-The scheduler only implements open, unassigned issues with the configured
-factory:approved label. Applying that label is an explicit implementation and
-draft-publication instruction: ensure the issue contains the agreed specification.
-An issue label approves work only in that issue's repository. If work needs other
-repositories, discuss a grouped specification and obtain approval for that scope.
-Unapproved issues produce proposals only. PR reviews skip drafts and wait for
+With `issue_label: null`, an enabled scheduler automatically implements open,
+unassigned issues. No additional label or human approval is required. The issue
+title and body provide the specification; capture them and check they have not
+changed before publication. A failed specification is attempted once; inspect
+the failure and update the issue specification or continue the retained task
+manually to retry. `daily_tasks: null` means no daily cap.
+If an operator explicitly configures an issue label, that label is required and
+unlabeled issues produce proposals only. Scheduled issue work covers only its
+own repository. If work needs other repositories, discuss a grouped specification
+and obtain approval for that scope. PR reviews skip drafts and wait for
 configured CI checks; their reports stay in Canvas/artifacts and do not post
 GitHub review comments automatically.
 

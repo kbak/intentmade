@@ -50,8 +50,8 @@ install the configured automations:
 ./scripts/factoryctl configure
 ```
 
-`configure` imports your GitHub credential into native secret storage, creates
-missing approval labels and applies the configured schedules.
+`configure` imports your GitHub credential into native secret storage and applies
+the configured schedules. It creates an approval label only if one is configured.
 
 ## Feature work
 
@@ -136,18 +136,26 @@ per repository across instances.
 ## GitHub scheduling
 
 Each enabled repository has a **Factory — NAME** automation. Defaults allow a
-poll every ten minutes, four task attempts per UTC day and two per poll.
+poll every ten minutes and two task attempts per poll, with no daily cap.
+`daily_tasks: null` disables the daily cap; a positive number sets a UTC-day limit.
 
 | Work | Eligibility and result |
 | --- | --- |
-| Issue implementation | Open, unassigned issues with the configured approval label (`factory:approved` by default). The workflow claims the issue for the configured assignee, implements, tests, reviews and opens a draft PR. |
-| Issue proposals | Changed, unassigned issues without approval may receive proposals in Canvas when polling capacity is available. |
+| Issue implementation | Open, unassigned issues, oldest first. The workflow claims the issue for the configured assignee, implements, tests, reviews and opens a draft PR. |
+| Issue proposals | When an optional approval label is configured, changed, unassigned issues without that label may receive proposals in Canvas when polling capacity is available. |
 | PR review | Open, non-draft PRs whose required CI checks are present and whose reported checks have accepted results. Reports remain in Canvas and local artifacts. |
 
-Applying the approval label authorizes implementation and draft publication; the
-issue should contain the agreed specification. On failure, the workflow releases
-only its own assignment. Reapply the label to request another attempt after
-inspecting the failed run. Failed scheduled work is not retried on every poll.
+`issue_label: null` makes open, unassigned issues eligible without a label. Enabling
+the repository's schedule authorizes that work; the issue title and body provide
+the specification. A running task must still match that specification before
+publication. On failure, the workflow releases only its own assignment and records
+the attempted specification so it is not retried on every poll. Inspect the failed
+run and update the issue specification to request another attempt, or continue
+the retained task manually.
+
+To opt into label-based approval, set `issue_label` to a label name. In that mode,
+applying the label authorizes implementation and draft publication; remove and
+reapply it after reviewing a failed run or editing the approved specification.
 
 Missing, pending or failed CI blocks PR review. Accepted results default to
 `success`, `neutral` and `skipped`; explicit check names detect missing jobs.

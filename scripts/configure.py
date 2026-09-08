@@ -74,26 +74,29 @@ def configure(paused=False):
     for project, config in configured.items():
         if not config["repository"]:
             continue
-        label = config["issue_label"]
-        try:
-            from urllib.parse import quote
+        label = config.get("issue_label")
+        if label:
+            try:
+                from urllib.parse import quote
 
-            github(
-                credential, "GET", f"/repos/{config['repository']}/labels/{quote(label, safe='')}"
-            )
-        except urllib.error.HTTPError as exc:
-            if exc.code != 404:
-                raise
-            github(
-                credential,
-                "POST",
-                f"/repos/{config['repository']}/labels",
-                body={
-                    "name": label,
-                    "color": "0E8A16",
-                    "description": "Approved specification: implement, test, review, and open a draft PR",
-                },
-            )
+                github(
+                    credential,
+                    "GET",
+                    f"/repos/{config['repository']}/labels/{quote(label, safe='')}",
+                )
+            except urllib.error.HTTPError as exc:
+                if exc.code != 404:
+                    raise
+                github(
+                    credential,
+                    "POST",
+                    f"/repos/{config['repository']}/labels",
+                    body={
+                        "name": label,
+                        "color": "0E8A16",
+                        "description": "Approved specification: implement, test, review, and open a draft PR",
+                    },
+                )
         definition = {
             "name": "Factory — " + project,
             "enabled": config["enabled"] and not paused,

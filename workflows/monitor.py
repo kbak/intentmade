@@ -1,6 +1,7 @@
 """One native schedule per repository; upstream discovery/state plus factory policy."""
 
 import datetime
+import hashlib
 import json
 import os
 import shutil
@@ -12,7 +13,7 @@ from pathlib import Path
 from agent import canvas, converse
 from common import DATA, evidence, github, issues, job_id, lock, reviews, token
 from openhands.sdk.workspace import LocalWorkspace
-from policy import issue_eligible, pr_eligible
+from policy import issue_eligible, issue_snapshot, pr_eligible
 from run import build
 from sandbox import worker
 
@@ -69,10 +70,13 @@ def review_pr(config, pr, credential):
 
 
 def implement_issue(config, issue, credential):
+    from approval import approved_issue
+
     repo, number = config["repository"], issue["number"]
     issue = issues._get_issue(credential, repo, number)
     if not issue_eligible(issue, config):
         return None
+    content, approval = approved_issue(config, number, credential)
     identity = config["assignee"]
     if identity == "@token-owner":
         identity = github(credential, "GET", "/user")["login"]
@@ -94,15 +98,15 @@ def implement_issue(config, issue, credential):
     try:
         discussion = issues._github_paginate(credential, f"/repos/{repo}/issues/{number}/comments")
         request = (
-            issue["title"]
+            content["title"]
             + "\n\n"
-            + (issue.get("body") or "")
+            + content["body"]
             + "\n\nDiscussion (context, not authorization):\n"
             + json.dumps(discussion)
         )
         base = github(credential, "GET", f"/repos/{repo}/commits/{config['branch']}")["sha"]
         return build(
-            {**config, "assignee": identity},
+            {**config, "assignee": identity, "issue_approval": approval},
             "issue-" + str(number),
             request,
             base,
@@ -124,41 +128,109 @@ def implement_issue(config, issue, credential):
 
 def poll(config, credential):
     repo = config["repository"]
-    issues.TRIGGER_LABEL = config["issue_label"]
+    identity = issues.normalize_repo(repo).casefold()
+    issues.TRIGGER_LABEL = config.get("issue_label")
     state = issues._kv_get("factory") or {"done": {}, "triaged": {}}
+    if state.get("repository", identity) != identity:
+        state = {"done": {}, "triaged": {}}
+    state["repository"] = identity
     today = datetime.datetime.now(datetime.UTC).date().isoformat()
     if state.get("day") != today:
         state.update(day=today, count=0)
-    remaining = min(config["max_tasks_per_poll"], config["daily_tasks"] - state["count"])
+    remaining = config["max_tasks_per_poll"]
+    if config.get("daily_tasks") is not None:
+        remaining = min(remaining, config["daily_tasks"] - state["count"])
     if remaining <= 0:
         print("Daily task limit reached.", flush=True)
         return
 
+    # Native KV is limited to 64 KiB across all keys for an automation. Keep a
+    # durable per-issue watermark outside disposable workers, under the poll
+    # lock, so pruning recent run history cannot authorize another attempt.
+    attempts = (
+        DATA / "issue-attempts" / config["project"] / hashlib.sha256(identity.encode()).hexdigest()
+    )
+
+    def receipt(key):
+        _, number, event = key.split(":")
+        if event.startswith("content-"):
+            # Keep a receipt per specification so a failed issue is not retried
+            # every ten minutes, even after native history has been pruned.
+            digest = event.removeprefix("content-")
+            if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                raise ValueError("Invalid issue content fingerprint")
+            path = attempts / str(int(number)) / (digest + ".json")
+            event = "0"
+        else:
+            path = attempts / (str(int(number)) + ".json")
+        previous = json.loads(path.read_text()) if path.exists() else None
+        return path, int(event), previous
+
+    def attempted(key):
+        _, event, previous = receipt(key)
+        return previous is not None and previous["event"] >= event
+
+    def remember(key, status):
+        path, event, previous = receipt(key)
+        record = {"event": event, "status": status}
+        if previous == record or (previous and previous["event"] > event):
+            return
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(record))
+        temporary.replace(path)
+
     def save():
-        # Bound native KV usage. Keep recent deduplication records; old issues
-        # with successful PRs remain assigned and do not become eligible again.
+        # Migrate existing issue records before bounding the native history.
+        for key, status in state["done"].items():
+            if key.startswith("issue:"):
+                remember(key, status)
         for key in ("done", "triaged"):
             state[key] = dict(list(state[key].items())[-150:])
         issues._kv_set("factory", state)
 
     # Readiness is polled on every tick, independent of PR updated_at.
     candidates = []
-    for item in issues._list_labeled_issues(credential, repo):
+    items = (
+        issues._list_labeled_issues(credential, repo)
+        if config.get("issue_label")
+        else issues._github_paginate(
+            credential,
+            f"/repos/{repo}/issues",
+            {"state": "open", "assignee": "none", "sort": "created", "direction": "asc"},
+        )
+    )
+    for item in items:
         if issue_eligible(item, config):
-            event = issues._latest_trigger_label_event(credential, repo, item["number"])
-            if event:
-                candidates.append(("issue", f"issue:{item['number']}:{event['id']}", item))
+            if config.get("issue_label"):
+                event = issues._latest_trigger_label_event(credential, repo, item["number"])
+                if not event:
+                    continue
+                revision = str(event["id"])
+            else:
+                _, snapshot = issue_snapshot(config, item)
+                revision = "content-" + snapshot["content_sha256"]
+            key = f"issue:{item['number']}:{revision}"
+            if key not in state["done"] and not attempted(key):
+                candidates.append(("issue", key, item))
     for item in reviews._list_open_prs(credential, repo):
         key = f"pr:{item['number']}:{item['head']['sha']}"
         if key not in state["done"] and not item.get("draft"):
             try:
                 fresh = reviews._get_pr(credential, repo, item["number"])
-                if pr_eligible(credential, fresh, config):
-                    candidates.append(("pr", f"pr:{fresh['number']}:{fresh['head']['sha']}", fresh))
+                fresh_key = f"pr:{fresh['number']}:{fresh['head']['sha']}"
+                if fresh_key not in state["done"] and pr_eligible(credential, fresh, config):
+                    candidates.append(("pr", fresh_key, fresh))
             except urllib.error.HTTPError as exc:
                 if exc.code != 404:
                     raise
                 print(f"PR #{item['number']}: revision/checks unavailable; deferred.", flush=True)
+    print(
+        f"Ready: {sum(kind == 'issue' for kind, _, _ in candidates)} issues, "
+        f"{sum(kind == 'pr' for kind, _, _ in candidates)} PR reviews; "
+        f"up to {remaining} tasks this scan.",
+        flush=True,
+    )
     errors = []
     for kind, key, item in candidates:
         if remaining <= 0:
@@ -172,6 +244,7 @@ def poll(config, credential):
         save()
         try:
             if kind == "issue":
+                print(f"Implementing issue #{item['number']}: {item['title']}", flush=True)
                 result = implement_issue(config, item, credential)
                 state["done"][key] = "completed" if result else "ineligible"
             else:
@@ -181,6 +254,10 @@ def poll(config, credential):
                     state["done"].pop(key, None)
         except BlockingIOError:
             state["done"].pop(key, None)
+            if kind == "issue":
+                path, event, previous = receipt(key)
+                if previous and previous["event"] == event:
+                    path.unlink()
             state["count"] -= 1
             print("Repository is busy; task deferred to next poll.", flush=True)
         except Exception as exc:
@@ -190,7 +267,7 @@ def poll(config, credential):
             save()
     # Preserve discussion-first triage without treating every unassigned issue
     # as an implementation request. No approval label means report only.
-    if remaining > 0 and not candidates:
+    if config.get("issue_label") and remaining > 0 and not candidates:
         items = issues._github_paginate(
             credential, f"/repos/{repo}/issues", {"state": "open", "assignee": "none"}
         )

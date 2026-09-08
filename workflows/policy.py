@@ -1,5 +1,7 @@
 """Deterministic selection policy; no agent decides eligibility or ownership."""
 
+import hashlib
+import json
 from fnmatch import fnmatchcase
 
 from common import github, issues
@@ -10,8 +12,23 @@ def issue_eligible(issue, config):
         issue.get("state") == "open"
         and not issue.get("pull_request")
         and not issue.get("assignees")
-        and config["issue_label"] in issues._labels(issue)
+        and (not config.get("issue_label") or config["issue_label"] in issues._labels(issue))
     )
+
+
+def issue_snapshot(config, issue):
+    """Identify the specification independently of comments, labels and assignment."""
+    content = {"title": issue["title"], "body": issue.get("body") or ""}
+    if not all(isinstance(value, str) for value in content.values()):
+        raise RuntimeError("Issue specification is unavailable")
+    snapshot = {
+        "repository": config["repository"],
+        "issue": issue["number"],
+        "content_sha256": hashlib.sha256(
+            json.dumps(content, sort_keys=True, ensure_ascii=False).encode()
+        ).hexdigest(),
+    }
+    return content, snapshot
 
 
 def checks_pass(checks, config):
