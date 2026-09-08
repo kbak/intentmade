@@ -41,6 +41,19 @@ PR = {
 
 
 class NamingTests(unittest.TestCase):
+    def test_repository_tracker_rule_preserves_existing_keys_and_is_idempotent(self):
+        config = {"pr_title_subject_prefix": "NOSTORY"}
+        expected = "fix(telegram): NOSTORY: Restore scanning"
+        self.assertEqual(
+            naming.pull_request_title("bug(telegram): Restore scanning", config), expected
+        )
+        self.assertEqual(naming.pull_request_title(expected, config), expected)
+        tracked = "feat: CDA-123: Add retry"
+        self.assertEqual(naming.pull_request_title(tracked, config), tracked)
+        self.assertEqual(
+            naming.pull_request_title("fix: Restore scanning", {}), "fix: Restore scanning"
+        )
+
     def test_conventional_title_and_descriptive_branch(self):
         title = "[#1402] bug(telegram): restore scanning after /stop"
         self.assertEqual(naming.change_title(title), "fix(telegram): restore scanning after /stop")

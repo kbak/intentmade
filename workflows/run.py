@@ -12,7 +12,7 @@ from typing import Literal
 from agent import converse, worktree
 from cleanup import job_directory
 from common import DATA, api, evidence, git, github, identifier, issues, job_id, lock, token
-from naming import branch_name, change_title
+from naming import branch_name, change_title, pull_request_title
 from openhands.sdk.workspace.repo import RepoSource, clone_repos
 from pydantic import BaseModel, Field, model_validator
 from reporting import NeedsInput, outcome, phase, run_report
@@ -146,7 +146,7 @@ def publish(
     summary=None,
     title=None,
 ):
-    title = change_title(title or request)
+    title = pull_request_title(title or request, config)
     body = (
         (summary or request.splitlines()[0]).strip()[:35000]
         + "\n\n### Validation\n\n- Tests passed.\n- Independent code review passed.\n"

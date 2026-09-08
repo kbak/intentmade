@@ -7,7 +7,7 @@ import re
 import httpx
 import reporting
 from common import DATA, evidence, git, github, identifier, issues, job_id, lock
-from naming import change_title
+from naming import pull_request_title
 from policy import checks_for, checks_pass, latest_check_runs
 from reporting import NeedsInput, TaskReport, resume_reply
 
@@ -161,7 +161,7 @@ def plan(config, pr, credential):
     failures.update({name: value for name, value in checks.items() if value in FAILED})
     comparison = github(credential, "GET", f"/repos/{config['repository']}/compare/{base}...{head}")
     behind = comparison["behind_by"] > 0
-    title = change_title(pr["title"])
+    title = pull_request_title(pr["title"], config)
     rename_title = title != pr["title"]
     ready = checks_pass({**checks, **merged}, config) and all(
         v in config["accepted_check_results"] for v in checks.values()

@@ -45,3 +45,13 @@ def branch_name(task, request, prefix=None):
     number = task.removeprefix("issue-")
     category = prefix or re.match(r"\w+", kind)[0]
     return f"{category}/{number}-{slug or 'update'}"
+
+
+def pull_request_title(request, config):
+    title = change_title(request)
+    prefix = config.get("pr_title_subject_prefix")
+    if prefix:
+        kind, _, subject = title.partition(": ")
+        if not re.match(r"^(?:[A-Z]+-\d+|NOSTORY): .+", subject):
+            title = f"{kind}: {prefix}: {subject}"
+    return title

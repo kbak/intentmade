@@ -150,6 +150,9 @@ in place of the issue number. `branch_prefix: null` derives the type from the
 task title; an explicit prefix overrides that category. The chosen branch is
 stored with the task, so changing defaults or titles preserves existing PRs.
 PR titles and commits use Conventional Commits, with `bug` normalized to `fix`.
+A repository can set `pr_title_subject_prefix` for a stricter title check, such
+as `NOSTORY`. Existing tracker keys are preserved; the prefix is added only
+when a title lacks one.
 
 | Work | Eligibility and result |
 | --- | --- |
