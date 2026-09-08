@@ -178,8 +178,9 @@ scope over someone else's PR.
 `issue_label: null` makes open, unassigned issues eligible without a label. Enabling
 the repository's schedule authorizes that work; the issue title and body provide
 the specification. A running task must still match that specification before
-publication. On failure, the workflow releases only its own assignment and records
-the attempted specification so it is not retried on every poll. Each issue gets
+publication. On failure, the workflow releases an assignment acquired by that run;
+an assignment retained from an earlier run stays in place. It records the attempted
+specification so it is not retried on every poll. Each issue gets
 a persistent Canvas conversation with its result, questions and evidence path.
 The run links to that conversation; live phases distinguish implementation,
 tests, independent review, repair and publication. Empty or busy scans report
@@ -187,6 +188,9 @@ tests, independent review, repair and publication. Empty or busy scans report
 
 Material unanswered questions stop implementation with **NEEDS_INPUT**, before
 tests or publication, and wake the read-only report assistant to ask them in Canvas.
+The issue stays assigned while waiting. The scheduler also checks recorded,
+assigned tasks for answers; an issue assigned to the same GitHub user without
+a matching task record is not eligible for automatic continuation.
 Reply in the task conversation with `resume: YOUR ANSWER`;
 the next scheduled scan consumes that explicit reply once and continues the same
 task branch and specification. A normal discussion message does not restart work.

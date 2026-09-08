@@ -87,36 +87,78 @@ def _review_pr(config, pr, credential):
         return current
 
 
+def issue_ready(config, issue, resume=None):
+    if issue_eligible(issue, config):
+        return True
+    # A shared GitHub login is not proof this instance owns a human-assigned
+    # issue. Only a recorded claim and an answer for its specification allow it.
+    if not resume or not issue_eligible({**issue, "assignees": []}, config):
+        return False
+    record = reporting.read_report(config, "issue-" + str(issue["number"])) or {}
+    owner = record.get("assignee")
+    return bool(
+        owner
+        and record.get("status") in {"NEEDS_INPUT", "FAILED", "PUBLICATION_FAILED"}
+        and record.get("snapshot") == resume["snapshot"]
+        and all(
+            resume["snapshot"].get(key) == value
+            for key, value in issue_snapshot(config, issue)[1].items()
+        )
+        and {a["login"].casefold() for a in issue.get("assignees", [])} == {owner.casefold()}
+        and config["assignee"].casefold() in {"@token-owner", owner.casefold()}
+    )
+
+
+def waiting_replies(config, credential, discovered):
+    """Discover explicit answers to claimed tasks outside the unassigned queue."""
+    for path in reporting.report_path(config, "unused").parent.glob("issue-*.json"):
+        record = json.loads(path.read_text())
+        number = (record.get("snapshot") or {}).get("issue")
+        if not number or number in discovered or not record.get("assignee"):
+            continue
+        reply = resume_reply(config, path.stem)
+        if not reply:
+            continue
+        try:
+            item = issues._get_issue(credential, config["repository"], number)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise
+            continue
+        yield {**item, "factory_resume": reply}
+
+
 def implement_issue(config, issue, credential, resume=None):
     from approval import approved_issue
 
     repo, number = config["repository"], issue["number"]
     issue = issues._get_issue(credential, repo, number)
-    if not issue_eligible(issue, config):
+    if not issue_ready(config, issue, resume):
         return None
     content, approval = approved_issue(
         config, number, credential, expected=resume["snapshot"] if resume else None
     )
-    report = TaskReport(config, "issue-" + str(number), approval) if reporting.ACTIVE else None
-    if report:
-        if resume:
-            report.record.setdefault("answers", []).append(resume["answer"])
-        report.update(
-            "RUNNING",
-            f"Working on https://github.com/{repo}/issues/{number}.",
-            answer_id=resume.get("id") if resume else None,
-        )
     identity = config["assignee"]
     if identity == "@token-owner":
         identity = github(credential, "GET", "/user")["login"]
-    claimed = github(
-        credential,
-        "POST",
-        f"/repos/{repo}/issues/{number}/assignees",
-        body={"assignees": [identity]},
+    acquired = not issue.get("assignees")
+    if not acquired and {a["login"].casefold() for a in issue["assignees"]} != {
+        identity.casefold()
+    }:
+        return None
+    claimed = (
+        github(
+            credential,
+            "POST",
+            f"/repos/{repo}/issues/{number}/assignees",
+            body={"assignees": [identity]},
+        )
+        if acquired
+        else issues._get_issue(credential, repo, number)
     )
-    if {a["login"] for a in claimed.get("assignees", [])} != {identity}:
-        if identity in {a["login"] for a in claimed.get("assignees", [])}:
+    owners = {a["login"].casefold() for a in claimed.get("assignees", [])}
+    if owners != {identity.casefold()}:
+        if acquired and identity.casefold() in owners:
             github(
                 credential,
                 "DELETE",
@@ -124,6 +166,16 @@ def implement_issue(config, issue, credential, resume=None):
                 body={"assignees": [identity]},
             )
         raise RuntimeError("Issue ownership changed while claiming; no build started")
+    report = TaskReport(config, "issue-" + str(number), approval) if reporting.ACTIVE else None
+    if report:
+        if resume:
+            report.record.setdefault("answers", []).append(resume["answer"])
+        report.update(
+            "RUNNING",
+            f"Working on https://github.com/{repo}/issues/{number}.",
+            assignee=identity,
+            answer_id=resume.get("id") if resume else None,
+        )
     try:
         discussion = issues._github_paginate(credential, f"/repos/{repo}/issues/{number}/comments")
         request = (
@@ -172,17 +224,22 @@ def implement_issue(config, issue, credential, resume=None):
                 "after an infrastructure fix. No PR has been confirmed by this run.",
                 failure=str(exc),
             )
-        # Release only the ownership this run acquired, never somebody else's.
-        current = issues._get_issue(credential, repo, number)
-        if {a["login"] for a in current.get("assignees", [])} == {identity}:
-            github(
-                credential,
-                "DELETE",
-                f"/repos/{repo}/issues/{number}/assignees",
-                body={"assignees": [identity]},
-            )
         if isinstance(exc, NeedsInput):
+            # Waiting for the maintainer is a pause in the same owned task.
             return {"status": "NEEDS_INPUT", "questions": str(exc)}
+        # Release only ownership newly acquired by a failed run. A resumed
+        # task's pre-existing assignment belongs to its retained lifecycle.
+        if acquired:
+            current = issues._get_issue(credential, repo, number)
+            if {a["login"].casefold() for a in current.get("assignees", [])} == {
+                identity.casefold()
+            }:
+                github(
+                    credential,
+                    "DELETE",
+                    f"/repos/{repo}/issues/{number}/assignees",
+                    body={"assignees": [identity]},
+                )
         raise
 
 
@@ -263,8 +320,11 @@ def poll(config, credential):
             {"state": "open", "assignee": "none", "sort": "created", "direction": "asc"},
         )
     )
+    items = list(items)
+    items.extend(waiting_replies(config, credential, {item["number"] for item in items}))
     for item in items:
-        if issue_eligible(item, config):
+        resume = item.get("factory_resume") or resume_reply(config, "issue-" + str(item["number"]))
+        if issue_ready(config, item, resume):
             if config.get("issue_label"):
                 event = issues._latest_trigger_label_event(credential, repo, item["number"])
                 if not event:
@@ -274,7 +334,6 @@ def poll(config, credential):
                 _, snapshot = issue_snapshot(config, item)
                 revision = "content-" + snapshot["content_sha256"]
             key = f"issue:{item['number']}:{revision}"
-            resume = resume_reply(config, "issue-" + str(item["number"]))
             if resume:
                 current = issue_snapshot(config, item)[1]
                 expected = resume["snapshot"]
@@ -289,7 +348,7 @@ def poll(config, credential):
                 # A new, explicit answer retries this exact specification.
                 state["done"].pop(key, None)
                 candidates.append(("issue", key, item))
-            elif key not in state["done"] and not attempted(key):
+            elif issue_eligible(item, config) and key not in state["done"] and not attempted(key):
                 report = reporting.read_report(config, "issue-" + str(item["number"]))
                 if report and report.get("snapshot") == issue_snapshot(config, item)[1]:
                     continue
