@@ -17,7 +17,7 @@ CLI (`gh`) access to your repositories, and a Codex login for the agents.
 Keep the tooling and your private deployment configuration in sibling directories:
 
 ```text
-openhands-factory/       # Tooling, generic examples and tests
+openhands-factory/      # Tooling, generic examples and tests
 factory-deployment/     # Private repository
   config/               # Repository registrations, groups and scheduling policy
   profiles/             # Optional application test adapters
