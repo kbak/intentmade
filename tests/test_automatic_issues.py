@@ -106,6 +106,25 @@ class AutomaticSchedulerTests(unittest.TestCase):
         monitor.poll({**CONFIG, "daily_tasks": 4}, "offline-token")
         self.build.assert_not_called()
 
+    def test_stale_answer_does_not_poison_or_repeatedly_retry_changed_specification(self):
+        _, snapshot = policy.issue_snapshot(CONFIG, ISSUE)
+        self.items[0]["body"] = "New specification"
+        with patch.object(
+            monitor,
+            "resume_reply",
+            return_value={
+                "id": "old-answer",
+                "answer": "yes",
+                "snapshot": snapshot,
+            },
+        ):
+            monitor.poll(CONFIG, "offline-token")
+            self.build.assert_called_once()
+            self.assertNotIn("resume", self.build.call_args.kwargs)
+            self.build.reset_mock()
+            monitor.poll(CONFIG, "offline-token")
+            self.build.assert_not_called()
+
 
 class AutomaticPublicationTests(unittest.TestCase):
     def test_metadata_changes_preserve_snapshot_but_content_changes_withhold_publication(self):

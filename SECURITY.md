@@ -41,6 +41,10 @@ removes the daily cap; per-poll batching and repository locks still apply.
   network access, and no escalation. The SDK also refuses permission requests
   for these sessions. Building and interactive coordinator modes retain their
   capabilities. Image builds fail if an upstream version or patch target changes.
+  Codex 0.153.4 uses its supported Landlock backend here because Docker's default
+  seccomp blocks bubblewrap's user namespaces. No Docker capabilities or seccomp
+  exceptions are added. The real sandbox smoke checks reads, denied writes and
+  denied network sockets; rerun it when upgrading Codex or the host kernel.
 
 Workers still receive the Codex subscription credential needed to run agents.
 Containers, including privileged Docker test daemons, share the Docker host's

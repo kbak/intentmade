@@ -135,6 +135,11 @@ def implement_issue(config, issue, credential, resume=None):
         if resume:
             answers = report.record["answers"] if report else [resume["answer"]]
             request += "\n\nMaintainer responses for this specification:\n" + "\n\n".join(answers)
+            if report and report.record.get("failure"):
+                request += (
+                    "\n\nPrevious verification findings (context for repair):\n"
+                    + report.record["failure"]
+                )
         base = github(credential, "GET", f"/repos/{repo}/commits/{config['branch']}")["sha"]
         result = build(
             {**config, "assignee": identity, "issue_approval": approval},
@@ -164,6 +169,7 @@ def implement_issue(config, issue, credential, resume=None):
                 + str(number)
                 + "\n\nReply `resume: YOUR ANSWER` to continue, or `resume: retry` "
                 "after an infrastructure fix. No PR has been confirmed by this run.",
+                failure=str(exc),
             )
         # Release only the ownership this run acquired, never somebody else's.
         current = issues._get_issue(credential, repo, number)
@@ -266,6 +272,15 @@ def poll(config, credential):
                 revision = "content-" + snapshot["content_sha256"]
             key = f"issue:{item['number']}:{revision}"
             resume = resume_reply(config, "issue-" + str(item["number"]))
+            if resume:
+                current = issue_snapshot(config, item)[1]
+                expected = resume["snapshot"]
+                if any(expected.get(field) != current[field] for field in current) or (
+                    config.get("issue_label") and expected.get("label_event") != revision
+                ):
+                    # An answer to old requirements cannot consume or keep
+                    # retrying the new specification's scheduler receipt.
+                    resume = None
             if resume:
                 item = {**item, "factory_resume": resume}
                 # A new, explicit answer retries this exact specification.

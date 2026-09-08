@@ -95,6 +95,28 @@ class RecoveryTests(unittest.TestCase):
             review.assert_not_called()
             publish.assert_not_called()
 
+    def test_blocked_reviewer_does_not_spend_a_code_repair_attempt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with (
+                patch.object(
+                    run, "implementation_attempt", return_value=({"example": 0}, [])
+                ) as implement,
+                patch.object(
+                    run,
+                    "review_changes",
+                    return_value=run.ReviewResult(
+                        verdict="BLOCKED", summary="Sandbox cannot read source"
+                    ),
+                ),
+                patch.object(run, "publish") as publish,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "infrastructure blocked"):
+                    run.execute_build(
+                        [{"repair_attempts": 1}], "task", "spec", "", None, True, Path(temp), {}
+                    )
+            implement.assert_called_once()
+            publish.assert_not_called()
+
     def test_only_new_explicit_user_reply_can_resume_same_snapshot(self):
         record = {
             "status": "NEEDS_INPUT",

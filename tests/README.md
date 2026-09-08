@@ -33,6 +33,16 @@ or private deployment are required.
 Recovery regressions cover root-owned cleanup failures, retained work after a
 branch rename or failed export, bounded test/review repair, structured questions,
 explicit Canvas replies, and SKIPPED callbacks with persistent conversation links.
+They also distinguish blocked review infrastructure from actionable code defects.
+Verify the pinned Codex sandbox against the real kernel and Docker defaults:
+
+```bash
+python3 tests/check_review_sandbox.py
+```
+
+This uses no model or credentials. Reads must succeed; writes and network socket
+creation must be denied. The pinned runtime selects Codex's Landlock backend
+because Docker's default seccomp blocks the user namespaces needed by bubblewrap.
 
 Check the real Docker network boundary separately:
 

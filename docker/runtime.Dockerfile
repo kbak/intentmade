@@ -21,5 +21,8 @@ USER openhands
 ENV OH_CONVERSATIONS_PATH=/home/openhands/.openhands/conversations
 ENV OH_PERSISTENCE_DIR=/home/openhands/.openhands
 ENV OH_BASH_EVENTS_DIR=/home/openhands/.openhands/bash_events
+# The pinned Codex still supports Landlock, which enforces the same read-only
+# policy without requiring namespaces blocked by Docker's default seccomp.
+ENV CODEX_CONFIG='{"features.use_legacy_landlock":true}'
 WORKDIR /projects
 ENTRYPOINT ["tini", "--", "/opt/factory/entrypoint"]
