@@ -164,6 +164,9 @@ when a title lacks one.
 Publication starts CI monitoring. Recorded PR updates take priority over new
 issues. Repairs receive CI annotations and available job logs, then run the
 configured tests and independent review against the current base before pushing.
+Verified GitHub artifact-service failures are retried without code edits, even
+while other workflows are still running. The failed check is recorded before
+the retry request, preventing duplicate retries on subsequent scans.
 The PR head, branch ownership and base are rechecked immediately before push;
 concurrent changes withhold publication. Successful CI resets the consecutive
 repair count. `ci_repair_attempts` defaults to three consecutive CI repairs per

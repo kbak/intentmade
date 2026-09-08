@@ -100,6 +100,7 @@ class FollowupTests(unittest.TestCase):
             (followup, "DATA", self.root),
             (run, "DATA", self.root),
             (followup, "resume_reply", lambda *args: None),
+            (followup, "artifact_retries", lambda *args: []),
         ):
             replacement = patch.object(target, name, value)
             replacement.start()
@@ -182,6 +183,33 @@ class FollowupTests(unittest.TestCase):
                         "secret",
                     )
                 push.assert_not_called()
+
+    def test_artifact_failure_retries_while_other_checks_run_without_starting_a_worker(self):
+        followup.save(CONFIG, self.record)
+        retry = {"run": 99, "check": 123}
+        with patch.object(followup, "artifact_retries", return_value=[retry]):
+            action = self.plan({"unit": "pending", "security": "failure"})
+        self.assertEqual(action["reruns"], [retry])
+
+        def github(token, method, path, **kwargs):
+            if path.endswith("/pulls/42"):
+                return PR
+            if method == "POST":
+                self.assertEqual(followup.read(CONFIG, 42)["artifact_retries"]["99"]["check"], 123)
+                return {}
+            return {"head_sha": "head", "status": "completed"}
+
+        with (
+            patch.object(followup, "evidence", return_value=self.root),
+            patch.object(followup, "job_id", return_value="run"),
+            patch.object(followup, "github", side_effect=github) as calls,
+            patch.object(run, "execute_build") as build,
+        ):
+            self.assertTrue(followup.maintain(CONFIG, PR, action, "secret"))
+        build.assert_not_called()
+        calls.assert_any_call("secret", "POST", "/repos/org/repo/actions/runs/99/rerun-failed-jobs")
+        self.assertEqual(followup.read(CONFIG, 42)["attempts"], 1)
+        self.assertNotIn("last_attempt", followup.read(CONFIG, 42))
 
     def test_scheduler_prioritizes_its_published_draft_over_new_issues(self):
         issue = {
@@ -316,3 +344,41 @@ class FollowupTests(unittest.TestCase):
         )
         self.assertEqual(followup.read(CONFIG, 42)["head"], pr["head"]["sha"])
         self.assertEqual(json.loads((artifact / "result.json").read_text())["validation"], "PASSED")
+
+
+class ArtifactRetryTests(unittest.TestCase):
+    def test_only_artifact_service_failures_on_the_current_revision_can_be_retried(self):
+        check = {
+            "id": 123,
+            "name": "security",
+            "conclusion": "failure",
+            "details_url": "https://github.com/org/repo/actions/runs/99/job/100",
+        }
+        annotations = [{"message": "Failed to FinalizeArtifact: 403 Forbidden"}]
+        for failed_step, head, previous, expected in (
+            ("Upload Semgrep SARIF as workflow artifact", "head", {}, [{"run": 99, "check": 123}]),
+            ("Run Semgrep", "head", {}, []),
+            ("Upload Semgrep SARIF as workflow artifact", "old-head", {}, []),
+            (
+                "Upload Semgrep SARIF as workflow artifact",
+                "head",
+                {"artifact_retries": {"99": {"check": 123}}},
+                [],
+            ),
+        ):
+            with (
+                self.subTest(step=failed_step, head=head, previous=previous),
+                patch.object(followup, "latest_check_runs", return_value=[check]),
+                patch.object(followup.issues, "_github_paginate", return_value=annotations),
+                patch.object(
+                    followup,
+                    "github",
+                    side_effect=[
+                        {"steps": [{"name": failed_step, "conclusion": "failure"}]},
+                        {"head_sha": head, "status": "completed"},
+                    ],
+                ),
+            ):
+                self.assertEqual(
+                    followup.artifact_retries(CONFIG, PR, "secret", previous), expected
+                )

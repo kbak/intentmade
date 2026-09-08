@@ -129,6 +129,54 @@ def verify_revision(config, expected, credential):
     return pr
 
 
+def artifact_retries(config, pr, credential, record):
+    """Retry verified GitHub artifact-service failures without editing application code."""
+    retries = {}
+    for sha in dict.fromkeys([pr["head"]["sha"], pr.get("merge_commit_sha")]):
+        if not sha:
+            continue
+        for check in latest_check_runs(credential, config["repository"], sha):
+            if check.get("conclusion") != "failure":
+                continue
+            job = re.fullmatch(
+                re.escape(f"https://github.com/{config['repository']}/actions/runs/")
+                + r"(\d+)/job/(\d+)",
+                check.get("details_url") or "",
+            )
+            if (
+                not job
+                or record.get("artifact_retries", {}).get(job[1], {}).get("check") == check["id"]
+            ):
+                continue
+            annotations = issues._github_paginate(
+                credential, f"/repos/{config['repository']}/check-runs/{check['id']}/annotations"
+            )
+            text = "\n".join(a.get("message", "") for a in annotations).lower()
+            if not (
+                any(
+                    message in text
+                    for message in ("failed to finalizeartifact", "failed to createartifact")
+                )
+                and re.search(r"\b(?:403|5\d\d)\b", text)
+            ):
+                continue
+            details = github(
+                credential, "GET", f"/repos/{config['repository']}/actions/jobs/{job[2]}"
+            )
+            failed = [step for step in details.get("steps", []) if step.get("conclusion") in FAILED]
+            if not failed or any(
+                not all(word in step["name"].lower() for word in ("upload", "artifact"))
+                for step in failed
+            ):
+                continue
+            workflow = github(
+                credential, "GET", f"/repos/{config['repository']}/actions/runs/{job[1]}"
+            )
+            if workflow["head_sha"] == pr["head"]["sha"] and workflow["status"] == "completed":
+                retries[job[1]] = {"run": int(job[1]), "check": check["id"]}
+    return list(retries.values())
+
+
 def plan(config, pr, credential):
     record = read(config, pr["number"])
     if not record or pr.get("state") != "open":
@@ -175,9 +223,15 @@ def plan(config, pr, credential):
             f"PR #{pr['number']} is current with its base and all configured CI checks passed at {head}.",
         )
         return None
+    reruns = (
+        artifact_retries(config, pr, credential, record)
+        if failures and not behind and not rename_title
+        else []
+    )
     if (
         not behind
         and not rename_title
+        and not reruns
         and (not failures or "pending" in [*checks.values(), *merged.values()])
     ):
         return None
@@ -192,7 +246,7 @@ def plan(config, pr, credential):
         )
         return None
     key = hashlib.sha256(
-        json.dumps([head, base, pr["title"], reply.get("id") if reply else None]).encode()
+        json.dumps([head, base, pr["title"], reply.get("id") if reply else None, reruns]).encode()
     ).hexdigest()
     if record.get("last_attempt") == key:
         return None
@@ -206,6 +260,7 @@ def plan(config, pr, credential):
         "failures": failures,
         "title": title if rename_title else None,
         "reply": reply,
+        "reruns": reruns,
     }
 
 
@@ -271,7 +326,10 @@ def maintain(config, pr, action, credential):
     artifact = evidence(job_id() + "-" + task)
     with lock(config["project"] + ".build"):
         fresh = verify_revision(config, action, credential)
-        record["last_attempt"] = action["key"]
+        if not action.get("reruns"):
+            record["last_attempt"] = action["key"]
+        for retry in action.get("reruns", []):
+            record.setdefault("artifact_retries", {})[str(retry["run"])] = {"check": retry["check"]}
         if action.get("reply"):
             record["attempts"] = 0
             record.setdefault("answers", []).append(action["reply"]["answer"])
@@ -291,6 +349,22 @@ def maintain(config, pr, action, credential):
             )
         states = {}
         try:
+            if action.get("reruns"):
+                for retry in action["reruns"]:
+                    path = f"/repos/{config['repository']}/actions/runs/{retry['run']}"
+                    workflow = github(credential, "GET", path)
+                    if workflow["head_sha"] != action["head"] or workflow["status"] != "completed":
+                        raise RuntimeError(
+                            "CI workflow changed before its retry; no duplicate retry requested"
+                        )
+                    github(credential, "POST", path + "/rerun-failed-jobs")
+                report_status(
+                    config,
+                    record,
+                    "WATCHING",
+                    "Retried the failed GitHub artifact-upload job; waiting for CI. Application code is unchanged.",
+                )
+                return True
             if action["title"]:
                 github(
                     credential,
