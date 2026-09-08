@@ -360,33 +360,31 @@ def poll(config, credential, replies_only=False):
                 candidates.append(("issue", key, item))
     maintenance = []
     for item in reviews._list_open_prs(credential, repo):
+        # Tests and independent review already gate every publication/update.
+        # After publication, only maintain PRs recorded as ours; a green PR
+        # must not start another agent review or consume an implementation slot.
+        if not followup.read(config, item["number"]):
+            continue
         if replies_only and not resume_reply(config, f"pr-{item['number']}"):
             continue
-        key = f"pr:{item['number']}:{item['head']['sha']}"
-        tracked = followup.read(config, item["number"])
-        if tracked or (key not in state["done"] and not item.get("draft")):
-            try:
-                fresh = reviews._get_pr(credential, repo, item["number"])
-                action = followup.plan(config, fresh, credential) if tracked else None
-                fresh_key = f"pr:{fresh['number']}:{fresh['head']['sha']}"
-                if action:
-                    maintenance.append(
-                        (
-                            "maintenance",
-                            f"maintenance:{fresh['number']}:{action['key']}",
-                            {**fresh, "maintenance": action},
-                        )
+        try:
+            fresh = reviews._get_pr(credential, repo, item["number"])
+            action = followup.plan(config, fresh, credential)
+            if action:
+                maintenance.append(
+                    (
+                        "maintenance",
+                        f"maintenance:{fresh['number']}:{action['key']}",
+                        {**fresh, "maintenance": action},
                     )
-                elif fresh_key not in state["done"] and pr_eligible(credential, fresh, config):
-                    candidates.append(("pr", fresh_key, fresh))
-            except urllib.error.HTTPError as exc:
-                if exc.code != 404:
-                    raise
-                print(f"PR #{item['number']}: revision/checks unavailable; deferred.", flush=True)
+                )
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise
+            print(f"PR #{item['number']}: revision/checks unavailable; deferred.", flush=True)
     candidates = maintenance + candidates
     print(
-        f"Ready: {len(maintenance)} PR updates, {sum(kind == 'issue' for kind, _, _ in candidates)} issues, "
-        f"{sum(kind == 'pr' for kind, _, _ in candidates)} PR reviews; "
+        f"Ready: {len(maintenance)} PR updates, {sum(kind == 'issue' for kind, _, _ in candidates)} issues; "
         f"up to {remaining} tasks this scan.",
         flush=True,
     )
@@ -424,13 +422,6 @@ def poll(config, credential, replies_only=False):
                 else:
                     state["done"][key] = "needs-input"
                     waiting += 1
-            else:
-                phase(f"Reviewing PR #{item['number']}")
-                if review_pr(config, item, credential):
-                    state["done"][key] = "reviewed"
-                    processed += 1
-                else:
-                    state["done"].pop(key, None)
         except BlockingIOError:
             state["done"].pop(key, None)
             if kind == "issue":

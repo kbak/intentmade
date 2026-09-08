@@ -43,17 +43,21 @@ an unrelated feature task. `daily_tasks: null` means no daily cap.
 Each scheduled issue has a persistent Canvas report. When a material decision
 needs the maintainer, it records NEEDS_INPUT and stops before validation or
 publication. The user can reply there with `resume: THEIR ANSWER`, or
-`resume: retry` after an infrastructure fix. The scheduler consumes only explicit
-resume messages, once; ordinary conversation is not a restart command. A read-only
+`resume: retry` after an infrastructure fix. A saved explicit reply immediately
+queues a continuation; a busy repository waits for its active run to finish.
+The continuation consumes the reply once, with the scheduler as a fallback.
+Ordinary conversation is not a restart command. A read-only
 report assistant may explain results but must not claim to have dispatched work.
 Routine implementation choices do not require further approval. Never silently
 answer a question that materially changes the agreed product behavior.
 If an operator explicitly configures an issue label, that label is required and
 unlabeled issues produce proposals only. Scheduled issue work covers only its
 own repository. If work needs other repositories, discuss a grouped specification
-and obtain approval for that scope. PR reviews skip drafts and wait for
-configured CI checks; their reports stay in Canvas/artifacts and do not post
-GitHub review comments automatically.
+and obtain approval for that scope. Tests and independent review gate each PR
+creation and repair push. Do not start a second agent review after publication;
+the scheduler only monitors CI and maintains PRs published by this instance.
+Standalone PR reviews run only when the user explicitly requests one. They skip
+drafts, wait for configured CI checks, and keep reports in Canvas/artifacts.
 
 Native Automate owns run status and logs. Empty/busy scans report SKIPPED. A run
 waiting for an answer also reports SKIPPED and links to its NEEDS_INPUT report;

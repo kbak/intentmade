@@ -158,9 +158,12 @@ when a title lacks one.
 | --- | --- |
 | Issue implementation | Open, unassigned issues, oldest first. The workflow claims the issue for the configured assignee, implements, tests, reviews and opens a draft PR. |
 | Issue proposals | When an optional approval label is configured, changed, unassigned issues without that label may receive proposals in Canvas when polling capacity is available. |
-| PR review | Open, non-draft PRs whose required CI checks are present and whose reported checks have accepted results. Reports remain in Canvas and local artifacts. |
+| Manual PR review | Only when explicitly requested through `factoryctl review`. Open, non-draft PRs with passing required CI checks; reports stay in Canvas and local artifacts. |
 | Published PR maintenance | PRs recorded as published by this instance, including drafts. Check CI, repair failures and merge newer base commits into the existing task branch. |
 
+Tests and independent review must pass before creating a PR or pushing a repair.
+The scheduler does not launch another agent review after publication, including
+when a draft becomes ready or CI turns green.
 Publication starts CI monitoring. Recorded PR updates take priority over new
 issues. Repairs receive CI annotations and available job logs, then run the
 configured tests and independent review against the current base before pushing.

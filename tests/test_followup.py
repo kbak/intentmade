@@ -239,6 +239,39 @@ class FollowupTests(unittest.TestCase):
         maintain.assert_called_once()
         implement.assert_not_called()
 
+    def test_scheduler_never_starts_a_second_review_after_publication(self):
+        for tracked in (self.record, None):
+            for draft in (True, False):
+                with self.subTest(tracked=bool(tracked), draft=draft):
+                    pr = {**PR, "draft": draft}
+                    with (
+                        patch.object(
+                            monitor.issues, "_kv_get", return_value={"done": {}, "triaged": {}}
+                        ),
+                        patch.object(monitor.issues, "_kv_set"),
+                        patch.object(monitor.issues, "_github_paginate", return_value=[]),
+                        patch.object(monitor.reviews, "_list_open_prs", return_value=[pr]),
+                        patch.object(monitor.reviews, "_get_pr", return_value=pr) as fetch,
+                        patch.object(monitor, "job_id", return_value="run"),
+                        patch.object(monitor, "resume_reply", return_value=None),
+                        patch.object(monitor, "pr_eligible", return_value=True),
+                        patch.object(monitor, "review_pr") as review,
+                        patch.object(followup, "adopt_reports"),
+                        patch.object(followup, "read", return_value=tracked),
+                        patch.object(followup, "plan", return_value=None) as plan,
+                        patch.object(followup, "maintain") as maintain,
+                    ):
+                        monitor.poll(
+                            {**CONFIG, "issue_label": None, "max_tasks_per_poll": 1}, "secret"
+                        )
+                    review.assert_not_called()
+                    maintain.assert_not_called()
+                    if tracked:
+                        plan.assert_called_once()
+                    else:
+                        fetch.assert_not_called()
+                        plan.assert_not_called()
+
     def test_base_merge_is_tested_reviewed_and_pushed_to_the_existing_pr(self):
         seed, repository = self.root / "seed", self.root / "task.git"
         artifact = self.root / "artifact"
