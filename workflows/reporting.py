@@ -6,6 +6,7 @@ import json
 import os
 from contextlib import contextmanager
 
+import httpx
 from common import DATA, api, identifier
 from openhands.sdk.agent import ACPAgent
 
@@ -151,9 +152,19 @@ def resume_reply(config, task):
         params = {"limit": 100}
         if page_id:
             params["page_id"] = page_id
-        data = api(
-            "GET", f"/api/conversations/{record['conversation_id']}/events/search", params=params
-        )
+        try:
+            data = api(
+                "GET",
+                f"/api/conversations/{record['conversation_id']}/events/search",
+                params=params,
+            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+            # A deleted report has no answer. Keep its task and attempt records
+            # so losing the conversation cannot authorize another implementation.
+            print(f"{task}: Canvas conversation unavailable; no resume reply.", flush=True)
+            return None
         for event in data["items"]:
             message = event.get("llm_message", {})
             if event.get("source") != "user" or event.get("kind") != "MessageEvent":

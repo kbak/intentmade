@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import cleanup
+import httpx
 import reporting
 import run
 from openhands.automation.schemas import RunCompleteRequest, RunPhaseRequest
@@ -156,6 +157,43 @@ class RecoveryTests(unittest.TestCase):
                 self.assertEqual(result["answer"], "reminders only")
                 self.assertEqual(result["snapshot"], record["snapshot"])
                 self.assertEqual(api.call_args.kwargs["params"]["page_id"], "next")
+
+    def test_deleted_conversation_has_no_resume_reply_without_losing_task_record(self):
+        record = {"status": "NEEDS_INPUT", "conversation_id": "deleted"}
+        response = httpx.Response(
+            404, request=httpx.Request("GET", "http://canvas/conversations/deleted/events/search")
+        )
+        error = httpx.HTTPStatusError(
+            "Conversation not found", request=response.request, response=response
+        )
+        for pages in ([error], [{"items": [], "next_page_id": "next"}, error]):
+            with (
+                self.subTest(pages=len(pages)),
+                patch.object(reporting, "read_report", return_value=record),
+                patch.object(reporting, "api", side_effect=pages),
+                patch.object(reporting, "write_report") as write,
+            ):
+                self.assertIsNone(reporting.resume_reply({}, "task"))
+                write.assert_not_called()
+                self.assertEqual(record, {"status": "NEEDS_INPUT", "conversation_id": "deleted"})
+
+    def test_reply_auth_rate_limit_and_server_errors_are_not_hidden(self):
+        for status in (401, 403, 429, 500):
+            response = httpx.Response(status, request=httpx.Request("GET", "http://canvas/events"))
+            error = httpx.HTTPStatusError(
+                "Unavailable", request=response.request, response=response
+            )
+            with (
+                self.subTest(status=status),
+                patch.object(
+                    reporting,
+                    "read_report",
+                    return_value={"status": "FAILED", "conversation_id": "report"},
+                ),
+                patch.object(reporting, "api", side_effect=error),
+                self.assertRaises(httpx.HTTPStatusError),
+            ):
+                reporting.resume_reply({}, "task")
 
     def test_skipped_and_failed_callbacks_are_distinct_and_link_real_conversation(self):
         with (

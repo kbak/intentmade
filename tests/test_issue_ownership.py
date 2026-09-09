@@ -7,6 +7,7 @@ from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import httpx
 import monitor
 import reporting
 
@@ -177,6 +178,67 @@ class PausedOwnershipTests(unittest.TestCase):
                 monitor.poll(CONFIG, "offline-token")
                 self.build.assert_not_called()
                 self.assertEqual(self.mutations, ["POST"])
+
+    def test_stale_claims_are_checked_before_reading_conversation(self):
+        self.pause()
+        record = reporting.read_report(CONFIG, "issue-1406")
+        for changes in (
+            {"state": "closed"},
+            {"assignees": [{"login": "someone-else"}]},
+            {"assignees": [{"login": "kbak"}, {"login": "someone-else"}]},
+            {"body": "Changed requirements"},
+        ):
+            with self.subTest(changes=changes):
+                self.issue = {**copy.deepcopy(ISSUE), "assignees": [{"login": "kbak"}], **changes}
+                with patch.object(monitor, "resume_reply") as reply:
+                    monitor.poll(CONFIG, "offline-token")
+                    reply.assert_not_called()
+                self.build.assert_not_called()
+                self.assertEqual(reporting.read_report(CONFIG, "issue-1406"), record)
+                self.assertEqual(self.mutations, ["POST"])
+
+    def test_deleted_report_does_not_block_new_issue_or_retry_old_specification(self):
+        self.pause()
+        previous = reporting.read_report(CONFIG, "issue-1406")
+        old_issue = copy.deepcopy(self.issue)
+        self.issue = {**copy.deepcopy(ISSUE), "number": 1427, "title": "New issue"}
+
+        def native(method, path, **kwargs):
+            if path.endswith("/events/search"):
+                response = httpx.Response(
+                    404, request=httpx.Request(method, "http://canvas" + path)
+                )
+                raise httpx.HTTPStatusError(
+                    "Conversation not found", request=response.request, response=response
+                )
+            return {"id": "new-conversation"}
+
+        for assigned in (True, False):
+            with self.subTest(assigned=assigned):
+                old_issue["assignees"] = [{"login": "kbak"}] if assigned else []
+                discovered = (
+                    [copy.deepcopy(self.issue)]
+                    if assigned
+                    else [old_issue, copy.deepcopy(self.issue)]
+                )
+                with (
+                    patch.object(reporting, "api", side_effect=native),
+                    patch.object(monitor.issues, "_github_paginate", return_value=discovered),
+                    patch.object(monitor.issues, "_get_issue", return_value=old_issue),
+                    patch.object(
+                        monitor, "implement_issue", return_value={"repositories": {}}
+                    ) as implement,
+                ):
+                    monitor.poll(CONFIG, "offline-token")
+                implement.assert_called_once_with(CONFIG, self.issue, "offline-token")
+                self.assertEqual(reporting.read_report(CONFIG, "issue-1406"), previous)
+                self.assertEqual(self.mutations, ["POST"])
+                # Each subcase models a fresh scan with the original paused receipt.
+                self.state["done"] = {
+                    k: v for k, v in self.state["done"].items() if not k.startswith("issue:1427:")
+                }
+                for path in monitor.DATA.glob("issue-attempts/*/*/1427/*.json"):
+                    path.unlink()
 
     def test_failed_continuation_keeps_preexisting_claim(self):
         self.pause()

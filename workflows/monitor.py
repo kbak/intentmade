@@ -124,10 +124,12 @@ def waiting_replies(config, credential, discovered):
     for path in reporting.report_path(config, "unused").parent.glob("issue-*.json"):
         record = json.loads(path.read_text())
         number = (record.get("snapshot") or {}).get("issue")
-        if not number or number in discovered or not record.get("assignee"):
-            continue
-        reply = resume_reply(config, path.stem)
-        if not reply:
+        if (
+            not number
+            or number in discovered
+            or not record.get("assignee")
+            or record.get("status") not in {"NEEDS_INPUT", "FAILED", "PUBLICATION_FAILED"}
+        ):
             continue
         try:
             item = issues._get_issue(credential, config["repository"], number)
@@ -135,7 +137,13 @@ def waiting_replies(config, credential, discovered):
             if exc.code != 404:
                 raise
             continue
-        yield {**item, "factory_resume": reply}
+        # Recheck the live issue before touching its report: a closed, reassigned
+        # or changed task cannot resume, even if its old conversation still exists.
+        if not issue_ready(config, item, {"snapshot": record["snapshot"]}):
+            continue
+        reply = resume_reply(config, path.stem)
+        if reply:
+            yield {**item, "factory_resume": reply}
 
 
 def implement_issue(config, issue, credential, resume=None):
