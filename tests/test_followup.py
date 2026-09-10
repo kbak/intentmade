@@ -243,7 +243,7 @@ class FollowupTests(unittest.TestCase):
         for tracked in (self.record, None):
             for draft in (True, False):
                 with self.subTest(tracked=bool(tracked), draft=draft):
-                    pr = {**PR, "draft": draft}
+                    pr = {**PR, "draft": draft, "head": {**PR["head"], "sha": "a" * 40}}
                     with (
                         patch.object(
                             monitor.issues, "_kv_get", return_value={"done": {}, "triaged": {}}

@@ -31,6 +31,13 @@ PR = {
     "requested_reviewers": [],
     "requested_teams": [{"slug": "engineers"}],
 }
+POSTED = {
+    "id": 101,
+    "state": "CHANGES_REQUESTED",
+    "commit_id": PR["head"]["sha"],
+    "submitted_at": "2026-09-10T07:00:00Z",
+    "user": {"login": "operator", "type": "User"},
+}
 
 
 class RequestScopeTests(unittest.TestCase):
@@ -180,6 +187,59 @@ class RequestedReviewSchedulerTests(unittest.TestCase):
         monitor.poll(CONFIG, "secret")
         self.review.assert_called_once()
 
+    def follow_up(self):
+        review_requests.remember(CONFIG, PR, "REVIEWED", github_review=POSTED)
+        self.pr.update(requested_teams=[], head={"sha": "b" * 40})
+        return patch.object(
+            monitor.issues,
+            "_github_paginate",
+            side_effect=lambda credential, path, *args: (
+                [POSTED] if path.endswith("/reviews") else []
+            ),
+        )
+
+    def test_unrequested_follow_up_waits_for_ci_and_reviews_new_commit_once(self):
+        with self.follow_up():
+            self.eligible.return_value = False
+            monitor.poll(CONFIG, "secret")
+            self.review.assert_not_called()
+            self.assertFalse(review_requests.attempted(CONFIG, self.pr))
+            self.eligible.return_value = True
+            monitor.poll(CONFIG, "secret")
+            self.review.assert_called_once()
+            self.assertEqual(self.review.call_args.args[1]["head"]["sha"], "b" * 40)
+            self.state["done"] = {}
+            monitor.poll(CONFIG, "secret")
+            self.review.assert_called_once()
+
+    def test_follow_up_rechecks_outstanding_verdict_before_execution(self):
+        with (
+            self.follow_up(),
+            patch.object(
+                review_requests.ReviewRequests, "follows_up", side_effect=[True, True, False]
+            ),
+        ):
+            monitor.poll(CONFIG, "secret")
+        self.review.assert_not_called()
+        self.assertFalse(review_requests.attempted(CONFIG, self.pr))
+
+    def test_follow_up_still_defers_to_current_commit_human_review(self):
+        with (
+            self.follow_up(),
+            patch.object(review_requests.ReviewRequests, "human_reviewed", return_value=True),
+        ):
+            monitor.poll(CONFIG, "secret")
+        self.review.assert_not_called()
+
+    def test_failed_follow_up_is_held_for_explicit_retry(self):
+        with self.follow_up():
+            self.review.side_effect = RuntimeError("Review failed")
+            with self.assertRaisesRegex(RuntimeError, "Review failed"):
+                monitor.poll(CONFIG, "secret")
+            self.state["done"] = {}
+            monitor.poll(CONFIG, "secret")
+        self.review.assert_called_once()
+
     def test_request_or_head_change_before_execution_defers_review_without_receipt(self):
         for change in (
             {"requested_teams": []},
@@ -267,6 +327,90 @@ class RequestedReviewSchedulerTests(unittest.TestCase):
                         monitor.poll(CONFIG, "secret")
                 self.review.assert_not_called()
                 self.assertFalse(review_requests.attempted(CONFIG, PR))
+
+
+class FollowUpScopeTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(review_requests, "DATA", Path(temporary.name)))
+        self.stack.enter_context(patch.object(review_requests, "job_id", return_value="run"))
+        self.stack.enter_context(
+            patch.object(review_requests, "github", return_value={"login": "operator"})
+        )
+        self.reviews = self.stack.enter_context(
+            patch.object(review_requests.issues, "_github_paginate", return_value=[POSTED])
+        )
+        self.pr = {**PR, "requested_teams": [], "head": {"sha": "b" * 40}}
+        review_requests.remember(CONFIG, PR, "REVIEWED", github_review=POSTED)
+
+    def eligible(self, pr=None, config=None):
+        return review_requests.ReviewRequests(config or CONFIG, "secret").eligible(pr or self.pr)
+
+    def test_own_published_changes_request_carries_over_to_a_new_commit(self):
+        self.assertTrue(self.eligible())
+
+    def test_unrelated_pr_repository_author_and_unchanged_head_are_excluded(self):
+        for change in (
+            {"number": 43},
+            {"draft": True},
+            {"state": "closed"},
+            {"head": PR["head"]},
+            {"user": {"login": "OPERATOR"}},
+        ):
+            with self.subTest(change=change):
+                self.assertFalse(self.eligible({**self.pr, **change}))
+        self.assertFalse(self.eligible(config={**CONFIG, "repository": "org/other"}))
+
+    def test_live_review_without_factory_receipt_does_not_establish_scope(self):
+        review_requests.receipt_path(CONFIG, PR).unlink()
+        self.assertFalse(self.eligible())
+        self.reviews.assert_not_called()
+
+    def test_failed_unpublished_or_approved_receipts_do_not_establish_scope(self):
+        for status, posted in (
+            ("FAILED", POSTED),
+            ("PUBLICATION_FAILED", POSTED),
+            ("REVIEWED", {}),
+            ("REVIEWED", {**POSTED, "state": "APPROVED"}),
+            ("REVIEWED", {**POSTED, "commit_id": "c" * 40}),
+        ):
+            with self.subTest(status=status, posted=posted):
+                review_requests.remember(CONFIG, PR, status, github_review=posted)
+                self.assertFalse(self.eligible())
+
+    def test_dismissal_changed_account_and_missing_live_review_end_scope(self):
+        for reviews in (
+            [],
+            [{**POSTED, "state": "DISMISSED"}],
+            [{**POSTED, "user": {"login": "another-operator"}}],
+            [{**POSTED, "commit_id": "c" * 40}],
+        ):
+            with self.subTest(reviews=reviews):
+                self.reviews.return_value = reviews
+                self.assertFalse(self.eligible())
+
+    def test_later_approval_or_untracked_verdict_supersedes_old_factory_request(self):
+        for state in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
+            later = {**POSTED, "id": 102, "submitted_at": "2026-09-10T08:00:00Z", "state": state}
+            # Do not rely on pagination order when deciding the latest verdict.
+            self.reviews.return_value = [later, POSTED]
+            with self.subTest(state=state):
+                self.assertFalse(self.eligible())
+        self.assertTrue(self.eligible({**self.pr, "requested_reviewers": [{"login": "operator"}]}))
+
+    def test_comments_pending_reviews_and_other_reviewers_do_not_clear_our_verdict(self):
+        for change in (
+            {"state": "COMMENTED"},
+            {"state": "PENDING", "submitted_at": None},
+            {"state": "APPROVED", "user": {"login": "another-reviewer"}},
+        ):
+            later = {**POSTED, "id": 102, "submitted_at": "2026-09-10T08:00:00Z", **change}
+            self.reviews.return_value = [POSTED, later]
+            with self.subTest(change=change):
+                self.assertTrue(self.eligible())
 
 
 if __name__ == "__main__":

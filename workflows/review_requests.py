@@ -1,4 +1,4 @@
-"""Requested PR reviews: account/team scope and durable per-commit receipts."""
+"""Requested and follow-up reviews, scoped by account and per-commit receipts."""
 
 import hashlib
 import json
@@ -11,10 +11,14 @@ from common import DATA, github, identifier, issues, job_id
 
 class ReviewRequests:
     def __init__(self, config, credential):
+        self.config = config
         self.repo = config["repository"]
         self.credential = credential
         self.login = None
         self.memberships = {}
+
+    def eligible(self, pr):
+        return self.matches(pr) or self.follows_up(pr)
 
     def matches(self, pr):
         if pr.get("state") != "open" or pr.get("draft"):
@@ -45,6 +49,53 @@ class ReviewRequests:
             if self.memberships[slug]:
                 return True
         return False
+
+    def follows_up(self, pr):
+        """Continue our outstanding changes request on a new commit without a new ping."""
+        if pr.get("state") != "open" or pr.get("draft"):
+            return False
+        prior = {}
+        for path in receipt_path(self.config, pr).parent.glob("*.json"):
+            record = json.loads(path.read_text())
+            posted = record.get("github_review") or {}
+            if (
+                record.get("status") == "REVIEWED"
+                and record.get("repository", "").casefold() == self.repo.casefold()
+                and record.get("pr") == pr["number"]
+                and record.get("head") != pr["head"]["sha"]
+                and posted.get("state") == "CHANGES_REQUESTED"
+                and posted.get("commit_id") == record.get("head")
+                and posted.get("id")
+            ):
+                prior[posted["id"]] = posted["commit_id"]
+        if not prior:
+            return False
+        if self.login is None:
+            self.login = github(self.credential, "GET", "/user")["login"]
+        if (pr.get("user") or {}).get("login", "").casefold() == self.login.casefold():
+            return False
+        # A local receipt proves this factory posted the review, but its live
+        # state may now be dismissed or superseded by an approval/manual review.
+        # Read again on each eligibility check, including immediately before work.
+        latest = max(
+            (
+                review
+                for review in issues._github_paginate(
+                    self.credential, f"/repos/{self.repo}/pulls/{pr['number']}/reviews"
+                )
+                if (review.get("user") or {}).get("login", "").casefold() == self.login.casefold()
+                and review.get("submitted_at")
+                and review.get("state") in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
+            ),
+            key=lambda review: (review["submitted_at"], review["id"]),
+            default=None,
+        )
+        return bool(
+            latest
+            and latest["state"] == "CHANGES_REQUESTED"
+            and latest["id"] in prior
+            and latest["commit_id"] == prior[latest["id"]]
+        )
 
     def human_reviewed(self, pr):
         return any(

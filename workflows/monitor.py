@@ -433,17 +433,18 @@ def poll(config, credential, replies_only=False):
     requests = review_requests.ReviewRequests(config, credential)
     for item in reviews._list_open_prs(credential, repo):
         # Publications already passed independent review. Only external PRs
-        # requested from this account or its teams enter standalone review.
+        # requested from this account/its teams or following our outstanding
+        # changes request enter standalone review.
         if not followup.read(config, item["number"]):
             try:
-                if replies_only or not requests.matches(item):
+                if replies_only or not requests.eligible(item):
                     continue
                 fresh = reviews._get_pr(credential, repo, item["number"])
                 key = f"pr:{fresh['number']}:{fresh['head']['sha']}"
                 if (
                     key not in state["done"]
                     and not review_requests.attempted(config, fresh)
-                    and requests.matches(fresh)
+                    and requests.eligible(fresh)
                     and not requests.human_reviewed(fresh)
                     and pr_eligible(credential, fresh, config)
                 ):
@@ -477,7 +478,7 @@ def poll(config, credential, replies_only=False):
     requested_reviews.sort(key=lambda candidate: candidate[2]["number"])
     candidates = maintenance + requested_reviews + candidates
     print(
-        f"Ready: {len(maintenance)} PR updates, {len(requested_reviews)} requested reviews, "
+        f"Ready: {len(maintenance)} PR updates, {len(requested_reviews)} PR reviews, "
         f"{sum(kind == 'issue' for kind, _, _ in candidates)} issues; "
         f"up to {remaining} tasks this scan.",
         flush=True,
@@ -489,13 +490,13 @@ def poll(config, credential, replies_only=False):
         if key in state["done"]:
             continue
         if kind == "review":
-            # Earlier work can take hours. Recheck the request, human reviews,
+            # Earlier work can take hours. Recheck review scope, human reviews,
             # current commit and CI immediately before spending an agent slot.
             try:
                 fresh = reviews._get_pr(credential, repo, item["number"])
                 if (
                     fresh["head"]["sha"] != item["head"]["sha"]
-                    or not review_requests.ReviewRequests(config, credential).matches(fresh)
+                    or not review_requests.ReviewRequests(config, credential).eligible(fresh)
                     or requests.human_reviewed(fresh)
                     or not pr_eligible(credential, fresh, config)
                 ):

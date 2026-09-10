@@ -253,6 +253,7 @@ when a title lacks one.
 | Issue implementation | Open, unassigned issues, oldest first. The workflow claims the issue for the configured assignee, implements, tests, reviews and opens a draft PR. |
 | Issue proposals | When an optional approval label is configured, changed, unassigned issues without that label may receive proposals in Canvas when polling capacity is available. |
 | Requested PR review | Open, non-draft PRs requested from the connected GitHub account or one of its active teams, with passing CI and no submitted human review of the current commit. Publishes code and security reports plus a formal verdict to GitHub; also retains Canvas reports and local artifacts. |
+| Follow-up PR review | A new commit after this factory's outstanding changes request, even without another review request. Uses the same readiness, human-review and per-commit deduplication checks. Stops after approval or dismissal of the connected account's latest verdict. |
 | Manual PR review | Explicitly requested through `factoryctl review`. Open, non-draft PRs with passing required CI checks; publishes the same reports and verdict to GitHub. |
 | Published PR maintenance | PRs recorded as published by this instance, including drafts. Check CI, repair failures and merge newer base commits into the existing task branch. |
 
@@ -319,13 +320,22 @@ To opt into label-based approval, set `issue_label` to a label name. In that mod
 applying the label authorizes implementation and draft publication; remove and
 reapply it after reviewing a failed run or editing the approved specification.
 
-Requested reviews run after published PR maintenance and before new issues,
+Requested and follow-up reviews run after published PR maintenance and before new issues,
 within the existing poll and daily budgets. Team membership is checked through
 GitHub, including inherited membership through child teams; the connection needs
 organization membership read access. Each current commit is checked for submitted
 human reviews (`APPROVED`, `CHANGES_REQUESTED`, or `COMMENTED`); bot reviews,
 author self-comments, pending/dismissed reviews and reviews of older commits do
-not suppress a factory review. Request, commit and CI are rechecked before work.
+not suppress a factory review. Review scope, commit and CI are rechecked before work.
+
+A fresh review request is optional after this factory requests changes: a new,
+CI-ready commit can trigger a follow-up automatically. The factory requires its
+own durable publication receipt and verifies that the connected account's latest
+submitted verdict is still that changes request. Approval or dismissal ends this
+automatic follow-up; an explicit account/team request continues to work as before.
+Author comments claiming a fix and reviews posted outside this factory do not
+establish automatic follow-up scope. The reviewers receive the PR's discussion and
+previous reviews through the same review pipeline.
 
 Completed factory reviews have durable per-repository, PR and commit receipts,
 including manual reviews. New commits can receive a new review. Failed or
