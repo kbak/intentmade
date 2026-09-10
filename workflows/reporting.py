@@ -7,7 +7,7 @@ import os
 from contextlib import contextmanager
 
 import httpx
-from common import DATA, api, identifier
+from common import DATA, api, identifier, session_api_key
 from openhands.sdk.agent import ACPAgent
 
 
@@ -192,7 +192,7 @@ def resume_reply(config, task):
 @contextmanager
 def run_report():
     global ACTIVE, _RUN_KEY
-    _RUN_KEY = os.environ.get("OH_SESSION_API_KEYS_0")
+    _RUN_KEY = session_api_key()
     ACTIVE = {
         "run_id": os.environ["AUTOMATION_RUN_ID"],
         "status": "SKIPPED",

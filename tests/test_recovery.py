@@ -197,7 +197,7 @@ class RecoveryTests(unittest.TestCase):
 
     def test_skipped_and_failed_callbacks_are_distinct_and_link_real_conversation(self):
         with (
-            patch.dict(os.environ, {"AUTOMATION_RUN_ID": "run"}),
+            patch.dict(os.environ, {"AUTOMATION_RUN_ID": "run", "OH_SESSION_API_KEYS_0": "parent"}),
             patch.object(reporting, "api") as api,
         ):
             with reporting.run_report() as report:

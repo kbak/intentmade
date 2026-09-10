@@ -79,10 +79,20 @@ def factories(config_dir=None):
     return result
 
 
+def session_api_key():
+    # Native command runners can filter secret environment variables. The
+    # credential-bearing parent retains its protected Docker secret mount.
+    return (
+        os.environ.get("OH_SESSION_API_KEYS_0")
+        or os.environ.get("SESSION_API_KEY")
+        or Path("/run/secrets/canvas-key").read_text().strip()
+    )
+
+
 def api(method, path, **kwargs):
     with httpx.Client(
         base_url="http://127.0.0.1:8000",
-        headers={"X-Session-API-Key": os.environ["OH_SESSION_API_KEYS_0"]},
+        headers={"X-Session-API-Key": session_api_key()},
         timeout=120,
     ) as client:
         response = client.request(method, path, **kwargs)

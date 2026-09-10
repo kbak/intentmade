@@ -4,6 +4,7 @@ import json
 import os
 from uuid import UUID
 
+from common import session_api_key
 from openhands.sdk import Conversation
 from openhands.sdk.agent import ACPAgent
 from openhands.sdk.conversation import get_agent_final_response
@@ -14,7 +15,7 @@ from pydantic import ValidationError
 def canvas():
     return RemoteWorkspace(
         host="http://127.0.0.1:8000",
-        api_key=os.environ["OH_SESSION_API_KEYS_0"],
+        api_key=session_api_key(),
         working_dir="/projects",
     )
 

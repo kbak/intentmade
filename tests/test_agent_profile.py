@@ -76,6 +76,31 @@ class WorkerProfileTests(unittest.TestCase):
                     self.fail("Worker should not start")
             start.assert_not_called()
 
+    def test_filtered_parent_env_uses_mounted_encryption_key_without_forwarding_it(self):
+        store = Mock()
+        store.load_versioned_secret.return_value = ("codex-login", 1)
+        workspace = Mock()
+        workspace.client.get.return_value.text = "codex-login"
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(
+                sandbox, "api", return_value={"profile": {"acp_model": "gpt-6-astra/xhigh"}}
+            ),
+            patch.object(sandbox, "Path") as path,
+            patch.object(sandbox, "Cipher") as cipher,
+            patch.object(sandbox, "FileSecretsStore", return_value=store),
+            patch.object(sandbox.subprocess, "run"),
+            patch.object(sandbox, "find_available_tcp_port", return_value=12345),
+            patch.object(sandbox, "DockerWorkspace") as docker,
+        ):
+            path.return_value.read_text.return_value = "mounted-encryption-key\n"
+            docker.return_value.__enter__.return_value = workspace
+            with sandbox.worker(Path("/workspaces/filtered-env"), {}):
+                cipher.assert_called_once_with("mounted-encryption-key")
+                self.assertNotIn("OH_SECRET_KEY", docker.call_args.kwargs["forward_env"])
+                self.assertNotIn("OH_SECRET_KEY", os.environ)
+            self.assertNotIn("OH_SESSION_API_KEYS_0", os.environ)
+
     def test_installed_sdk_sends_astra_and_extra_high_as_separate_options(self):
         connection = AsyncMock()
         asyncio.run(

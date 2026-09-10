@@ -4,6 +4,7 @@ import os
 import secrets
 import subprocess
 from contextlib import contextmanager
+from pathlib import Path
 
 from common import ROOT, api
 from openhands.agent_server.persistence import FileSecretsStore
@@ -41,7 +42,10 @@ def worker(root, config):
     name = root.name
     compose = ["docker", "compose", "-p", name, "-f", str(ROOT / "workflows/sandbox.yaml")]
     env = dict(os.environ, JOB_WORKSPACE=str(root))
-    parent = FileSecretsStore("/home/openhands/.openhands", Cipher(os.environ["OH_SECRET_KEY"]))
+    encryption_key = (
+        os.environ.get("OH_SECRET_KEY") or Path("/run/secrets/encryption-key").read_text().strip()
+    )
+    parent = FileSecretsStore("/home/openhands/.openhands", Cipher(encryption_key))
     value, version = parent.load_versioned_secret("CODEX_AUTH_JSON")
     settings = {
         "OH_SESSION_API_KEYS_0": secrets.token_urlsafe(32),
