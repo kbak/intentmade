@@ -2,11 +2,13 @@
 
 import json
 import os
+from pathlib import Path
 from uuid import UUID
 
 from common import session_api_key
-from openhands.sdk import Conversation
+from openhands.sdk import AgentContext, Conversation
 from openhands.sdk.agent import ACPAgent
+from openhands.sdk.context import Skill
 from openhands.sdk.conversation import get_agent_final_response
 from openhands.sdk.workspace import RemoteWorkspace
 from pydantic import ValidationError
@@ -20,13 +22,25 @@ def canvas():
     )
 
 
-def worker_agent(mode):
+def stage_context(name):
+    """Load the selected procedure using OpenHands' native skill parser/context."""
+    skill = Skill.load(Path(__file__).with_name("skills") / name / "SKILL.md")
+    # Stages already know which skill they need. OpenHands' always-active form
+    # carries its body across the remote boundary, including tool-free editing.
+    return AgentContext(
+        skills=[Skill(name=skill.name, content=skill.content, source=skill.source)],
+        current_datetime=None,
+    )
+
+
+def worker_agent(mode, skill=None):
     """Use the model captured from factory-codex when this worker started."""
     return ACPAgent(
         acp_command=["codex-acp"],
         acp_server="codex",
         acp_session_mode=mode,
         acp_model=os.environ["FACTORY_CODEX_MODEL"] or None,
+        agent_context=stage_context(skill) if skill else None,
     )
 
 
@@ -39,9 +53,10 @@ def converse(
     response_model=None,
     transcript=None,
     event_log=None,
+    skill=None,
 ):
     conversation = Conversation(
-        agent=worker_agent(mode),
+        agent=worker_agent(mode, skill),
         workspace=workspace,
         delete_on_close=False,
         conversation_id=UUID(conversation_id) if conversation_id else None,
@@ -102,7 +117,10 @@ def worktree(workspace):
         json={
             "workspace": {"working_dir": workspace.working_dir},
             "worktree": True,
-            "agent": worker_agent("agent-full-access").model_dump(mode="json"),
+            # Attaching later does not replace the server's saved agent context.
+            "agent": worker_agent("agent-full-access", "factory-implementation").model_dump(
+                mode="json"
+            ),
         },
     )
     response.raise_for_status()

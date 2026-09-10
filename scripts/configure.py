@@ -53,6 +53,11 @@ def install(definition, files, existing=None):
 
 def files(job):
     result = {path.name: path.read_bytes() for path in (ROOT / "workflows").glob("*.py")}
+    result.update(
+        (str(path.relative_to(ROOT / "workflows")), path.read_bytes())
+        for path in (ROOT / "workflows/skills").rglob("*")
+        if path.is_file()
+    )
     result["job.json"] = json.dumps(job)
     return result
 

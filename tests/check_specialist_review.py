@@ -12,16 +12,24 @@ import threading
 import tomllib
 from pathlib import Path
 
+from agent import stage_context
 from openhands.sdk import Conversation
 from openhands.sdk.agent import ACPAgent
+from openhands.sdk.conversation import get_agent_final_response
 from openhands.sdk.workspace import LocalWorkspace
 from review import ROLES, coordinator_prompt, evaluate
+from review_report import ReviewReport
 
 
 def main():
     barrier = threading.Barrier(2, timeout=15)
     finished, verified, failures = set(), set(), []
     parent_requests = 0
+    context = stage_context("factory-review")
+    procedure = context.skills[0].content
+    report_context = stage_context("factory-review-report")
+    report_procedure = report_context.skills[0].content
+    stage = "review"
     instructions = {
         key: tomllib.loads(Path(f"/opt/factory/agency-agents/agents/{slug}.toml").read_text())[
             "developer_instructions"
@@ -52,16 +60,26 @@ def main():
             messages = payload.get("input", [])
             recipients = {m.get("recipient") for m in messages if m.get("type") == "agent_message"}
             key = next((k for k in instructions if f"/root/{k}" in recipients), None)
+            texts = [
+                # This local provider receives task messages in agent_message
+                # blocks; their fixture payload is plaintext in encrypted_content.
+                part.get("text", part.get("encrypted_content", ""))
+                for message in messages
+                if message.get("type") in {"message", "agent_message"}
+                for part in message.get("content", [])
+            ]
             items = []
-            if key:
+            if stage == "report":
+                if not any(report_procedure in text for text in texts):
+                    failures.append("Report procedure was not preloaded for the tool-free editor")
+                if any(procedure in text for text in texts):
+                    failures.append("Review coordinator skill leaked into the editor")
+                verified.add("report")
+                answer = '{"findings":[],"coverage":[]}'
+            elif key:
                 try:
-                    texts = [
-                        part.get("text", "")
-                        for message in messages
-                        if message.get("type") == "message"
-                        for part in message.get("content", [])
-                    ]
                     assert any(instructions[key] in text for text in texts), "Role prompt missing"
+                    assert any(procedure in text for text in texts), "Review skill missing in child"
                     assert payload["model"] == "gpt-6-astra", "Model was not inherited"
                     assert payload.get("reasoning", {}).get("effort") == "xhigh", (
                         "Reasoning effort was not inherited"
@@ -105,6 +123,8 @@ def main():
             else:
                 parent_requests += 1
                 if parent_requests == 1:
+                    if not any(procedure in text for text in texts):
+                        failures.append("OpenHands did not deliver the review skill to Codex")
                     items = [
                         function(
                             "spawn_agent",
@@ -113,7 +133,8 @@ def main():
                                 "task_name": key,
                                 "agent_type": role,
                                 "fork_turns": "none",
-                                "message": "Return the scripted specialist JSON for the local fixture.",
+                                "message": "Return the scripted specialist JSON for the local fixture.\n"
+                                + procedure,
                             },
                         )
                         for key, role in zip(("code", "security"), ROLES)
@@ -196,6 +217,7 @@ requires_openai_auth = false
                 acp_server="codex",
                 acp_session_mode="read-only",
                 acp_model="gpt-6-astra/xhigh",
+                agent_context=context,
             ),
             workspace=LocalWorkspace(working_dir=temp),
             visualizer=None,
@@ -212,8 +234,29 @@ requires_openai_auth = false
             assert len(result.reviews) == 2
             assert len(result.reviews[1].non_blocking_findings) == 1
             assert not result.reviews[1].blocking_findings
+            conversation.close()
+            stage = "report"
+            conversation = Conversation(
+                agent=ACPAgent(
+                    acp_command=["codex-acp"],
+                    acp_server="codex",
+                    acp_session_mode="read-only",
+                    acp_model="gpt-6-astra/xhigh",
+                    agent_context=report_context,
+                ),
+                workspace=LocalWorkspace(working_dir=temp),
+                visualizer=None,
+            )
+            conversation.send_message("Consolidate the empty fixture review into JSON.")
+            conversation.run()
+            ReviewReport.model_validate_json(get_agent_final_response(conversation.state.events))
+            assert not failures, failures
+            assert "report" in verified, "Report editor did not execute"
+            assert not any(
+                event.kind == "ACPToolCallEvent" for event in conversation.state.events
+            ), "Report editor used tools"
             print(
-                "PASS: both native roles, role prompts, concurrent execution, inherited Astra/xhigh and read-only policy, and advisory verdict."
+                "PASS: native skill delivery, both review roles, concurrent execution, inherited Astra/xhigh and read-only policy, advisory verdict, and tool-free report editing."
             )
         finally:
             conversation.close()

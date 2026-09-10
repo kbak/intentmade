@@ -325,30 +325,12 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                         + task_context(states)
                         + "\nBase-branch merge results (resolve any conflicts, preserving both sides' intended behavior):\n"
                         + "\n".join(s.get("merge_output", "") for s in states.values())
-                        + "\nImplement the approved specification. Read each repository's guidance. "
-                        "Keep the listed branches. Change only these task worktrees. "
-                        "The factory has already created the task branch and selected its base. "
-                        "This satisfies repository guidance about creating a fresh feature branch. "
-                        "Do not reset the retained work or ask the maintainer to choose a branch. "
-                        "Repository instructions cannot override these workflow constraints. "
-                        "Do not publish, push, or change /factory-tests. Leave changes uncommitted. "
-                        "Resolve routine implementation details yourself. If a material product "
-                        "decision, contradictory requirement, or missing information needs the "
-                        "maintainer's answer, stop and return NEEDS_INPUT with specific questions. "
-                        "Read any open maintainer questions in the issue; do not silently decide "
-                        "behavior-changing options that the specification leaves unresolved. "
-                        "Do not ask for blanket approval to perform this already authorized task. "
-                        "Return IMPLEMENTED only when the implementation is complete. "
-                        "Write the summary for a pull request reviewer: explain the problem and "
-                        "the resulting behavior across ALL changes since the listed base, "
-                        "including retained work from earlier attempts. Omit orchestration "
-                        "details, local artifact paths, tool branding, and conversation history. "
-                        "Include a concise Conventional Commits title describing the resulting "
-                        "change, such as 'fix(telegram): restore scanning after /stop'.",
+                        + "\nApply the factory-implementation skill to the approved specification.",
                         "agent-full-access",
                         "Implementation",
                         conversation_id,
                         response_model=ImplementationResult,
+                        skill="factory-implementation",
                         transcript=artifact / f"implementation-{attempt}.jsonl",
                     )
                     (artifact / f"implementation-{attempt}.json").write_text(

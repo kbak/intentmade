@@ -3,14 +3,17 @@
 import copy
 import datetime
 import importlib.util
+import io
 import json
 import os
+import tarfile
 import tempfile
 import unittest
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import agent
 import common
 import httpx
 import monitor
@@ -52,6 +55,22 @@ class ConfigurationTests(unittest.TestCase):
             patch.dict(os.environ, {"OH_SESSION_API_KEYS_0": "offline-test-key"}),
         ):
             spec.loader.exec_module(cls.configure)
+
+    def test_native_automation_bundle_loads_its_own_skill_files(self):
+        from openhands.automation.execution import build_tarball
+
+        job = {"project": "example", "request": "Test skill packaging"}
+        payload = self.configure.files(job)
+        with tempfile.TemporaryDirectory() as temp:
+            with tarfile.open(fileobj=io.BytesIO(build_tarball(payload))) as archive:
+                archive.extractall(temp, filter="data")
+            self.assertEqual(json.loads(Path(temp, "job.json").read_text()), job)
+            with patch.object(agent, "__file__", str(Path(temp, "agent.py"))):
+                for name in ("factory-implementation", "factory-review", "factory-review-report"):
+                    selected = agent.stage_context(name).skills[0]
+                    self.assertEqual(selected.name, name)
+                    self.assertTrue(selected.content.strip())
+                    self.assertTrue(selected.source.startswith(temp))
 
     def test_configuration_finds_and_disables_a_schedule_after_the_first_page(self):
         old = {"id": "original-scan", "name": "Factory — example", "enabled": True}

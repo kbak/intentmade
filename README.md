@@ -98,6 +98,35 @@ specialists' assessments and cannot remove blockers or change the verdict.
 These are source reviews using available test/CI evidence, not a guarantee that
 SAST, DAST, secret scanning or current dependency vulnerability scans ran.
 
+### Factory skills
+
+Factory procedures are maintained as three standard `SKILL.md` files under
+[`workflows/skills/`](workflows/skills/): implementation and validation guidance,
+independent code/security review, and report writing. Edit the relevant skill
+to change a procedure. Task data and response schemas remain in the workflows;
+OpenHands continues to own conversations, worktrees, scheduling and run history.
+The factory still enforces tests, specialist completion and publication gates.
+
+The workflow selects a skill for each stage. OpenHands' native `Skill.load` and
+`AgentContext` include its full instructions in the saved agent configuration
+and deliver them through ACP. This also works for the report editor, which does
+not use tools, and for workers whose working directories differ from the
+automation's. Implementation skills are attached when OpenHands creates the
+worktree conversation, because attaching later preserves its saved context.
+These skills do not need a separate Codex installation or discovery patch.
+
+The runtime image and native automation uploads both include the skill files.
+After changing Python or skill files under `workflows/`, rebuild with
+`./scripts/factoryctl up` and refresh the installed workflow bundles with:
+
+```bash
+docker compose exec -T canvas python /opt/factory/configure.py configure
+```
+
+Let active jobs finish before rebuilding/restarting. Existing conversations
+retain their saved instructions; subsequent tasks receive the installed skills.
+The refresh command retains the existing native GitHub connection.
+
 ### Agency agents
 
 The runtime includes 273 native Codex custom agents from
@@ -121,14 +150,6 @@ from the parent session. The host's login and configuration are not mounted.
 
 Run `./scripts/factoryctl up` after changing the pinned source to rebuild Canvas
 and refresh the worker image. Newly started Codex sessions receive the updated roles.
-
-After changing files in `workflows/`, also refresh the native automations' uploaded
-code bundles. Rebuilding the image alone leaves existing schedules on their earlier
-workflow code. This command retains the existing native GitHub connection:
-
-```bash
-docker compose exec -T canvas python /opt/factory/configure.py configure
-```
 
 #### Claude Code and other agents
 

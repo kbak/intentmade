@@ -122,8 +122,7 @@ class ConsolidationTests(unittest.TestCase):
         with patch.object(review_report, "converse", return_value=report) as editor:
             result.presentation = review_report.consolidate(Mock(), result)
         self.assertEqual(len(result.presentation.findings), 2)
-        self.assertIn("Same file or nearby lines alone", editor.call_args.args[1])
-        self.assertIn("Do not use tools, delegate, or publish", editor.call_args.args[1])
+        self.assertEqual(editor.call_args.kwargs["skill"], "factory-review-report")
 
     def test_merged_advisory_cannot_downgrade_a_blocker_or_its_severity(self):
         result = review.evaluate(
@@ -187,7 +186,7 @@ class ConsolidationTests(unittest.TestCase):
             result.presentation = review_report.consolidate(Mock(), result)
         prompt = editor.call_args.args[1]
         self.assertIn(result.reviews[0].summary, prompt)
-        self.assertIn("Never infer resolution merely from an absent", prompt)
+        self.assertEqual(editor.call_args.kwargs["skill"], "factory-review-report")
         body = result.report()
         self.assertLess(body.index("Since the previous review"), body.index("### 1."))
         self.assertIn("Fixed — Import flag", body)
@@ -209,18 +208,13 @@ class ConsolidationTests(unittest.TestCase):
         self.assertIn("Fixed — Import flag", result.report())
         self.assertNotIn("### 1.", result.report())
 
-    def test_native_specialists_are_asked_to_verify_prior_fixes(self):
-        prompt = review.coordinator_prompt("Prior reviews are in review-context.json")
-        self.assertIn("Give both the full context, factory policy", prompt)
-        self.assertIn("reassess the earlier actionable findings", prompt)
-        self.assertIn("Keep resolved issues out of the current findings lists", prompt)
-
     def test_new_review_consolidates_only_after_native_specialists_finish(self):
         native = evidence(code=specialist(blocking_findings=[finding()]))
         order = []
 
         def converse(workspace, prompt, **kwargs):
             order.append("specialists")
+            self.assertEqual(kwargs["skill"], "factory-review")
             kwargs["event_log"].append(native)
 
         def consolidate(workspace, result, **kwargs):

@@ -43,6 +43,9 @@ PASS summary, and that missing or malformed reports stop publication.
 Report regressions check consolidated source coverage, preservation of blocking
 status and severity, distinct issues at the same location, readable Markdown,
 omission of empty sections, and recovery with saved native review evidence.
+Skill regressions check native parsing and serialized context delivery, worktree
+attachment, missing/invalid skill failures, and skill loading from an extracted
+native automation bundle. They require no model calls or separate skill installer.
 
 Verify native parallel role selection and evidence capture with a local scripted
 model endpoint (no login, external network, or production state):
@@ -54,7 +57,9 @@ docker run --rm --network none --entrypoint python \
   openhands-factory:dev /tests/check_specialist_review.py
 ```
 
-This checks the actual pinned Codex/ACP protocol, both installed role prompts,
+This checks the actual pinned Codex/ACP protocol, delivery of the review skill through
+OpenHands context to Codex and the specialists, preloaded report guidance without
+tool calls, both installed role prompts,
 concurrent execution, inherited Astra/xhigh and read-only policy, and a passing result with
 an advisory finding. It does not measure model review quality. Rerun it after
 Codex, ACP, or agency role upgrades; rebuild the image first after runtime edits.
