@@ -53,6 +53,15 @@ def patch_router(source):
             "blocking_factor": body.blocking_factor,
         }""",
     )
+    # Automation 1.11.1 adds a native finish-tool summary after callback metadata.
+    # Merge into the pending values so neither result source overwrites the other.
+    source = replace(
+        source,
+        """                **(run.run_metadata or {}),
+                "finish_tool_response": finish_tool_response,""",
+        """                **(values.get("run_metadata", run.run_metadata) or {}),
+                "finish_tool_response": finish_tool_response,""",
+    )
     return replace(
         source,
         ".values(current_phase=body.phase)",

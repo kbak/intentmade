@@ -1,6 +1,6 @@
-FROM ghcr.io/openhands/agent-canvas:1.16.0@sha256:862d1842f7935ff19a252c22260fdeeb47ba0a6fd5b18438a7aa46e1de271d22
+FROM ghcr.io/openhands/agent-canvas:1.17.0@sha256:2dd26fb75206239f80c71d5665006071cf0db4d306ab571deeb8f9b25a01aedd
 USER root
-# Canvas 1.16 predates Astra support in its Codex adapter and model pickers.
+# Keep the reviewed Codex/ACP versions; Canvas's bundled picker still needs Astra.
 RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global \
     @agentclientprotocol/codex-acp@1.10.0 @openai/codex@0.153.4
 COPY runtime/patch_codex_catalog.py /opt/factory/patch_codex_catalog.py
