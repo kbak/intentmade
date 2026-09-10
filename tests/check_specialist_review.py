@@ -63,6 +63,9 @@ def main():
                     ]
                     assert any(instructions[key] in text for text in texts), "Role prompt missing"
                     assert payload["model"] == "gpt-6-astra", "Model was not inherited"
+                    assert payload.get("reasoning", {}).get("effort") == "xhigh", (
+                        "Reasoning effort was not inherited"
+                    )
                     environment = next(
                         text for text in texts if text.startswith("<environment_context>")
                     )
@@ -192,7 +195,7 @@ requires_openai_auth = false
                 acp_command=["codex-acp"],
                 acp_server="codex",
                 acp_session_mode="read-only",
-                acp_model="gpt-6-astra",
+                acp_model="gpt-6-astra/xhigh",
             ),
             workspace=LocalWorkspace(working_dir=temp),
             visualizer=None,
@@ -210,7 +213,7 @@ requires_openai_auth = false
             assert len(result.reviews[1].non_blocking_findings) == 1
             assert not result.reviews[1].blocking_findings
             print(
-                "PASS: both native roles, role prompts, concurrent execution, inherited model/read-only policy, and advisory verdict."
+                "PASS: both native roles, role prompts, concurrent execution, inherited Astra/xhigh and read-only policy, and advisory verdict."
             )
         finally:
             conversation.close()

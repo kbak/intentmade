@@ -53,9 +53,10 @@ install the configured automations:
 `configure` imports your GitHub credential into native secret storage and applies
 the configured schedules. It creates an approval label only if one is configured.
 
-Choose the factory model in **Settings → Agent → factory-codex**. Select
-**GPT-6 Astra (Extra high)** for extra-high reasoning (`gpt-6-astra/xhigh`).
-The same option appears in the chat model picker for existing conversations.
+Choose the factory model in **Settings → Agent → factory-codex**. Use the native
+custom model field and enter `gpt-6-astra/xhigh` for extra-high reasoning.
+Canvas passes the model and reasoning effort separately through its native Codex
+integration; no model catalog or frontend patch is required.
 The **Default** badge identifies
 the profile used for new chats; the separate profile named `default` does not
 need the same edit. Existing chats retain their model selection.

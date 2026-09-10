@@ -1,10 +1,8 @@
 FROM ghcr.io/openhands/agent-canvas:1.17.0@sha256:2dd26fb75206239f80c71d5665006071cf0db4d306ab571deeb8f9b25a01aedd
 USER root
-# Keep the reviewed Codex/ACP versions; Canvas's bundled picker still needs Astra.
+# Pin the Codex/ACP versions used by the factory integrations.
 RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global \
     @agentclientprotocol/codex-acp@1.10.0 @openai/codex@0.153.4
-COPY runtime/patch_codex_catalog.py /opt/factory/patch_codex_catalog.py
-RUN python /opt/factory/patch_codex_catalog.py
 COPY runtime/patch_review_policy.py /opt/factory/patch_review_policy.py
 RUN python /opt/factory/patch_review_policy.py
 COPY runtime/patch_agency_agents.py /opt/factory/patch_agency_agents.py

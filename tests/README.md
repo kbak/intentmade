@@ -35,7 +35,8 @@ branch rename or failed export, bounded test/review repair, structured questions
 explicit Canvas replies, and SKIPPED callbacks with persistent conversation links.
 They also distinguish blocked review infrastructure from actionable code defects.
 Native callback checks preserve both factory task outcomes and Canvas finish-tool
-summaries when they arrive together.
+summaries when they arrive together, including when the command runner filters
+credential environment variables. Parent credentials remain outside workers.
 Specialist review regressions check that both native roles completed, that minor
 findings never trigger code repairs, that material blockers cannot be hidden by a
 PASS summary, and that missing or malformed reports stop publication.
@@ -54,7 +55,7 @@ docker run --rm --network none --entrypoint python \
 ```
 
 This checks the actual pinned Codex/ACP protocol, both installed role prompts,
-concurrent execution, inherited model/read-only policy, and a passing result with
+concurrent execution, inherited Astra/xhigh and read-only policy, and a passing result with
 an advisory finding. It does not measure model review quality. Rerun it after
 Codex, ACP, or agency role upgrades; rebuild the image first after runtime edits.
 
