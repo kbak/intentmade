@@ -12,6 +12,7 @@ from pathlib import Path
 
 import followup
 import reporting
+import review_requests
 from agent import converse
 from cleanup import job_directory
 from common import DATA, evidence, github, issues, job_id, lock, reviews, token
@@ -87,12 +88,14 @@ def _review_pr(config, pr, credential):
         fresh = reviews._get_pr(credential, repo, number)
         current = fresh["head"]["sha"] == sha and pr_eligible(credential, fresh, config)
         result = {
+            "repository": repo,
             "pr": number,
             "head": sha,
             "status": "REVIEWED" if current else "STALE",
             "verdict": review.verdict,
         }
         (artifact / "result.json").write_text(json.dumps(result, indent=2))
+        review_requests.remember(config, pr, result["status"])
         print(json.dumps(result) + "\n" + report, flush=True)
         return current
 
@@ -376,12 +379,32 @@ def poll(config, credential, replies_only=False):
                 if report and report.get("snapshot") == issue_snapshot(config, item)[1]:
                     continue
                 candidates.append(("issue", key, item))
-    maintenance = []
+    maintenance, requested_reviews, errors = [], [], []
+    requests = review_requests.ReviewRequests(config, credential)
     for item in reviews._list_open_prs(credential, repo):
-        # Tests and independent review already gate every publication/update.
-        # After publication, only maintain PRs recorded as ours; a green PR
-        # must not start another agent review or consume an implementation slot.
+        # Publications already passed independent review. Only external PRs
+        # requested from this account or its teams enter standalone review.
         if not followup.read(config, item["number"]):
+            try:
+                if replies_only or not requests.matches(item):
+                    continue
+                fresh = reviews._get_pr(credential, repo, item["number"])
+                key = f"pr:{fresh['number']}:{fresh['head']['sha']}"
+                if (
+                    key not in state["done"]
+                    and not review_requests.attempted(config, fresh)
+                    and requests.matches(fresh)
+                    and not requests.human_reviewed(fresh)
+                    and pr_eligible(credential, fresh, config)
+                ):
+                    requested_reviews.append(("review", key, fresh))
+            except urllib.error.HTTPError as exc:
+                if exc.code != 404:
+                    errors.append(f"PR #{item['number']}: review discovery failed: {exc}")
+                print(
+                    f"PR #{item['number']}: request/revision/checks unavailable; deferred.",
+                    flush=True,
+                )
             continue
         if replies_only and not resume_reply(config, f"pr-{item['number']}"):
             continue
@@ -400,18 +423,38 @@ def poll(config, credential, replies_only=False):
             if exc.code != 404:
                 raise
             print(f"PR #{item['number']}: revision/checks unavailable; deferred.", flush=True)
-    candidates = maintenance + candidates
+    # Requested reviews should not wait indefinitely behind the issue backlog.
+    requested_reviews.sort(key=lambda candidate: candidate[2]["number"])
+    candidates = maintenance + requested_reviews + candidates
     print(
-        f"Ready: {len(maintenance)} PR updates, {sum(kind == 'issue' for kind, _, _ in candidates)} issues; "
+        f"Ready: {len(maintenance)} PR updates, {len(requested_reviews)} requested reviews, "
+        f"{sum(kind == 'issue' for kind, _, _ in candidates)} issues; "
         f"up to {remaining} tasks this scan.",
         flush=True,
     )
-    errors, processed, waiting = [], 0, 0
+    processed, waiting = 0, 0
     for kind, key, item in candidates:
         if remaining <= 0:
             break
         if key in state["done"]:
             continue
+        if kind == "review":
+            # Earlier work can take hours. Recheck the request, human reviews,
+            # current commit and CI immediately before spending an agent slot.
+            try:
+                fresh = reviews._get_pr(credential, repo, item["number"])
+                if (
+                    fresh["head"]["sha"] != item["head"]["sha"]
+                    or not review_requests.ReviewRequests(config, credential).matches(fresh)
+                    or requests.human_reviewed(fresh)
+                    or not pr_eligible(credential, fresh, config)
+                ):
+                    continue
+            except urllib.error.HTTPError as exc:
+                if exc.code != 404:
+                    errors.append(f"PR #{item['number']}: review readiness check failed: {exc}")
+                continue
+            item = fresh
         # Persist before execution so interruption cannot silently duplicate work.
         state["done"][key] = "started:" + job_id()
         state["count"] += 1
@@ -432,6 +475,16 @@ def poll(config, credential, replies_only=False):
                 else:
                     state["done"][key] = "completed" if result else "ineligible"
                     processed += bool(result)
+            elif kind == "review":
+                phase(f"Reviewing PR #{item['number']} with code and security specialists")
+                review_requests.remember(config, item, "STARTED")
+                current = review_pr(config, item, credential)
+                review_requests.remember(config, item, "REVIEWED" if current else "STALE")
+                if current:
+                    state["done"][key] = "reviewed"
+                else:
+                    state["done"].pop(key, None)
+                processed += bool(current)
             elif kind == "maintenance":
                 phase(f"Updating PR #{item['number']}")
                 if followup.maintain(config, item, item["maintenance"], credential):
@@ -442,6 +495,8 @@ def poll(config, credential, replies_only=False):
                     waiting += 1
         except BlockingIOError:
             state["done"].pop(key, None)
+            if kind == "review":
+                review_requests.receipt_path(config, item).unlink(missing_ok=True)
             if kind == "issue":
                 path, event, previous = receipt(key)
                 if previous and previous["event"] == event:
@@ -450,6 +505,8 @@ def poll(config, credential, replies_only=False):
             print("Repository is busy; task deferred to next poll.", flush=True)
         except Exception as exc:
             state["done"][key] = "failed:" + job_id()
+            if kind == "review":
+                review_requests.remember(config, item, "FAILED")
             errors.append(f"{key}: {type(exc).__name__}: {exc}")
             print(errors[-1], flush=True)
         finally:

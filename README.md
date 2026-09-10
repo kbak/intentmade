@@ -246,11 +246,12 @@ when a title lacks one.
 | --- | --- |
 | Issue implementation | Open, unassigned issues, oldest first. The workflow claims the issue for the configured assignee, implements, tests, reviews and opens a draft PR. |
 | Issue proposals | When an optional approval label is configured, changed, unassigned issues without that label may receive proposals in Canvas when polling capacity is available. |
+| Requested PR review | Open, non-draft PRs requested from the connected GitHub account or one of its active teams, with passing CI and no submitted human review of the current commit. Runs code and security review; reports stay in Canvas and local artifacts. |
 | Manual PR review | Only when explicitly requested through `factoryctl review`. Open, non-draft PRs with passing required CI checks; reports stay in Canvas and local artifacts. |
 | Published PR maintenance | PRs recorded as published by this instance, including drafts. Check CI, repair failures and merge newer base commits into the existing task branch. |
 
 Tests and independent review must pass before creating a PR or pushing a repair.
-The scheduler does not launch another agent review after publication, including
+The scheduler does not launch another agent review of its own PRs after publication, including
 when a draft becomes ready or CI turns green.
 Publication starts CI monitoring. Recorded PR updates take priority over new
 issues. Repairs receive CI annotations and available job logs, then run the
@@ -311,6 +312,20 @@ native completion and phase APIs; it does not rewrite automation database rows.
 To opt into label-based approval, set `issue_label` to a label name. In that mode,
 applying the label authorizes implementation and draft publication; remove and
 reapply it after reviewing a failed run or editing the approved specification.
+
+Requested reviews run after published PR maintenance and before new issues,
+within the existing poll and daily budgets. Team membership is checked through
+GitHub, including inherited membership through child teams; the connection needs
+organization membership read access. Each current commit is checked for submitted
+human reviews (`APPROVED`, `CHANGES_REQUESTED`, or `COMMENTED`); bot reviews,
+author self-comments, pending/dismissed reviews and reviews of older commits do
+not suppress a factory review. Request, commit and CI are rechecked before work.
+
+Completed factory reviews have durable per-repository, PR and commit receipts,
+including manual reviews. New commits can receive a new review. Failed or
+interrupted automatic attempts are reported and held for an explicit
+`factoryctl review` retry, avoiding repeated agent runs on every poll. A stale
+result does not count as a completed review.
 
 Missing, pending or failed CI blocks PR review. Accepted results default to
 `success`, `neutral` and `skipped`; explicit check names detect missing jobs.

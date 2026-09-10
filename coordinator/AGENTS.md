@@ -55,9 +55,14 @@ unlabeled issues produce proposals only. Scheduled issue work covers only its
 own repository. If work needs other repositories, discuss a grouped specification
 and obtain approval for that scope. Tests and independent review gate each PR
 creation and repair push. Do not start a second agent review after publication;
-the scheduler only monitors CI and maintains PRs published by this instance.
-Standalone PR reviews run only when the user explicitly requests one. They skip
-drafts, wait for configured CI checks, and keep reports in Canvas/artifacts.
+the scheduler monitors CI and maintains PRs published by this instance.
+It also reviews external PRs requested from the connected GitHub account or its
+active teams, once per commit without an existing submitted human review. These
+run after PR maintenance and before new issues, skip drafts, wait for configured
+CI, and keep reports in Canvas/artifacts. Both Code Reviewer and Application
+Security Engineer must complete. Failed/interrupted automatic attempts require
+an explicit `factoryctl review` retry; stale results do not count as reviewed.
+Users may also explicitly request standalone reviews with `factoryctl review`.
 
 Native Automate owns run status and logs. Empty/busy scans report SKIPPED. A run
 waiting for an answer also reports SKIPPED and links to its NEEDS_INPUT report;
