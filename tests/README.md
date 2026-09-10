@@ -37,6 +37,9 @@ They also distinguish blocked review infrastructure from actionable code defects
 Specialist review regressions check that both native roles completed, that minor
 findings never trigger code repairs, that material blockers cannot be hidden by a
 PASS summary, and that missing or malformed reports stop publication.
+Report regressions check consolidated source coverage, preservation of blocking
+status and severity, distinct issues at the same location, readable Markdown,
+omission of empty sections, and recovery with saved native review evidence.
 
 Verify native parallel role selection and evidence capture with a local scripted
 model endpoint (no login, external network, or production state):

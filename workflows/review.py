@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 
 from agent import converse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
+from review_report import ReviewReport, consolidate, ordered_findings, render, validate_report
 
 ROLES = ("Code Reviewer", "Application Security Engineer")
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -68,23 +69,23 @@ class ReviewResult(BaseModel):
     summary: str
     reviews: list[RoleReview] = Field(default_factory=list)
     infrastructure_errors: list[str] = Field(default_factory=list)
+    presentation: ReviewReport | None = None
 
-    def report(self):
-        sections = [self.verdict, self.summary]
-        for review in self.reviews:
-            sections.append(f"## {review.role} — {review.verdict}\n\n{review.summary}")
-            for title, findings in (
-                ("Blocking findings", review.blocking_findings),
-                ("Non-blocking findings", review.non_blocking_findings),
-            ):
-                sections.append(
-                    f"### {title}\n\n" + ("\n\n".join(f.describe() for f in findings) or "None.")
-                )
-        if self.infrastructure_errors:
-            sections.append("## Incomplete review\n\n" + "\n".join(self.infrastructure_errors))
-        return "\n\n".join(sections)
+    def report(self, repository=None, sha=None):
+        return render(self, repository, sha)
 
     def repair_instructions(self):
+        if self.presentation:
+            report = validate_report(self, self.presentation)
+            return (
+                "\n\n".join(
+                    f"{primary.file}:{primary.line} — {group.title}\n{group.description}\n"
+                    f"Evidence: {group.evidence}\nFix: {group.fix}"
+                    for group, primary, blocking, _ in ordered_findings(self, report)
+                    if blocking
+                )
+                or "No blocking review findings."
+            )
         # Only blockers go back to the builder, including when tests also failed.
         # Keep each original report in the artifacts; collapse exact duplicates here.
         findings = dict.fromkeys(
@@ -256,4 +257,18 @@ def review_code(workspace, context, *, title="Independent review", transcript=No
         result.verdict = "BLOCKED"
         result.infrastructure_errors.append(failure)
         result.summary += " " + failure
+    if result.verdict != "BLOCKED":
+        try:
+            result.presentation = consolidate(
+                workspace,
+                result,
+                transcript=transcript.with_name(transcript.stem + "-report.jsonl")
+                if transcript
+                else None,
+            )
+        except Exception as exc:
+            message = f"Report consolidation failed: {type(exc).__name__}: {exc}"
+            result.verdict = "BLOCKED"
+            result.infrastructure_errors.append(message)
+            result.summary += " " + message
     return result

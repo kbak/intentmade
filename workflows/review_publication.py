@@ -6,7 +6,8 @@ from pathlib import Path
 
 from common import github, issues, lock
 from policy import pr_eligible
-from review import ROLES, evaluate
+from review import ROLES, ReviewResult, evaluate
+from review_report import ReviewReport, validate_report
 
 
 class PublicationError(RuntimeError):
@@ -22,6 +23,9 @@ def publish(config, pr, review, credential):
         or review.verdict == "BLOCKED"
     ):
         raise PublicationError("Both code and security reviews must complete before publication")
+    if review.presentation is None:
+        raise PublicationError("A consolidated report is required before publication")
+    validate_report(review, review.presentation)
     blocked = any(item.blocking_findings for item in review.reviews)
     if review.verdict != ("CHANGES_REQUESTED" if blocked else "PASS"):
         raise PublicationError("Review verdict does not match its blocking findings")
@@ -29,11 +33,7 @@ def publish(config, pr, review, credential):
     event = "REQUEST_CHANGES" if blocked else "APPROVE"
     expected = "CHANGES_REQUESTED" if blocked else "APPROVED"
     marker = f"<!-- factory-review:v1:{repo}:{number}:{sha} -->"
-    body = (
-        f"## Automated code and security review\n\n**Verdict: {event}**\n\n"
-        f"Reviewed commit `{sha}`. Both Code Reviewer and Application Security Engineer "
-        f"completed independently.\n\n{review.report()}\n\n{marker}"
-    )
+    body = review.report(repo, sha) + "\n\n" + marker
     # All publication paths share this lock, including recovery after an
     # ambiguous GitHub response. Never retry a POST before looking for its result.
     with lock("review-publish-" + hashlib.sha256(repo.casefold().encode()).hexdigest()):
@@ -89,6 +89,12 @@ def load_saved(config, pr, artifact):
     review = evaluate(
         [json.loads(line) for line in (artifact / "review.jsonl").read_text().splitlines()]
     )
-    if review.model_dump() != json.loads((artifact / "review.json").read_text()):
+    stored = ReviewResult.model_validate_json((artifact / "review.json").read_text())
+    if review.model_dump(exclude={"presentation"}) != stored.model_dump(exclude={"presentation"}):
         raise PublicationError("Saved report does not match native specialist execution evidence")
-    return review
+    legacy_presentation = artifact / "review-presentation.json"
+    if stored.presentation is None and legacy_presentation.exists():
+        stored.presentation = ReviewReport.model_validate_json(legacy_presentation.read_text())
+    if stored.presentation:
+        validate_report(review, stored.presentation)
+    return stored

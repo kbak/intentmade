@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 import monitor
 import review
 import run
+from review_report import draft_report, validate_report
 
 
 def finding(**changes):
@@ -190,7 +191,16 @@ class SpecialistVerdictTests(unittest.TestCase):
             kwargs["event_log"].append(evidence(security=specialist(blocking_findings=[finding()])))
             return "Everything passed!"
 
-        with patch.object(review, "converse", converse):
+        with (
+            patch.object(review, "converse", converse),
+            patch.object(
+                review,
+                "consolidate",
+                side_effect=lambda workspace, result, **kwargs: validate_report(
+                    result, draft_report(result)
+                ),
+            ),
+        ):
             self.assertEqual(review.review_code(Mock(), "Context").verdict, "CHANGES_REQUESTED")
         with patch.object(review, "converse", side_effect=RuntimeError("timed out")):
             self.assertEqual(review.review_code(Mock(), "Context").verdict, "BLOCKED")
@@ -310,7 +320,10 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                 self.assertEqual(
                     json.loads((artifact / "review.json").read_text())["verdict"], result.verdict
                 )
-                self.assertIn(result.verdict, (artifact / "review.md").read_text())
+                self.assertIn(
+                    "Review incomplete" if blocked else "Approved",
+                    (artifact / "review.md").read_text(),
+                )
 
 
 if __name__ == "__main__":

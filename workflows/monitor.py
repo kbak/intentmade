@@ -20,6 +20,7 @@ from common import DATA, evidence, github, issues, job_id, lock, reviews, token
 from policy import issue_eligible, issue_snapshot, pr_eligible
 from reporting import NeedsInput, TaskReport, outcome, phase, resume_reply, run_report
 from review import review_code
+from review_report import consolidate
 from run import build
 from sandbox import worker
 
@@ -33,17 +34,31 @@ def review_pr(config, pr, credential):
         if previous.get("status") == "PUBLICATION_FAILED":
             artifact = Path(previous["artifact"])
             review = review_publication.load_saved(config, pr, artifact)
+            if review.presentation is None:
+                # Upgrade reports saved before consolidation without rewriting
+                # their native evidence or running the specialists again.
+                with lock(config["project"] + ".build"), job_directory(DATA, artifact) as root:
+                    (root / "source").mkdir()
+                    with worker(root, config) as workspace:
+                        review.presentation = consolidate(
+                            workspace, review, transcript=artifact / "review-report.jsonl"
+                        )
+                (artifact / "review-presentation.json").write_text(
+                    review.presentation.model_dump_json(indent=2)
+                )
             publish_review(config, pr, review, credential, artifact)
+            body = review.report(config["repository"], pr["head"]["sha"])
             current = True
         else:
             artifact = evidence(job_id() + "-pr-" + str(pr["number"]))
             current = _review_pr(config, pr, credential)
+            body = (artifact / "review.md").read_text()
         if report:
             posted = (review_requests.read(config, pr) or {}).get("github_review", {})
             link = f"\n\n[GitHub review]({posted['html_url']})" if posted else ""
             report.update(
                 "REVIEWED" if current else "STALE",
-                (artifact / "review.md").read_text() + link,
+                body + link,
                 github_review=posted,
             )
         return current
@@ -112,7 +127,7 @@ def _review_pr(config, pr, credential):
                 title=f"PR review — {repo} #{number}",
                 transcript=artifact / "review.jsonl",
             )
-        report = review.report()
+        report = review.report(repo, sha)
         (artifact / "review.md").write_text(report)
         (artifact / "review.json").write_text(review.model_dump_json(indent=2))
         if review.verdict == "BLOCKED":

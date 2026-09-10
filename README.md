@@ -327,8 +327,16 @@ interrupted automatic attempts are reported and held for an explicit
 `factoryctl review` retry, avoiding repeated agent runs on every poll. A stale
 result does not count as a completed review.
 
-Completed standalone reviews publish both specialist reports with a formal
-GitHub verdict: `PASS` becomes **Approve**, and blocking findings become
+Both specialists still review independently. An editing pass combines findings
+about the same defect into one human-facing report, preserving complementary
+evidence and fixes. Every original finding must be accounted for exactly once;
+blocking status, severity and code locations come from the original reports.
+The published report uses concise findings, commit-pinned code links and an
+expandable validation summary, with no empty sections or repeated role reports.
+Original specialist reports and the editing transcript remain in the artifacts.
+
+Completed standalone reviews publish that report with a formal GitHub verdict:
+`PASS` becomes **Approve**, and blocking findings become
 **Request changes**. Advisory findings remain in an approval's body. Incomplete
 or stale reviews never approve a PR. Publication runs in the parent process,
 rechecks the current commit and CI, and anchors the review to the reviewed SHA.

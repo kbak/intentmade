@@ -59,11 +59,16 @@ the scheduler monitors CI and maintains PRs published by this instance.
 It also reviews external PRs requested from the connected GitHub account or its
 active teams, once per commit without an existing submitted human review. These
 run after PR maintenance and before new issues, skip drafts, wait for configured
-CI, and publish both specialist reports and the formal verdict to GitHub:
+CI, and publish one consolidated report and the formal verdict to GitHub:
 PASS means APPROVE; blocking findings mean REQUEST_CHANGES. Enabling the review
 schedule or explicitly requesting a standalone review authorizes this posting.
 Keep reports and the GitHub link in Canvas/artifacts. Both Code Reviewer and
-Application Security Engineer must complete. Never approve incomplete or stale
+Application Security Engineer must complete independently. Combine overlapping
+findings by underlying defect, preserving every source finding and complementary
+evidence; the factory validates source coverage and computes the verdict. Write
+for the PR author: concise findings, linked code, practical fixes, no repeated
+role reports, raw verdict enums or empty sections. Keep original specialist
+evidence in the artifacts. Never approve incomplete or stale
 reviews. The parent publishes; read-only review workers retain no GitHub access.
 Failed/interrupted automatic attempts require
 an explicit `factoryctl review` retry; stale results do not count as reviewed.

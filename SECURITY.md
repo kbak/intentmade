@@ -13,9 +13,9 @@ integration tests. The parent keeps the GitHub credential and publishes draft
 PRs only after the configured tests and independent review pass. Merge and
 deployment remain operator actions.
 
-Standalone requested/manual PR reviews publish both completed specialist reports
-and their computed verdict to GitHub. PASS submits APPROVE; blocking findings
-submit REQUEST_CHANGES. Only the parent has GitHub credentials and can submit;
+Standalone requested/manual PR reviews publish one consolidated report from both
+completed specialists and their computed verdict to GitHub. PASS submits APPROVE;
+blocking findings submit REQUEST_CHANGES. Only the parent has GitHub credentials and can submit;
 it rechecks the reviewed commit and CI before posting. Incomplete or stale
 reviews cannot approve a PR. Publication does not merge or deploy the change.
 
@@ -49,7 +49,11 @@ removes the daily cap; per-poll batching and repository locks still apply.
   thread records. The factory validates both reports and computes a verdict
   from blocking findings; it does not trust a coordinator's claim of success.
   Minor findings are advisory. Missing or malformed review evidence prevents
-  publication. Classification and review completeness still depend on model
+  publication. A read-only editing pass groups duplicate findings for publication;
+  every original finding must appear in exactly one group. Blocking status and
+  severity are computed from the source findings, and saved presentation data is
+  bound to the original evidence by a digest. The editor cannot change the verdict.
+  Classification, grouping and review completeness still depend on model
   judgment; these reviews do not replace dedicated security scanning.
 - The pinned adapter's read-only mode uses a read-only sandbox, no command
   network access, and no escalation. The SDK also refuses permission requests

@@ -12,10 +12,17 @@ import monitor
 import review
 import review_publication
 import review_requests
+from review_report import draft_report, validate_report
 from test_specialist_review import evidence, finding, specialist
 
 CONFIG = {"project": "example", "repository": "org/repo"}
 PR = {"number": 42, "head": {"sha": "a" * 40}, "state": "open", "draft": False}
+
+
+def present(events):
+    result = review.evaluate(events)
+    result.presentation = validate_report(result, draft_report(result))
+    return result
 
 
 class PublicationTests(unittest.TestCase):
@@ -62,8 +69,8 @@ class PublicationTests(unittest.TestCase):
             raise TimeoutError("Lost response after GitHub accepted the review")
         return posted
 
-    def test_clean_and_advisory_reviews_approve_with_both_reports(self):
-        result = review.evaluate(
+    def test_clean_and_advisory_reviews_approve_with_one_report(self):
+        result = present(
             [
                 evidence(
                     code=specialist(
@@ -76,34 +83,42 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(posted["state"], "APPROVED")
         body = self.posted[0]["body"]
         for text in (
-            "Verdict: APPROVE",
-            "Code Reviewer",
-            "Application Security Engineer",
-            "Non-blocking findings",
+            "**Approved**",
+            "Suggestion",
             "Cross-account access",
             "a" * 40,
         ):
             self.assertIn(text, body)
         self.assertEqual(self.calls[-1][2]["body"]["event"], "APPROVE")
 
+    def test_unconsolidated_or_incomplete_source_coverage_cannot_post(self):
+        raw = review.evaluate([evidence(code=specialist(blocking_findings=[finding()]))])
+        with self.assertRaisesRegex(review_publication.PublicationError, "consolidated report"):
+            review_publication.publish(CONFIG, PR, raw, "secret")
+        raw.presentation = validate_report(raw, draft_report(raw))
+        raw.presentation.findings.clear()
+        with self.assertRaisesRegex(ValueError, "every source finding"):
+            review_publication.publish(CONFIG, PR, raw, "secret")
+        self.assertEqual(self.calls, [])
+
     def test_material_blockers_request_changes(self):
-        result = review.evaluate([evidence(security=specialist(blocking_findings=[finding()]))])
+        result = present([evidence(security=specialist(blocking_findings=[finding()]))])
         posted = review_publication.publish(CONFIG, PR, result, "secret")
         self.assertEqual(posted["state"], "CHANGES_REQUESTED")
-        self.assertIn("Verdict: REQUEST_CHANGES", self.posted[0]["body"])
+        self.assertIn("**Changes requested**", self.posted[0]["body"])
         self.assertEqual(self.calls[-1][2]["body"]["event"], "REQUEST_CHANGES")
 
     def test_prior_empty_review_body_does_not_prevent_publication(self):
         self.posted.append({"user": {"login": "operator"}, "commit_id": "a" * 40, "body": None})
-        result = review.evaluate([evidence()])
+        result = present([evidence()])
         posted = review_publication.publish(CONFIG, PR, result, "secret")
         self.assertEqual(posted["state"], "APPROVED")
 
     def test_missing_specialist_or_inconsistent_verdict_cannot_post(self):
-        good = review.evaluate([evidence()])
+        good = present([evidence()])
         bad_verdict = good.model_copy(update={"verdict": "CHANGES_REQUESTED"})
         missing = good.model_copy(update={"reviews": good.reviews[:1]})
-        for result in (review.evaluate([]), bad_verdict, missing):
+        for result in (present([]), bad_verdict, missing):
             with (
                 self.subTest(verdict=result.verdict),
                 self.assertRaises(review_publication.PublicationError),
@@ -112,7 +127,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_changed_head_or_failed_ci_never_posts(self):
-        result = review.evaluate([evidence()])
+        result = present([evidence()])
         self.pr["head"]["sha"] = "b" * 40
         with self.assertRaisesRegex(review_publication.PublicationError, "PR changed"):
             review_publication.publish(CONFIG, PR, result, "secret")
@@ -123,7 +138,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(self.posted, [])
 
     def test_lost_response_is_reconciled_without_duplicate_post(self):
-        result = review.evaluate([evidence()])
+        result = present([evidence()])
         self.lost_response = True
         with self.assertRaises(TimeoutError):
             review_publication.publish(CONFIG, PR, result, "secret")
@@ -133,7 +148,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(len(self.posted), 1)
 
     def test_another_authors_marker_is_not_our_receipt_and_dismissal_is_not_approval(self):
-        result = review.evaluate([evidence()])
+        result = present([evidence()])
         review_publication.publish(CONFIG, PR, result, "secret")
         self.posted[0]["user"]["login"] = "someone-else"
         review_publication.publish(CONFIG, PR, result, "secret")
@@ -145,13 +160,59 @@ class PublicationTests(unittest.TestCase):
 
 
 class PublicationRecoveryTests(unittest.TestCase):
+    def test_legacy_retry_consolidates_once_and_keeps_original_evidence(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            artifact = root / "artifacts"
+            artifact.mkdir()
+            job = root / "job"
+            job.mkdir()
+            events = [evidence(code=specialist(blocking_findings=[finding()]))]
+            result = review.evaluate(events)
+            saved = {"repository": "org/repo", "pr": 42, "head": "a" * 40, "status": "REVIEWED"}
+            originals = {
+                "result.json": json.dumps(saved),
+                "review.json": result.model_dump_json(),
+                "review.md": "Original report",
+                "review.jsonl": json.dumps(events[0]) + "\n",
+            }
+            for name, text in originals.items():
+                (artifact / name).write_text(text)
+            presentation = validate_report(result, draft_report(result))
+            with (
+                patch.object(
+                    monitor.review_requests,
+                    "read",
+                    return_value={"status": "PUBLICATION_FAILED", "artifact": str(artifact)},
+                ),
+                patch.object(monitor.reporting, "ACTIVE", None),
+                patch.object(monitor, "_review_pr") as rerun,
+                patch.object(monitor, "publish_review") as publish,
+                patch.object(monitor, "lock", return_value=nullcontext()),
+                patch.object(monitor, "job_directory", return_value=nullcontext(job)),
+                patch.object(monitor, "worker", return_value=nullcontext(object())),
+                patch.object(monitor, "consolidate", return_value=presentation) as editor,
+            ):
+                self.assertTrue(monitor.review_pr(CONFIG, PR, "secret"))
+                self.assertTrue(monitor.review_pr(CONFIG, PR, "secret"))
+                editor.assert_called_once()
+                rerun.assert_not_called()
+                self.assertEqual(publish.call_count, 2)
+                self.assertEqual(publish.call_args.args[2].presentation, presentation)
+            for name, text in originals.items():
+                self.assertEqual((artifact / name).read_text(), text)
+            presentation.source_digest = "wrong evidence"
+            (artifact / "review-presentation.json").write_text(presentation.model_dump_json())
+            with self.assertRaisesRegex(ValueError, "different specialist evidence"):
+                review_publication.load_saved(CONFIG, PR, artifact)
+
     def test_failed_publication_reuses_verified_artifacts_without_rerunning_specialists(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             artifact = root / "artifacts"
             artifact.mkdir()
             events = [evidence()]
-            result = review.evaluate(events)
+            result = present(events)
             saved = {"repository": "org/repo", "pr": 42, "head": "a" * 40, "status": "REVIEWED"}
             (artifact / "result.json").write_text(json.dumps(saved))
             (artifact / "review.json").write_text(result.model_dump_json())
