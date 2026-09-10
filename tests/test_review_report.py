@@ -166,6 +166,55 @@ class ConsolidationTests(unittest.TestCase):
         self.assertNotIn("Blocking", advisory.report())
         self.assertNotIn("None", advisory.report())
 
+    def test_follow_up_credits_fixes_without_hiding_current_blockers(self):
+        result = review.evaluate(
+            [
+                evidence(
+                    code=specialist(
+                        summary="Import flag fixed: shared encryption writer now updates the flag. "
+                        "Key race partially fixed: atomic envelope insert; OS-keychain still races.",
+                        blocking_findings=[finding(title="OS-keychain still loses the key")],
+                    )
+                )
+            ]
+        )
+        report = review_report.draft_report(result)
+        report.changes_since_previous_review = [
+            "**Fixed — Import flag:** the shared writer keeps imported answers readable.",
+            "**Partially fixed — Key race:** envelope storage is atomic; OS-keychain still races.",
+        ]
+        with patch.object(review_report, "converse", return_value=report) as editor:
+            result.presentation = review_report.consolidate(Mock(), result)
+        prompt = editor.call_args.args[1]
+        self.assertIn(result.reviews[0].summary, prompt)
+        self.assertIn("Never infer resolution merely from an absent", prompt)
+        body = result.report()
+        self.assertLess(body.index("Since the previous review"), body.index("### 1."))
+        self.assertIn("Fixed — Import flag", body)
+        self.assertIn("Partially fixed — Key race", body)
+        self.assertIn("1 issue to address", body)
+        self.assertIn("### 1. OS-keychain still loses the key", body)
+        self.assertNotIn("Import flag", result.repair_instructions())
+
+    def test_resolved_follow_up_can_approve_and_old_reports_remain_readable(self):
+        result = review.evaluate([evidence()])
+        # Existing saved reports predate the optional progress field.
+        legacy = {"findings": [], "coverage": []}
+        result.presentation = review_report.validate_report(result, legacy)
+        self.assertNotIn("Since the previous review", result.report())
+        result.presentation.changes_since_previous_review = [
+            "**Fixed — Import flag:** the actual importer now preserves answer readability."
+        ]
+        self.assertIn("Approved", result.report())
+        self.assertIn("Fixed — Import flag", result.report())
+        self.assertNotIn("### 1.", result.report())
+
+    def test_native_specialists_are_asked_to_verify_prior_fixes(self):
+        prompt = review.coordinator_prompt("Prior reviews are in review-context.json")
+        self.assertIn("Give both the full context, factory policy", prompt)
+        self.assertIn("reassess the earlier actionable findings", prompt)
+        self.assertIn("Keep resolved issues out of the current findings lists", prompt)
+
     def test_new_review_consolidates_only_after_native_specialists_finish(self):
         native = evidence(code=specialist(blocking_findings=[finding()]))
         order = []

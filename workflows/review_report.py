@@ -26,6 +26,7 @@ class ReviewReport(BaseModel):
 
     findings: list[ReportFinding]
     coverage: list[Prose] = Field(max_length=6)
+    changes_since_previous_review: list[Prose] = Field(default_factory=list, max_length=12)
     source_digest: str | None = None
 
 
@@ -99,7 +100,20 @@ def consolidate(workspace, review, transcript=None):
         "with code identifiers in backticks, and a practical fix with a regression check where relevant. "
         "Aim for 80–140 words total per finding. Do not repeat the same fact across these fields. "
         "Use ordinary professional language, no role-by-role sections, boilerplate, empty headings, "
-        "or claims about tools/tests not supported by the supplied summaries. Consolidate validation "
+        "or wording such as 'supplied reviews/probes' that narrates this editing handoff. "
+        "For follow-up reviews, populate changes_since_previous_review with concise bullets using "
+        "the current specialists' explicit reassessments in their summaries and findings. Identify "
+        "the earlier issue by name and distinguish Fixed, Partially fixed, Still present, Not verified, "
+        "and Additional finding. Credit verified fixes and state exactly what remains for partial "
+        "fixes. An additional finding may have been reported by another reviewer; do not imply the "
+        "author's fix introduced it without evidence. Never infer resolution merely from an absent "
+        "finding or an author claim. If a prior issue is mentioned but not reassessed, or the "
+        "specialists disagree about resolution, say Not verified and explain the gap. Do not declare "
+        "an issue fully fixed while a current source finding describes a remaining failure of that "
+        "issue. This progress section cannot remove or downgrade current findings or affect their "
+        "count. Leave it empty for an initial review with no earlier findings to reconcile. "
+        "Keep progress separate from validation coverage. Do not add "
+        "claims about tools/tests not supported by the supplied summaries. Consolidate validation "
         "and material coverage limits into 1–3 short coverage bullets. Omit redundant process narration. "
         "Do not insert links, headings or HTML; the renderer supplies them. Leave source_digest null.\n\n"
         + json.dumps(payload)
@@ -150,6 +164,11 @@ def render(review, repository=None, sha=None):
     sections = ["## Code and security review", lead]
     if repository and sha:
         sections.append(f"Reviewed [{sha[:8]}](https://github.com/{repository}/commit/{sha}).")
+    if report.changes_since_previous_review:
+        sections.append(
+            "### Since the previous review\n\n"
+            + "\n".join("- " + item for item in report.changes_since_previous_review)
+        )
     for number, (group, primary, blocking, severity) in enumerate(rows, 1):
         location = f"{primary.file}:{primary.line}"
         if repository and sha:

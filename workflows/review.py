@@ -103,6 +103,15 @@ Use available source, test results and CI evidence. Do not claim to have run sec
 checked current vulnerability databases unless their actual results are supplied. Lack of an optional
 scanner alone does not make source review incomplete; disclose that coverage limitation in the summary.
 
+When prior reviews or author fix claims are supplied, reassess the earlier actionable findings against
+the current source. In your summary, identify each earlier issue as fixed, partially fixed, still
+present, or not verified, with the code change or check supporting that assessment. Credit working
+fixes and name the remaining scope of partial fixes (for example, which backend still fails).
+An author's claim, a passing mock, or omission from your findings is not proof of resolution.
+Distinguish additional findings from previously reported ones; newly reported does not mean newly
+introduced by the fix. Keep resolved issues out of the current findings lists and do not let an old
+changes-requested verdict anchor the current verdict. Disclose any gaps in the available history.
+
 A review with no findings is valid. Do not invent issues or promote suggestions to blockers.
 Only material correctness defects and material security risks should block publication.
 Low/informational security findings, hardening opportunities, style preferences, speculative risks,

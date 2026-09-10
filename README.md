@@ -90,6 +90,11 @@ evidence is incomplete and stops publication without spending code repair
 attempts. Each specialist's findings are retained in the review JSON; the
 transcript preserves their original responses. The Markdown report separates
 blockers from advisory findings.
+Follow-up reviews reassess earlier findings against the current code. The report
+credits verified fixes, identifies partial or unresolved fixes and additional
+findings, and states when resolution could not be verified. Author claims alone
+do not establish that an issue is fixed; the consolidation pass uses the current
+specialists' assessments and cannot remove blockers or change the verdict.
 These are source reviews using available test/CI evidence, not a guarantee that
 SAST, DAST, secret scanning or current dependency vulnerability scans ran.
 
