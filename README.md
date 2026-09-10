@@ -122,6 +122,14 @@ from the parent session. The host's login and configuration are not mounted.
 Run `./scripts/factoryctl up` after changing the pinned source to rebuild Canvas
 and refresh the worker image. Newly started Codex sessions receive the updated roles.
 
+After changing files in `workflows/`, also refresh the native automations' uploaded
+code bundles. Rebuilding the image alone leaves existing schedules on their earlier
+workflow code. This command retains the existing native GitHub connection:
+
+```bash
+docker compose exec -T canvas python /opt/factory/configure.py configure
+```
+
 #### Claude Code and other agents
 
 This factory currently provisions agency roles for Codex only. Its automated
