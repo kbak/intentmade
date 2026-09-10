@@ -12,6 +12,7 @@ from pathlib import Path
 
 import followup
 import reporting
+import review_publication
 import review_requests
 from agent import converse
 from cleanup import job_directory
@@ -28,15 +29,46 @@ def review_pr(config, pr, credential):
     if report:
         report.update("REVIEWING", f"Reviewing commit {pr['head']['sha']}.")
     try:
-        current = _review_pr(config, pr, credential)
-        if report:
+        previous = review_requests.read(config, pr) or {}
+        if previous.get("status") == "PUBLICATION_FAILED":
+            artifact = Path(previous["artifact"])
+            review = review_publication.load_saved(config, pr, artifact)
+            publish_review(config, pr, review, credential, artifact)
+            current = True
+        else:
             artifact = evidence(job_id() + "-pr-" + str(pr["number"]))
-            report.update("REVIEWED" if current else "STALE", (artifact / "review.md").read_text())
+            current = _review_pr(config, pr, credential)
+        if report:
+            posted = (review_requests.read(config, pr) or {}).get("github_review", {})
+            link = f"\n\n[GitHub review]({posted['html_url']})" if posted else ""
+            report.update(
+                "REVIEWED" if current else "STALE",
+                (artifact / "review.md").read_text() + link,
+                github_review=posted,
+            )
         return current
     except BaseException as exc:
         if report:
-            report.update("FAILED", str(exc))
+            report.update(
+                "PUBLICATION_FAILED"
+                if isinstance(exc, review_publication.PublicationError)
+                else "FAILED",
+                str(exc),
+            )
         raise
+
+
+def publish_review(config, pr, review, credential, artifact):
+    try:
+        posted = review_publication.publish(config, pr, review, credential)
+    except Exception as exc:
+        review_requests.remember(config, pr, "PUBLICATION_FAILED", artifact=str(artifact))
+        raise review_publication.PublicationError(
+            f"GitHub review publication failed: {exc}"
+        ) from exc
+    (artifact / "publication.json").write_text(json.dumps(posted, indent=2))
+    review_requests.remember(config, pr, "REVIEWED", artifact=str(artifact), github_review=posted)
+    print(f"GitHub review: {posted['html_url']} — {posted['state']}", flush=True)
 
 
 def _review_pr(config, pr, credential):
@@ -95,7 +127,10 @@ def _review_pr(config, pr, credential):
             "verdict": review.verdict,
         }
         (artifact / "result.json").write_text(json.dumps(result, indent=2))
-        review_requests.remember(config, pr, result["status"])
+        if current:
+            publish_review(config, pr, review, credential, artifact)
+        else:
+            review_requests.remember(config, pr, "STALE")
         print(json.dumps(result) + "\n" + report, flush=True)
         return current
 
@@ -505,7 +540,7 @@ def poll(config, credential, replies_only=False):
             print("Repository is busy; task deferred to next poll.", flush=True)
         except Exception as exc:
             state["done"][key] = "failed:" + job_id()
-            if kind == "review":
+            if kind == "review" and not isinstance(exc, review_publication.PublicationError):
                 review_requests.remember(config, item, "FAILED")
             errors.append(f"{key}: {type(exc).__name__}: {exc}")
             print(errors[-1], flush=True)
@@ -593,7 +628,7 @@ if __name__ == "__main__":
                         raise RuntimeError("PR is draft, closed, or does not satisfy CI policy")
                     if not review_pr(config, pr, credential):
                         raise RuntimeError("PR changed during review; report marked stale")
-                    outcome("COMPLETED", "PR reviewed; report retained locally")
+                    outcome("COMPLETED", "PR review and verdict published to GitHub")
                 else:
                     poll(config, credential, replies_only=bool(job.get("resume_replies")))
         except BlockingIOError:

@@ -278,6 +278,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                     ) as fresh,
                     patch.object(monitor, "pr_eligible", return_value=True),
                     patch.object(monitor.review_requests, "remember") as receipt,
+                    patch.object(monitor, "publish_review") as publication,
                 ):
                     args = (
                         {"project": "example", "repository": "org/repo"},
@@ -289,12 +290,19 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                             monitor._review_pr(*args)
                         fresh.assert_not_called()
                         receipt.assert_not_called()
+                        publication.assert_not_called()
                     else:
                         self.assertEqual(monitor._review_pr(*args), not stale)
                         saved = json.loads((artifact / "result.json").read_text())
                         self.assertEqual(saved["status"], "STALE" if stale else "REVIEWED")
                         self.assertEqual(saved["verdict"], "PASS")
-                        receipt.assert_called_once_with(args[0], args[1], saved["status"])
+                        if stale:
+                            receipt.assert_called_once_with(args[0], args[1], "STALE")
+                            publication.assert_not_called()
+                        else:
+                            publication.assert_called_once_with(
+                                args[0], args[1], result, "token", artifact
+                            )
                 self.assertIn("exact commit head", reviewers.call_args.args[1])
                 self.assertEqual(
                     reviewers.call_args.kwargs["transcript"], artifact / "review.jsonl"

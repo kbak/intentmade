@@ -74,22 +74,29 @@ def receipt_path(config, pr):
 
 
 def attempted(config, pr):
+    record = read(config, pr)
+    return bool(record) and record["status"] != "STALE"
+
+
+def read(config, pr):
     path = receipt_path(config, pr)
-    return path.exists() and json.loads(path.read_text())["status"] != "STALE"
+    return json.loads(path.read_text()) if path.exists() else None
 
 
-def remember(config, pr, status):
+def remember(config, pr, status, **details):
     path = receipt_path(config, pr)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
     temporary.write_text(
         json.dumps(
             {
+                **(read(config, pr) or {}),
                 "repository": config["repository"],
                 "pr": pr["number"],
                 "head": pr["head"]["sha"],
                 "status": status,
                 "run_id": job_id(),
+                **details,
             },
             indent=2,
         )

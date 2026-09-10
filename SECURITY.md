@@ -13,6 +13,12 @@ integration tests. The parent keeps the GitHub credential and publishes draft
 PRs only after the configured tests and independent review pass. Merge and
 deployment remain operator actions.
 
+Standalone requested/manual PR reviews publish both completed specialist reports
+and their computed verdict to GitHub. PASS submits APPROVE; blocking findings
+submit REQUEST_CHANGES. Only the parent has GitHub credentials and can submit;
+it rechecks the reviewed commit and CI before posting. Incomplete or stale
+reviews cannot approve a PR. Publication does not merge or deploy the change.
+
 An enabled scheduler with `issue_label: null` treats open, unassigned issues as
 work requests. Use that mode only for repositories whose issue authors you trust
 to request work. A configured `issue_label` provides an optional approval gate

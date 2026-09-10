@@ -28,7 +28,7 @@ Implementation runs in a disposable worker using the Codex harness. OpenHands
 creates its worktree; the workflow runs configured Docker tests, an independent
 review, and a bounded repair attempt. Passing work opens a draft PR by default.
 Use --no-publish only when the user specifically wants local evidence first.
-Never merge, mark a draft ready, approve a PR, or deploy without explicit direction.
+Never merge, mark a draft ready, or deploy without explicit direction.
 
 With `issue_label: null`, an enabled scheduler automatically implements open,
 unassigned issues. No additional label or human approval is required. The issue
@@ -59,9 +59,16 @@ the scheduler monitors CI and maintains PRs published by this instance.
 It also reviews external PRs requested from the connected GitHub account or its
 active teams, once per commit without an existing submitted human review. These
 run after PR maintenance and before new issues, skip drafts, wait for configured
-CI, and keep reports in Canvas/artifacts. Both Code Reviewer and Application
-Security Engineer must complete. Failed/interrupted automatic attempts require
+CI, and publish both specialist reports and the formal verdict to GitHub:
+PASS means APPROVE; blocking findings mean REQUEST_CHANGES. Enabling the review
+schedule or explicitly requesting a standalone review authorizes this posting.
+Keep reports and the GitHub link in Canvas/artifacts. Both Code Reviewer and
+Application Security Engineer must complete. Never approve incomplete or stale
+reviews. The parent publishes; read-only review workers retain no GitHub access.
+Failed/interrupted automatic attempts require
 an explicit `factoryctl review` retry; stale results do not count as reviewed.
+Publication failures reuse the saved verified review on retry, without rerunning
+the specialists or duplicating an already submitted review.
 Users may also explicitly request standalone reviews with `factoryctl review`.
 
 Native Automate owns run status and logs. Empty/busy scans report SKIPPED. A run

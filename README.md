@@ -246,8 +246,8 @@ when a title lacks one.
 | --- | --- |
 | Issue implementation | Open, unassigned issues, oldest first. The workflow claims the issue for the configured assignee, implements, tests, reviews and opens a draft PR. |
 | Issue proposals | When an optional approval label is configured, changed, unassigned issues without that label may receive proposals in Canvas when polling capacity is available. |
-| Requested PR review | Open, non-draft PRs requested from the connected GitHub account or one of its active teams, with passing CI and no submitted human review of the current commit. Runs code and security review; reports stay in Canvas and local artifacts. |
-| Manual PR review | Only when explicitly requested through `factoryctl review`. Open, non-draft PRs with passing required CI checks; reports stay in Canvas and local artifacts. |
+| Requested PR review | Open, non-draft PRs requested from the connected GitHub account or one of its active teams, with passing CI and no submitted human review of the current commit. Publishes code and security reports plus a formal verdict to GitHub; also retains Canvas reports and local artifacts. |
+| Manual PR review | Explicitly requested through `factoryctl review`. Open, non-draft PRs with passing required CI checks; publishes the same reports and verdict to GitHub. |
 | Published PR maintenance | PRs recorded as published by this instance, including drafts. Check CI, repair failures and merge newer base commits into the existing task branch. |
 
 Tests and independent review must pass before creating a PR or pushing a repair.
@@ -327,11 +327,21 @@ interrupted automatic attempts are reported and held for an explicit
 `factoryctl review` retry, avoiding repeated agent runs on every poll. A stale
 result does not count as a completed review.
 
+Completed standalone reviews publish both specialist reports with a formal
+GitHub verdict: `PASS` becomes **Approve**, and blocking findings become
+**Request changes**. Advisory findings remain in an approval's body. Incomplete
+or stale reviews never approve a PR. Publication runs in the parent process,
+rechecks the current commit and CI, and anchors the review to the reviewed SHA.
+Canvas links to the GitHub review. A failed publication is reported as
+`PUBLICATION_FAILED`; `factoryctl review` retries that saved, verified report
+without rerunning the specialists. Existing submitted factory reviews are
+detected before retrying a POST, preventing duplicates after a lost response.
+
 Missing, pending or failed CI blocks PR review. Accepted results default to
 `success`, `neutral` and `skipped`; explicit check names detect missing jobs.
 Reviews use the exact PR head's source archive and recheck eligibility before
-recording completion. They rely on CI rather than rerunning application tests and
-do not post GitHub comments or approvals. To request a review manually:
+recording completion. They rely on CI rather than rerunning application tests.
+To request a review manually:
 
 ```bash
 ./scripts/factoryctl review example-app 123
