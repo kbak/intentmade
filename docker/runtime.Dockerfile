@@ -1,8 +1,10 @@
-FROM ghcr.io/openhands/agent-canvas:1.17.0@sha256:2dd26fb75206239f80c71d5665006071cf0db4d306ab571deeb8f9b25a01aedd
+FROM ghcr.io/openhands/agent-canvas:1.18.0@sha256:64d73ec6c066b425e872e1a58d52d8b5d901b617a8e945b1430415c5fd4ea4d1
 USER root
 # Pin the Codex/ACP versions used by the factory integrations.
 RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global \
     @agentclientprotocol/codex-acp@1.10.0 @openai/codex@0.153.4
+# Browser tools are forwarded through native ACP MCP configuration for QA workers.
+RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global @playwright/mcp@0.0.80
 COPY runtime/patch_review_policy.py /opt/factory/patch_review_policy.py
 RUN python /opt/factory/patch_review_policy.py
 COPY runtime/patch_agency_agents.py /opt/factory/patch_agency_agents.py

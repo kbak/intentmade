@@ -1,10 +1,12 @@
 """Persistent Canvas task reports, human replies, and truthful run callbacks."""
 
+import base64
 import datetime
 import hashlib
 import json
 import os
 from contextlib import contextmanager
+from pathlib import Path
 
 import httpx
 from common import DATA, api, identifier, session_api_key
@@ -47,7 +49,7 @@ def write_report(config, task, record):
     temp.replace(path)
 
 
-def post(conversation_id, message, run=False):
+def post(conversation_id, message, run=False, images=None):
     api(
         "POST",
         f"/api/conversations/{conversation_id}/events",
@@ -55,10 +57,40 @@ def post(conversation_id, message, run=False):
             # The native message endpoint accepts user input only. Identify
             # generated reports explicitly; never impersonate an agent turn.
             "role": "user",
-            "content": [{"type": "text", "text": "Factory update\n\n" + message}],
+            "content": [{"type": "text", "text": "Factory update\n\n" + message}]
+            + ([{"type": "image", "image_urls": images}] if images else []),
             "run": run,
         },
     )
+
+
+def browser_evidence(results):
+    """Native image attachments survive worker deletion and need no public hosting."""
+    if not ACTIVE or not ACTIVE.get("conversation_id"):
+        return
+    for project, result in results.items():
+        text = f"**Browser QA — {project}: {result['status']}**\n\nCommit: `{result['commit']}`\n\n{result['summary']}"
+        for check in result.get("checks", []):
+            text += f"\n\n- {check['name']}: {check['status']} — {check['observed']}"
+        try:
+            post(ACTIVE["conversation_id"], text)
+            for screenshot in result.get("screenshots", []):
+                path = Path(screenshot["path"])
+                data = path.read_bytes()
+                if hashlib.sha256(data).hexdigest() != screenshot["sha256"]:
+                    raise RuntimeError("Retained screenshot changed before attachment")
+                post(
+                    ACTIVE["conversation_id"],
+                    screenshot["caption"] + "\n\nRetained file: `" + str(path) + "`",
+                    images=["data:image/png;base64," + base64.b64encode(data).decode()],
+                )
+            result["report_attachment"] = "ATTACHED"
+        except Exception as exc:
+            result["report_attachment"] = "FAILED"
+            print(
+                f"Canvas evidence attachment unavailable; files retained: {type(exc).__name__}",
+                flush=True,
+            )
 
 
 def phase(message):

@@ -14,7 +14,12 @@ from openhands.sdk.context import Skill, SkillValidationError
 
 class FactorySkillTests(unittest.TestCase):
     def test_native_acp_context_contains_selected_body_without_worker_file_access(self):
-        for name in ("factory-implementation", "factory-review", "factory-review-report"):
+        for name in (
+            "factory-implementation",
+            "factory-review",
+            "factory-review-report",
+            "factory-browser-qa",
+        ):
             with self.subTest(skill=name), patch.dict(os.environ, FACTORY_CODEX_MODEL="test/high"):
                 original = agent.worker_agent("read-only", name)
                 # Model the JSON boundary between the automation and worker.

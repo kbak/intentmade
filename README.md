@@ -100,9 +100,9 @@ SAST, DAST, secret scanning or current dependency vulnerability scans ran.
 
 ### Factory skills
 
-Factory procedures are maintained as three standard `SKILL.md` files under
+Factory procedures are maintained as standard `SKILL.md` files under
 [`workflows/skills/`](workflows/skills/): implementation and validation guidance,
-independent code/security review, and report writing. Edit the relevant skill
+independent code/security review, browser acceptance QA, and report writing. Edit the relevant skill
 to change a procedure. Task data and response schemas remain in the workflows;
 OpenHands continues to own conversations, worktrees, scheduling and run history.
 The factory still enforces tests, specialist completion and publication gates.
@@ -218,6 +218,44 @@ For an external test adapter, put its files under `profiles/NAME/` and set
 uses that profile's read-only mount; escape the quotes in JSON. Multiple
 repositories can share a profile. A profile is optional.
 
+### Browser acceptance evidence
+
+Configure `browser_qa` on repositories that need rendered UI verification:
+
+```json
+{
+  "browser_qa": {
+    "paths": ["frontend/src/**", "frontend/public/**"],
+    "exclude": ["**/*.test.*", "**/*.spec.*"],
+    "start_command": "bash \"$FACTORY_TESTS/browser.sh\"",
+    "url": "http://docker:8001",
+    "instructions": "Describe disposable test accounts and application-specific QA here."
+  }
+}
+```
+
+After tests pass, matching changes receive a fresh QA worker at the retained
+commit. The startup command must leave the app running and exit successfully
+when ready. It receives `PROJECT_DIR`, `FACTORY_TESTS` when a profile is selected,
+and `FACTORY_QA_OUTPUT`. Services can use the job's disposable Docker daemon;
+ports published there are available to the browser at `http://docker:PORT`.
+Use development fixtures and local services in this profile.
+
+The adapted OpenHands `qa-changes` procedure uses pinned Playwright MCP through
+native ACP configuration. It exercises the affected flows and returns named
+checks and PNG screenshots. The parent downloads and verifies the images before
+teardown, retaining their hashes, captions, page URLs and tested commit under
+`artifacts/RUN-TASK/PROJECT/browser-ATTEMPT/`. Canvas receives native image
+attachments; result JSON records an attachment failure if Canvas is unavailable,
+while the files remain retained. Images stay within the private factory.
+
+`PASS` requires passed checks and valid retained screenshots. An observed defect
+enters the normal bounded repair loop. Missing infrastructure or evidence,
+unverified behavior, or source modifications during QA produce `NEEDS_INPUT`.
+The final commit must pass tests, applicable browser QA and independent review
+before publication. `browser_qa: null` disables this stage; path patterns define
+its scope, so include shared files that affect your UI as needed.
+
 After adding repositories, run `init` and `configure` from the tooling checkout.
 Use `refresh NAME` to update the local code catalog used in discussions. Build
 submissions resolve the remote base commit independently of that catalog.
@@ -284,7 +322,7 @@ when a title lacks one.
 | Requested PR review | Open, non-draft PRs requested from the connected GitHub account or one of its active teams, with passing CI and no submitted human review of the current commit. Publishes code and security reports plus a formal verdict to GitHub; also retains Canvas reports and local artifacts. |
 | Follow-up PR review | A new commit after this factory's outstanding changes request, even without another review request. Uses the same readiness, human-review and per-commit deduplication checks. Stops after approval or dismissal of the connected account's latest verdict. |
 | Manual PR review | Explicitly requested through `factoryctl review`. Open, non-draft PRs with passing required CI checks; publishes the same reports and verdict to GitHub. |
-| Published PR maintenance | PRs recorded as published by this instance, including drafts. Check CI, repair failures and merge newer base commits into the existing task branch. |
+| Published PR maintenance | PRs recorded as published by this instance, including drafts. Address eligible review feedback, check CI, repair failures and merge newer base commits into the existing task branch. |
 
 Tests and independent review must pass before creating a PR or pushing a repair.
 The scheduler does not launch another agent review of its own PRs after publication, including
@@ -348,6 +386,32 @@ native completion and phase APIs; it does not rewrite automation database rows.
 To opt into label-based approval, set `issue_label` to a label name. In that mode,
 applying the label authorizes implementation and draft publication; remove and
 reapply it after reviewing a failed run or editing the approved specification.
+
+### Automatic PR feedback repair
+
+With `pr_feedback: true`, maintenance collects submitted `CHANGES_REQUESTED` and
+`COMMENTED` review bodies on the current commit, plus unresolved, non-outdated
+inline comments and replies. General discussion comments need `@openhands` or
+`@openhands-agent` to distinguish requests from conversation. Humans need current
+write/maintain/admin permission; bot logins must be explicitly listed in
+`pr_feedback_bots`. Factory-generated reviews and review bodies superseded by
+approval are excluded. The default bot allowlist is empty.
+
+Only PRs with this factory's publication receipt are eligible. Feedback is
+coalesced per poll and checked again before implementation and publication.
+The existing tests, browser QA and independent review gates apply to repairs.
+The builder explains feedback that is already satisfied or unsupported; new
+requirements outside the approved task produce `NEEDS_INPUT`.
+
+Receipts record each feedback ID and revision before work begins. Repeated polls
+do not repeat a repair; edited feedback gets a new revision. Failed/interrupted
+repairs require an explicit `resume:` reply. `pr_feedback_attempts` defaults to
+three repair runs per PR in a rolling 24-hour window, independently of the CI
+repair counter; each run also uses the normal repair-attempt and scheduler
+budgets. Reaching the limit asks for maintainer input. GitHub threads remain
+available for human review after repair.
+
+### Requested reviews
 
 Requested and follow-up reviews run after published PR maintenance and before new issues,
 within the existing poll and daily budgets. Team membership is checked through

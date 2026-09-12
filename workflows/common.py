@@ -44,6 +44,33 @@ def projects(config_dir=None):
         config = {**defaults, **json.loads(file.read_text()), "project": name}
         if config.get("test_profile"):
             identifier(config["test_profile"])
+        if not isinstance(config.get("pr_feedback", False), bool):
+            raise ValueError(f"{name}: pr_feedback must be true or false")
+        bots = config.get("pr_feedback_bots", [])
+        if not isinstance(bots, list) or any(
+            not isinstance(bot, str) or not bot.strip() for bot in bots
+        ):
+            raise ValueError(f"{name}: pr_feedback_bots must be a list of GitHub logins")
+        limit = config.get("pr_feedback_attempts", 3)
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+            raise ValueError(f"{name}: pr_feedback_attempts must be a positive integer")
+        qa = config.get("browser_qa")
+        if qa is not None:
+            if not isinstance(qa, dict) or any(
+                not isinstance(qa.get(k), str) or not qa[k].strip()
+                for k in ("start_command", "url")
+            ):
+                raise ValueError(f"{name}: browser_qa needs start_command and url")
+            for key in ("paths", "exclude"):
+                patterns = qa.get(key, [])
+                if (
+                    not isinstance(patterns, list)
+                    or any(not isinstance(p, str) or not p for p in patterns)
+                    or (key == "paths" and not patterns)
+                ):
+                    raise ValueError(f"{name}: browser_qa.{key} must contain file patterns")
+            if not isinstance(qa.get("instructions", ""), str):
+                raise ValueError(f"{name}: browser_qa.instructions must be text")
         if config["repository"]:
             config["repository"] = issues.normalize_repo(config["repository"])
         if not config["test_command"].strip() or not config["required_checks"]:

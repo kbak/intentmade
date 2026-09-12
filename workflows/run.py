@@ -9,6 +9,8 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import Literal
 
+import browser_qa
+import reporting
 from agent import converse, worktree
 from cleanup import job_directory
 from common import DATA, api, evidence, git, github, identifier, issues, job_id, lock, token
@@ -444,10 +446,43 @@ def review_changes(configs, states, request, results, transcript=None):
             )
 
 
+def browser_checks(configs, states, request, artifact, attempt):
+    selected = [
+        c for c in configs if c.get("browser_qa") and browser_qa.selected(c, states[c["project"]])
+    ]
+    if not selected:
+        return {}
+    results = {}
+    with job_directory(DATA, artifact) as root:
+        qa_states = {project: dict(state) for project, state in states.items()}
+        prepare_sources(root, qa_states)
+        for config in selected:
+            project = config["project"]
+            output = root / "captures" / project
+            output.mkdir(parents=True)
+            # One fresh app/database/browser for each repository's QA session.
+            with worker(root, configs) as workspace:
+                phase(f"Browser acceptance QA: {project}")
+                results[project] = browser_qa.run(
+                    workspace,
+                    config,
+                    qa_states[project],
+                    request,
+                    output,
+                    artifact / project / f"browser-{attempt}",
+                )
+    reporting.browser_evidence(results)
+    return results
+
+
 def execute_build(configs, task, request, credential, issue, publish_draft, artifact, states):
     for state in states.values():
         state["commit_message"] = change_title(request)
     outcome = {"task": task, "status": "RUNNING", "repositories": states}
+    local_report = None
+    if reporting.ACTIVE and not reporting.ACTIVE.get("conversation_id"):
+        local_report = reporting.TaskReport(configs[0], task)
+        local_report.update("RUNNING", "Implementing and validating the approved task.")
 
     def save():
         (artifact / "result.json").write_text(json.dumps(outcome, indent=2))
@@ -461,18 +496,42 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
             results, test_output = implementation_attempt(
                 configs, states, task, prompt, artifact, attempt
             )
+            outcome["browser_qa"] = (
+                browser_checks(configs, states, request, artifact, attempt)
+                if all(code == 0 for code in results.values())
+                else {}
+            )
+            blocked = [
+                r["summary"] for r in outcome["browser_qa"].values() if r["status"] == "BLOCKED"
+            ]
+            if blocked:
+                raise NeedsInput("Browser verification could not complete: " + "\n".join(blocked))
             outcome.update(phase="REVIEWING", tests=results)
             save()
             phase(f"{task}: independent review (attempt {attempt + 1})")
             review = review_changes(
-                configs, states, request, results, artifact / f"review-{attempt}.jsonl"
+                configs,
+                states,
+                request
+                + (
+                    "\nBrowser QA evidence:\n" + json.dumps(outcome["browser_qa"])
+                    if outcome["browser_qa"]
+                    else ""
+                ),
+                results,
+                artifact / f"review-{attempt}.jsonl",
             )
             report = review.report()
             (artifact / f"review-{attempt}.md").write_text(report)
             (artifact / f"review-{attempt}.json").write_text(review.model_dump_json(indent=2))
             if review.verdict == "BLOCKED":
                 raise RuntimeError("Independent review infrastructure blocked: " + review.summary)
-            if all(code == 0 for code in results.values()) and review.verdict == "PASS":
+            browser_passed = all(r["status"] == "PASS" for r in outcome["browser_qa"].values())
+            if (
+                all(code == 0 for code in results.values())
+                and review.verdict == "PASS"
+                and browser_passed
+            ):
                 outcome["validation"] = "PASSED"
                 break
             prompt = (
@@ -484,10 +543,12 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
                 + json.dumps(results)
                 + "\nTest output:\n"
                 + "\n".join(test_output)[-30000:]
+                + "\nBrowser QA failures (fix only observed in-scope defects):\n"
+                + json.dumps(outcome["browser_qa"])
             )
         else:
             raise RuntimeError(
-                "Tests or review require attention; branches and evidence retained.\n\n"
+                "Tests, browser QA or review require attention; branches and evidence retained.\n\n"
                 + "Test exit codes: "
                 + json.dumps(results)
                 + "\n\n"
@@ -498,6 +559,8 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
             status="NEEDS_INPUT" if isinstance(exc, NeedsInput) else "FAILED",
             error=f"{type(exc).__name__}: {exc}",
         )
+        if local_report:
+            local_report.update(outcome["status"], outcome["error"], result=outcome)
         raise
     finally:
         save()
@@ -541,9 +604,18 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
         outcome["status"] = "PUBLICATION_FAILED"
         outcome["error"] = f"{type(exc).__name__}: {exc}"
         save()
+        if local_report:
+            local_report.update(outcome["status"], outcome["error"], result=outcome)
         raise
     outcome["phase"] = "DONE"
     save()
+    if local_report:
+        local_report.update(
+            "PASSED",
+            "\n".join(s["pull_request"] for s in states.values() if s.get("pull_request"))
+            or "Validated; evidence retained.",
+            result=outcome,
+        )
     print(json.dumps(outcome), flush=True)
     return outcome
 

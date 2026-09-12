@@ -66,7 +66,12 @@ class ConfigurationTests(unittest.TestCase):
                 archive.extractall(temp, filter="data")
             self.assertEqual(json.loads(Path(temp, "job.json").read_text()), job)
             with patch.object(agent, "__file__", str(Path(temp, "agent.py"))):
-                for name in ("factory-implementation", "factory-review", "factory-review-report"):
+                for name in (
+                    "factory-implementation",
+                    "factory-review",
+                    "factory-review-report",
+                    "factory-browser-qa",
+                ):
                     selected = agent.stage_context(name).skills[0]
                     self.assertEqual(selected.name, name)
                     self.assertTrue(selected.content.strip())

@@ -91,6 +91,24 @@ and public internet access for the registry check.
 
 ## Live smoke checks
 
+Verify real Chromium interaction, Playwright MCP capture, native remote file
+download, and image-message/workspace-preview persistence after worker files
+are deleted:
+
+```bash
+docker run --rm --network none --entrypoint python \
+  -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
+  -e LITELLM_LOCAL_MODEL_COST_MAP=True -v "$PWD/tests:/tests:ro" \
+  openhands-factory:dev /tests/check_browser_evidence.py
+```
+
+This uses a local HTML fixture and an isolated Agent Server; no model, login,
+external network, GitHub mutations or production state. The regression suite
+also checks feedback permissions/receipts, resolved-thread filtering, browser
+verdict gates, invalid screenshots, and source-mutation rejection. Application
+startup profiles need their own smoke check in a disposable job daemon, mounting
+the copied checkout under `/workspaces` as the factory does (DinD owns `/tmp`).
+
 The fixtures in `tests/config/` use `main` and `trunk` branches and Docker tests.
 Live checks run real agents with a Codex login in a separate Canvas instance.
 Scheduling and publication are disabled in the fixture configuration.

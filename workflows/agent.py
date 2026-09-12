@@ -33,7 +33,7 @@ def stage_context(name):
     )
 
 
-def worker_agent(mode, skill=None):
+def worker_agent(mode, skill=None, mcp_config=None):
     """Use the model captured from factory-codex when this worker started."""
     return ACPAgent(
         acp_command=["codex-acp"],
@@ -41,6 +41,7 @@ def worker_agent(mode, skill=None):
         acp_session_mode=mode,
         acp_model=os.environ["FACTORY_CODEX_MODEL"] or None,
         agent_context=stage_context(skill) if skill else None,
+        mcp_config=mcp_config or {},
     )
 
 
@@ -54,9 +55,10 @@ def converse(
     transcript=None,
     event_log=None,
     skill=None,
+    mcp_config=None,
 ):
     conversation = Conversation(
-        agent=worker_agent(mode, skill),
+        agent=worker_agent(mode, skill, mcp_config),
         workspace=workspace,
         delete_on_close=False,
         conversation_id=UUID(conversation_id) if conversation_id else None,
