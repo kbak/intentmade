@@ -33,14 +33,19 @@ def stage_context(name):
     )
 
 
-def worker_agent(mode, skill=None, mcp_config=None):
+def worker_agent(mode, skill=None, mcp_config=None, traceability=False):
     """Use the model captured from factory-codex when this worker started."""
+    context = stage_context(skill) if skill else None
+    if traceability:
+        from openhands_traceability import with_traceability
+
+        context = with_traceability(context)
     return ACPAgent(
         acp_command=["codex-acp"],
         acp_server="codex",
         acp_session_mode=mode,
         acp_model=os.environ["FACTORY_CODEX_MODEL"] or None,
-        agent_context=stage_context(skill) if skill else None,
+        agent_context=context,
         mcp_config=mcp_config or {},
     )
 
@@ -56,9 +61,10 @@ def converse(
     event_log=None,
     skill=None,
     mcp_config=None,
+    traceability=False,
 ):
     conversation = Conversation(
-        agent=worker_agent(mode, skill, mcp_config),
+        agent=worker_agent(mode, skill, mcp_config, traceability),
         workspace=workspace,
         delete_on_close=False,
         conversation_id=UUID(conversation_id) if conversation_id else None,
@@ -112,7 +118,7 @@ def converse(
         conversation.close()
 
 
-def worktree(workspace):
+def worktree(workspace, traceability=False):
     """Let Agent Server create the branch/worktree before any agent executes."""
     response = workspace.client.post(
         "/api/conversations",
@@ -120,9 +126,9 @@ def worktree(workspace):
             "workspace": {"working_dir": workspace.working_dir},
             "worktree": True,
             # Attaching later does not replace the server's saved agent context.
-            "agent": worker_agent("agent-full-access", "factory-implementation").model_dump(
-                mode="json"
-            ),
+            "agent": worker_agent(
+                "agent-full-access", "factory-implementation", traceability=traceability
+            ).model_dump(mode="json"),
         },
     )
     response.raise_for_status()

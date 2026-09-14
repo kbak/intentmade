@@ -10,9 +10,23 @@ Project configuration is available with:
 `python /opt/factory/configure.py projects`
 Repository groups are listed with `python /opt/factory/configure.py factories`.
 
+Before requirements or design work, identify the selected repository or group
+and read `python /opt/factory/configure.py discussion PROJECT`. For each
+repository with `traceability_scope`, inspect that scope and the existing
+requirements under its catalog's `specification_paths`. Apply the returned
+requirements guidance only to those repositories. Follow relevant repository
+guidance and links while discussing the affected behavior. If configuration or
+required context cannot be read, flag the gap before treating a proposal as ready
+for handoff. Other repositories keep the ordinary prose specification workflow.
+This command reads discussion context; it does not submit or authorize a task.
+
 When the user explicitly approves a concrete specification and asks to implement,
 save it under /projects/requests. Include acceptance criteria, scope, tradeoffs,
-and verification expectations. Then use the existing native workflow:
+and verification expectations. For opted-in repositories, carry the agreed
+Markdown requirements, IDs, and intended repository documentation paths into
+this same specification. The implementation worker persists them; do not edit
+the read-only catalog. Keep unapproved proposals and open questions distinct
+from the work being authorized. Then use the existing native workflow:
 `python /opt/factory/configure.py submit PROJECT /projects/requests/spec.md --run`
 Do not request the same approval again. If the user only wants to inspect the job,
 omit --run and let them select Run now in Automate. To continue a task, pass

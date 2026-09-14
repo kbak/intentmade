@@ -1,54 +1,52 @@
 # Testing
 
-Run these commands from the tooling repository root.
+Run commands from the repository root. Regression tests use local fixtures and
+scripted GitHub/agent responses. The live agent smoke test below uses a separate
+Canvas deployment and a Codex login.
 
-## Lint and regression checks
-
-Local Python checks use the pinned development environment:
+## Lint and regressions
 
 ```bash
 uv sync --locked
 uv run --locked ruff check .
 uv run --locked ruff format --check .
-```
 
-Build the default runtime image and run the regression suite:
-
-```bash
-docker compose build canvas
+docker build -f docker/runtime.Dockerfile -t openhands-factory:dev .
 docker run --rm --network none --entrypoint python \
   -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
   -v "$PWD/tests:/tests:ro" -v "$PWD/examples/config:/opt/factory/config:ro" \
+  -v "$PWD/scripts:/scripts:ro" -v "$PWD/tests/profiles:/factory-tests:ro" \
   openhands-factory:dev -m unittest discover -s /tests -p 'test_*.py' -v
 ```
 
-The suite checks issue eligibility and ownership, CI gating, branch retention,
-review decisions, draft publication, credential refresh and repository groups.
-Security regressions cover hostile Git configuration, unsafe bundle exports,
-fresh review workers, strict read-only permissions, approval history, scheduler
-pagination and durable deduplication. It uses local Git repositories and mocked
-GitHub and agent responses. No model calls, GitHub mutations, subscription login
-or private deployment are required.
+Coverage includes scheduling and deduplication, task authorization, Git
+transfer, repair and recovery, review verdicts, publication retries, browser
+evidence, maintainer replies, and skill loading. Tests also check credential
+separation, read-only review permissions, and hostile Git configuration.
 
-Recovery regressions cover root-owned cleanup failures, retained work after a
-branch rename or failed export, bounded test/review repair, structured questions,
-explicit Canvas replies, and SKIPPED callbacks with persistent conversation links.
-They also distinguish blocked review infrastructure from actionable code defects.
-Native callback checks preserve both factory task outcomes and Canvas finish-tool
-summaries when they arrive together, including when the command runner filters
-credential environment variables. Parent credentials remain outside workers.
-Specialist review regressions check that both native roles completed, that minor
-findings never trigger code repairs, that material blockers cannot be hidden by a
-PASS summary, and that missing or malformed reports stop publication.
-Report regressions check consolidated source coverage, preservation of blocking
-status and severity, distinct issues at the same location, readable Markdown,
-omission of empty sections, and recovery with saved native review evidence.
-Skill regressions check native parsing and serialized context delivery, worktree
-attachment, missing/invalid skill failures, and skill loading from an extracted
-native automation bundle. They require no model calls or separate skill installer.
+## Traceability checks
 
-Verify native parallel role selection and evidence capture with a local scripted
-model endpoint (no login, external network, or production state):
+Build the [traceability image](../docs/traceability.md#runtime-setup), then run
+the regression command above with `openhands-factory:traceability-test`. The
+suite requires its installed packages and OFT JAR to run the opt-in cases. The
+ordinary image skips those cases.
+
+Traceability tests run Git, OFT, and unittest through implementation, repair,
+export, and review. They also check that discussion context selects only opted-in
+scopes, submission preserves the approved Markdown handoff, and a scripted
+worker persists existing and new requirements in the exported commit. Cases
+include altered scope, missing or stale evidence,
+failed controller invocations, source drift, scope loading and upload refresh,
+and opt-out behavior. A profile fixture executes the exact command supplied in
+the agent instructions and then the controller's check. Agent and review
+responses are scripted; startup image selection and transfer use mocked Docker
+commands. Assessment tests exercise missing/incomplete results, existing links,
+mechanical changes, mixed scopes, uncertain coverage, report retention, and repair.
+A fixture keeps OFT green while a scripted reviewer identifies untraced logout
+behavior, then verifies a fresh assessment after repair. These cases validate
+the gate and handoff, not an actual agent's ability to detect semantic gaps.
+
+## Review protocol probe
 
 ```bash
 docker run --rm --network none --entrypoint python \
@@ -57,43 +55,30 @@ docker run --rm --network none --entrypoint python \
   openhands-factory:dev /tests/check_specialist_review.py
 ```
 
-This checks the actual pinned Codex/ACP protocol, delivery of the review skill through
-OpenHands context to Codex and the specialists, preloaded report guidance without
-tool calls, both installed role prompts,
-concurrent execution, inherited Astra/xhigh and read-only policy, and a passing result with
-an advisory finding. It does not measure model review quality. Rerun it after
-Codex, ACP, or agency role upgrades; rebuild the image first after runtime edits.
+This probe uses a local scripted model endpoint to check Codex/ACP instruction
+delivery, concurrent specialist selection, inherited model/permissions, and
+retained reports. It checks the protocol, not model review quality. Rebuild and
+rerun after changing the runtime, Codex/ACP pins, or bundled roles.
 
-Verify the pinned Codex sandbox against the real kernel and factory container profile:
+## Sandbox and network probes
 
 ```bash
 python3 tests/check_review_sandbox.py
-```
-
-This uses no model or credentials. It checks both workspace-write and read-only
-profiles: workspace edits and request creation must work for coordinators, while
-review writes, Git metadata writes, unrelated writes, and network socket creation
-must be denied. The modern Codex sandbox uses the narrowly extended Docker seccomp
-profile documented in [codex-seccomp.md](../runtime/codex-seccomp.md).
-
-Check the real Docker network boundary separately:
-
-```bash
 python3 tests/check_isolation.py
 ```
 
-This creates a temporary privileged DinD instance and fake job/parent services,
-using the cached `docker:29.4.1-dind` image. It checks management socket access,
-blocked parent/cross-job traffic, and working job-local services and public npm
-HTTPS. It does not mount deployment state or credentials, and removes its own
-containers, networks and volumes when finished. It requires local Docker access
-and public internet access for the registry check.
+The sandbox probe checks allowed coordinator edits and denied reviewer writes,
+Git metadata writes, unrelated writes, and network sockets against the actual
+kernel. See [codex-seccomp.md](../runtime/codex-seccomp.md) for the container
+profile.
 
-## Live smoke checks
+The isolation probe creates a temporary privileged Docker test daemon and fake
+services. It checks management-socket isolation, blocked parent/cross-job
+traffic, and access to job-local services and public npm HTTPS. It requires
+local Docker access and internet access. It removes its test containers,
+networks, and volumes.
 
-Verify real Chromium interaction, Playwright MCP capture, native remote file
-download, and image-message/workspace-preview persistence after worker files
-are deleted:
+## Browser evidence probe
 
 ```bash
 docker run --rm --network none --entrypoint python \
@@ -102,18 +87,17 @@ docker run --rm --network none --entrypoint python \
   openhands-factory:dev /tests/check_browser_evidence.py
 ```
 
-This uses a local HTML fixture and an isolated Agent Server; no model, login,
-external network, GitHub mutations or production state. The regression suite
-also checks feedback permissions/receipts, resolved-thread filtering, browser
-verdict gates, invalid screenshots, and source-mutation rejection. Application
-startup profiles need their own smoke check in a disposable job daemon, mounting
-the copied checkout under `/workspaces` as the factory does (DinD owns `/tmp`).
+This uses Chromium, a local HTML fixture, and an isolated Agent Server to check
+Playwright interaction, screenshot capture, file download, and Canvas attachment
+persistence after worker teardown. It requires no model credentials.
 
-The fixtures in `tests/config/` use `main` and `trunk` branches and Docker tests.
-Live checks run real agents with a Codex login in a separate Canvas instance.
-Scheduling and publication are disabled in the fixture configuration.
+Test application startup profiles separately in a disposable job daemon. Mount
+the copied checkout under `/workspaces`; the job daemon owns `/tmp`.
 
-In a dedicated shell, select the test deployment:
+## Live agent smoke test
+
+The fixtures use `main` and `trunk` branches with Docker tests. Their
+configuration disables scheduling and publication. In a dedicated shell:
 
 ```bash
 export COMPOSE_PROJECT_NAME=openhands-factory-test
@@ -126,16 +110,16 @@ export FACTORY_PROFILES_DIR="$PWD/tests/profiles"
 ./scripts/factoryctl up
 ```
 
-Complete Codex onboarding in [the test Canvas](http://localhost:8001/canvas), then
-submit the fixture specification:
+Complete Codex onboarding in [the test Canvas](http://localhost:8001/canvas),
+then submit the fixture specification:
 
 ```bash
 ./scripts/factoryctl submit factory-smoke ./tests/fixtures/smoke-spec.md --run
 ```
 
 Submit `factory-smoke-alt` to check the second base branch and concurrent jobs.
-Use `--task TASK_ID` to check continuation. For a task across both repositories,
-submit the `smoke-pair` group with a specification covering both fixtures.
-Inspect run results in Canvas and artifacts under `.factory/test-instance/`.
+Use `--task TASK_ID` to check continuation. Submit `smoke-pair` with a
+specification covering both repositories to check a grouped task.
 
-Stop the test deployment with `./scripts/factoryctl down` from the same shell.
+Inspect results in Canvas and artifacts under `.factory/test-instance/`. Stop
+the test deployment with `./scripts/factoryctl down` from the same shell.

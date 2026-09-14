@@ -65,6 +65,12 @@ class ConfigurationTests(unittest.TestCase):
             with tarfile.open(fileobj=io.BytesIO(build_tarball(payload))) as archive:
                 archive.extractall(temp, filter="data")
             self.assertEqual(json.loads(Path(temp, "job.json").read_text()), job)
+            spec = importlib.util.spec_from_file_location(
+                "bundled_traceability", Path(temp, "traceability/__init__.py")
+            )
+            bundled = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(bundled)
+            self.assertIsNone(bundled.scope_for({"project": "opted-out"}))
             with patch.object(agent, "__file__", str(Path(temp, "agent.py"))):
                 for name in (
                     "factory-implementation",
@@ -145,6 +151,135 @@ class ConfigurationTests(unittest.TestCase):
                     calls.assert_any_call(
                         "PATCH", "/api/automation/v1/original-replies", json={"enabled": False}
                     )
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
+    )
+    def test_reconfigure_uploads_changed_scope_to_existing_automations(self):
+        from versioned_traceability.common import CheckError
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            directory = root / "config"
+            (directory / "repositories").mkdir(parents=True)
+            (directory / "traceability").mkdir()
+            (directory / "defaults.json").write_text(
+                json.dumps({**CONFIG, "required_checks": ["unit"]})
+            )
+            (directory / "repositories/example.json").write_text(
+                json.dumps({"traceability_scope": "traceability/example.json"})
+            )
+            scope_path = directory / "traceability/example.json"
+            scope = json.loads(
+                (Path(__file__).parent / "fixtures/traceability-scope.json").read_text()
+            )
+            existing = [
+                {"name": "Factory — example", "id": "scan"},
+                {"name": "Resume — example", "id": "replies"},
+            ]
+            with (
+                patch.object(common, "ROOT", root),
+                patch.object(
+                    self.configure, "api", return_value={"profile": {"id": "profile"}}
+                ) as api,
+                patch.object(self.configure, "records", return_value=existing),
+                patch.object(self.configure, "token", return_value="offline-token"),
+                patch.object(self.configure, "github", return_value={}),
+                patch.object(
+                    self.configure, "install", side_effect=lambda d, f, i: {"id": i}
+                ) as install,
+                patch("reporting.write_report"),
+            ):
+                for command in (
+                    ["python", "-m", "unittest"],
+                    ["bash", "-c", 'bash "$FACTORY_TESTS/run.sh"'],
+                ):
+                    scope["tests"]["command"] = command
+                    scope_path.write_text(json.dumps(scope))
+                    self.configure.configure()
+                    for call, expected_id in zip(install.call_args_list[-2:], ("scan", "replies")):
+                        _, payload, previous = call.args
+                        uploaded = json.loads(payload["job.json"])["config"]
+                        self.assertEqual(previous, expected_id)
+                        self.assertEqual(uploaded["traceability_scope"], scope)
+                        self.assertNotIn("test_command", uploaded)
+                original = json.loads(install.call_args_list[0].args[1]["job.json"])
+                self.assertEqual(
+                    original["config"]["traceability_scope"]["tests"]["command"],
+                    ["python", "-m", "unittest"],
+                )
+                scope_path.unlink()
+                api.reset_mock()
+                install.reset_mock()
+                with self.assertRaises(CheckError):
+                    self.configure.configure()
+                api.assert_not_called()
+                install.assert_not_called()
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
+    )
+    def test_discussion_and_approved_handoff_use_the_same_repository_selection(self):
+        from versioned_traceability.common import CheckError
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            directory = root / "config"
+            for name in ("repositories", "traceability", "factories"):
+                (directory / name).mkdir(parents=True)
+            (directory / "defaults.json").write_text(
+                json.dumps({**CONFIG, "required_checks": ["unit"]})
+            )
+            (directory / "repositories/pilot.json").write_text(
+                json.dumps({"traceability_scope": "traceability/pilot.json"})
+            )
+            (directory / "repositories/ordinary.json").write_text(
+                json.dumps({"repository": "example/ordinary", "test_command": "make test"})
+            )
+            (directory / "factories/pair.json").write_text(
+                json.dumps({"repositories": ["pilot", "ordinary"]})
+            )
+            scope = directory / "traceability/pilot.json"
+            scope.write_text(
+                (Path(__file__).parent / "fixtures/traceability-scope.json").read_text()
+            )
+            request = Path(__file__).parent / "fixtures/traceability-handoff.md"
+            with (
+                patch.object(common, "ROOT", root),
+                patch.object(self.configure, "api") as api,
+                patch.object(self.configure, "records", return_value=[]),
+                patch.object(self.configure, "token", return_value="offline-token") as token,
+                patch.object(self.configure, "github", return_value={"sha": "approved-base"}),
+                patch.object(self.configure, "install", return_value={"id": "build"}) as install,
+            ):
+                context = self.configure.discussion("pair")
+                self.assertEqual(set(context["repositories"]), {"pilot", "ordinary"})
+                self.assertNotIn("traceability_scope", context["repositories"]["ordinary"])
+                api.assert_not_called()
+                install.assert_not_called()
+                token.assert_not_called()
+                # Discussion supplies context only. An explicit submit carries
+                # the reviewed specification through the existing task bundle.
+                self.configure.submit(
+                    "pair", str(request), task="approved-design", run=True, publish=False
+                )
+                _, payload, _ = install.call_args.args
+                self.assertEqual(payload["request.md"], request.read_text().strip())
+                job = json.loads(payload["job.json"])
+                self.assertEqual([c["project"] for c in job["configs"]], ["pilot", "ordinary"])
+                self.assertEqual(
+                    job["configs"][0]["traceability_scope"],
+                    context["repositories"]["pilot"]["traceability_scope"],
+                )
+                self.assertNotIn("traceability_scope", job["configs"][1])
+                api.assert_called_once_with("POST", "/api/automation/v1/build/dispatch")
+                api.reset_mock()
+                install.reset_mock()
+                scope.unlink()
+                with self.assertRaises(CheckError):
+                    self.configure.discussion("pair")
+                api.assert_not_called()
+                install.assert_not_called()
 
     def test_profile_is_created_only_when_missing(self):
         for status in (404, 500):

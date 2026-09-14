@@ -41,7 +41,8 @@ def projects(config_dir=None):
     result = {}
     for file in sorted((directory / "repositories").glob("*.json")):
         name = identifier(file.stem)
-        config = {**defaults, **json.loads(file.read_text()), "project": name}
+        registration = json.loads(file.read_text())
+        config = {**defaults, **registration, "project": name}
         if config.get("test_profile"):
             identifier(config["test_profile"])
         if not isinstance(config.get("pr_feedback", False), bool):
@@ -73,8 +74,33 @@ def projects(config_dir=None):
                 raise ValueError(f"{name}: browser_qa.instructions must be text")
         if config["repository"]:
             config["repository"] = issues.normalize_repo(config["repository"])
-        if not config["test_command"].strip() or not config["required_checks"]:
-            raise ValueError(f"{name}: test_command and required_checks must not be empty")
+        if "traceability" in config:
+            raise ValueError(f"{name}: replace inline traceability with a traceability_scope path")
+        if "traceability_scope" in config:
+            reference = config["traceability_scope"]
+            if (
+                not isinstance(reference, str)
+                or not reference.strip()
+                or Path(reference).is_absolute()
+            ):
+                raise ValueError(f"{name}: traceability_scope must be a relative config path")
+            scope_path = (directory / reference).resolve()
+            if not scope_path.is_relative_to(directory.resolve()):
+                raise ValueError(
+                    f"{name}: traceability_scope must stay inside the config directory"
+                )
+            if "test_command" in registration:
+                raise ValueError(f"{name}: put the test command only in the traceability scope")
+            from versioned_traceability.config import load_scope
+
+            # Uploaded workflows capture the validated contents, not a path in
+            # the deployment filesystem. Each task freezes these contents again.
+            config["traceability_scope"] = load_scope(scope_path)
+            config.pop("test_command", None)
+        elif not config.get("test_command", "").strip():
+            raise ValueError(f"{name}: test_command must not be empty")
+        if not config["required_checks"]:
+            raise ValueError(f"{name}: required_checks must not be empty")
         result[name] = config
     return result
 

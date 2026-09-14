@@ -24,6 +24,9 @@ ${guidance}
 Selected factory project: ${JSON.stringify(project)}.
 The selected directory ${JSON.stringify(directory)} is its read-only catalog.
 Read the selected repository's AGENTS.md and CLAUDE.md as reference guidance.
+Before design work, read its current discussion context with:
+python /opt/factory/configure.py discussion ${JSON.stringify(project)}
+If the discussion selects a different repository or group, read that selection's context.
 For implementation, submit this project through the factory workflow described above.
 Do not implement in the catalog or in a temporary copy. Preserve the user's existing
 specification and authorization when handing off. Coordination runs from /projects;

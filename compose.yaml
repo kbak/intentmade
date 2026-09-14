@@ -21,14 +21,14 @@ services:
     volumes:
       - canvas-state:/home/openhands/.openhands
       - sandbox-control:/run/factory-docker
-      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/catalog:/projects/repos:ro
-      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/requests:/projects/requests
-      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/artifacts:/projects/artifacts
-      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/workspaces:/workspaces
-      - ${FACTORY_CONFIG_DIR:-../factory-deployment/config}:/opt/factory/config:ro
+      - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/catalog:/projects/repos:ro
+      - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/requests:/projects/requests
+      - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/artifacts:/projects/artifacts
+      - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/workspaces:/workspaces
+      - ${FACTORY_CONFIG_DIR:?Set FACTORY_CONFIG_DIR in .env}:/opt/factory/config:ro
       - ./coordinator/AGENTS.md:/projects/AGENTS.md:ro
-      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/secrets/canvas-key:/run/secrets/canvas-key:ro
-      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/secrets/encryption-key:/run/secrets/encryption-key:ro
+      - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/secrets/canvas-key:/run/secrets/canvas-key:ro
+      - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/secrets/encryption-key:/run/secrets/encryption-key:ro
     mem_limit: 6g
     cpus: 4
     healthcheck:
@@ -47,8 +47,8 @@ services:
       - sandbox-images:/var/lib/docker
       - sandbox-control:/run/factory-docker
       - ./runtime/sandbox-daemon:/opt/factory/sandbox-daemon:ro
-      - ${FACTORY_DATA_DIR:-../factory-deployment/.factory}/workspaces:/workspaces
-      - ${FACTORY_PROFILES_DIR:-../factory-deployment/profiles}:/profiles:ro
+      - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/workspaces:/workspaces
+      - ${FACTORY_PROFILES_DIR:?Set FACTORY_PROFILES_DIR in .env}:/profiles:ro
     mem_limit: 18g
     cpus: 10
     healthcheck:

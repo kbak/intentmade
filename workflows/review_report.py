@@ -44,8 +44,27 @@ def sources(review):
 
 def digest(review):
     return hashlib.sha256(
-        json.dumps([item.model_dump() for item in review.reviews], sort_keys=True).encode()
+        json.dumps(
+            [
+                item.model_dump(
+                    exclude={"traceability_assessment"}
+                    if item.traceability_assessment is None
+                    else set()
+                )
+                for item in review.reviews
+            ],
+            sort_keys=True,
+        ).encode()
     ).hexdigest()
+
+
+def traceability_items(review):
+    return [
+        (assessment.project, change)
+        for specialist in review.reviews
+        for assessment in specialist.traceability_assessment or []
+        for change in assessment.changes
+    ]
 
 
 def validate_report(review, report):
@@ -121,10 +140,12 @@ def render(review, repository=None, sha=None):
     rows = ordered_findings(review, report)
     blockers = sum(blocking for _, _, blocking, _ in rows)
     advisory = len(rows) - blockers
+    gaps = sum(change.status == "missing" for _, change in traceability_items(review))
     if review.verdict == "BLOCKED":
         lead = "**Review incomplete** — a complete verdict is not available."
-    elif blockers:
-        lead = f"**Changes requested** — {blockers} {'issue' if blockers == 1 else 'issues'} to address."
+    elif blockers or gaps:
+        count = blockers + gaps
+        lead = f"**Changes requested** — {count} {'issue' if count == 1 else 'issues'} to address."
     elif advisory:
         lead = f"**Approved** — {advisory} optional {'improvement' if advisory == 1 else 'improvements'}."
     else:
@@ -154,6 +175,33 @@ def render(review, repository=None, sha=None):
             + "\n".join("- " + item for item in report.coverage)
             + "\n\n</details>"
         )
+    labels = {
+        "covered": "Covered",
+        "not_needed": "No additional tracing needed",
+        "missing": "Missing traceability",
+        "uncertain": "Uncertain",
+    }
+    for specialist in review.reviews:
+        for assessment in specialist.traceability_assessment or []:
+            details = [f"### Traceability — {assessment.project}", assessment.summary]
+            for change in assessment.changes:
+                references = [
+                    f"{label}: {', '.join(values)}"
+                    for label, values in (
+                        ("Requirements", change.requirement_ids),
+                        ("Documentation", change.documentation),
+                        ("Implementation", change.implementation),
+                        ("Verification", change.verification),
+                    )
+                    if values
+                ]
+                details.append(
+                    f"**{labels[change.status]} — {change.behavior}**\n\n"
+                    f"Changed paths: {', '.join(change.changed_paths)}\n\n{change.rationale}"
+                    + ("\n\n" + "\n\n".join(references) if references else "")
+                    + ("\n\nFix: " + change.remediation if change.remediation else "")
+                )
+            sections.append("\n\n".join(details))
     if review.infrastructure_errors:
         sections.append(
             "### Review could not finish\n\n"

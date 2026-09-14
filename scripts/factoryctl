@@ -114,24 +114,41 @@ if a.action == "init":
             )
     print("Initialized. Configure Codex login in native Canvas for a fresh instance.")
 elif a.action == "up":
-    run("docker", "compose", "build", "canvas")
+    image = CANVAS["image"]
+    if image == "openhands-factory:dev":
+        run("docker", "compose", "build", "canvas")
+    else:
+        # A supplied image may contain optional runtime dependencies. Never
+        # replace it with Compose's default Dockerfile.
+        run("docker", "image", "inspect", image, stdout=subprocess.DEVNULL)
     # Cache the matching worker image before Canvas can dispatch a scheduled job.
     run("docker", "compose", "up", "-d", "--wait", "--wait-timeout", "300", "sandboxes")
-    image = CANVAS["image"]
     with subprocess.Popen(
         ["docker", "save", image, "docker:29.4.1-dind"], stdout=subprocess.PIPE
     ) as source:
         run("docker", "compose", "exec", "-T", "sandboxes", "docker", "load", stdin=source.stdout)
         if source.wait():
             raise RuntimeError("Could not transfer sandbox images")
-    run("docker", "compose", "up", "-d", "--remove-orphans", "--wait", "--wait-timeout", "300")
+    run(
+        "docker",
+        "compose",
+        "up",
+        "-d",
+        "--no-build",
+        "--remove-orphans",
+        "--wait",
+        "--wait-timeout",
+        "300",
+    )
 elif a.action == "configure":
     credential = run("gh", "auth", "token", capture_output=True, text=True).stdout
     native("github-login", input=credential, text=True)
     native("configure", *a.args)
 elif a.action == "submit":
     if len(a.args) < 2:
-        p.error("submit requires REPOSITORY_OR_FACTORY SPEC_FILE [--task ID] [--run] [--no-publish]")
+        p.error(
+            "submit requires REPOSITORY_OR_FACTORY SPEC_FILE [--task ID] [--run] [--no-publish]"
+        )
     native("submit", a.args[0], "-", *a.args[2:], input=Path(a.args[1]).read_text(), text=True)
 elif a.action == "review":
     native("review", *a.args)

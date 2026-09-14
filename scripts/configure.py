@@ -58,6 +58,10 @@ def files(job):
         for path in (ROOT / "workflows/skills").rglob("*")
         if path.is_file()
     )
+    result.update(
+        (str(path.relative_to(ROOT / "workflows")), path.read_bytes())
+        for path in (ROOT / "workflows/traceability").rglob("*.py")
+    )
     result["job.json"] = json.dumps(job)
     return result
 
@@ -161,6 +165,15 @@ def configure(paused=False):
             or (item["name"].startswith("Resume — ") and item["name"][9:] not in configured)
         ):
             api("PATCH", "/api/automation/v1/" + item["id"], json={"enabled": False})
+
+
+def discussion(project):
+    """Read repository configuration and stage-specific guidance without dispatch."""
+    from traceability import discussion_context
+
+    configured = projects()
+    members = factories().get(project, [project])
+    return discussion_context([configured[member] for member in members])
 
 
 def submit(project, spec, task=None, run=False, publish=None):
@@ -292,6 +305,7 @@ if __name__ == "__main__":
     sub.add_parser("github-login")
     sub.add_parser("projects")
     sub.add_parser("factories")
+    sub.add_parser("discussion").add_argument("project")
     review_command = sub.add_parser("review")
     review_command.add_argument("project")
     review_command.add_argument("number", type=int)
@@ -316,6 +330,8 @@ if __name__ == "__main__":
         print(json.dumps(projects(), indent=2))
     elif args.action == "factories":
         print(json.dumps(factories(), indent=2))
+    elif args.action == "discussion":
+        print(json.dumps(discussion(args.project), indent=2))
     elif args.action == "configure":
         configure(args.paused)
     elif args.action == "review":

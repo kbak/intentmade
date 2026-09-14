@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -49,6 +50,19 @@ console.log(JSON.stringify({cwd: request.cwd, config, original: original.cwd}));
         self.assertIn("Do not implement in the catalog or in a temporary copy", instructions)
         self.assertEqual(result["cwd"], "/projects")
         self.assertEqual(result["original"], "/projects/repos/common-defense-app")
+
+    def test_selected_catalog_offers_a_lookup_for_its_repository(self):
+        for directory in ("/projects/repos/pilot", "/projects/repos/pilot/docs/design"):
+            with self.subTest(directory=directory):
+                instructions = self.context(cwd=directory)["config"]["developer_instructions"]
+                commands = [
+                    shlex.split(line)
+                    for line in instructions.splitlines()
+                    if line.startswith("python /opt/factory/configure.py discussion ")
+                ]
+                self.assertEqual(
+                    commands, [["python", "/opt/factory/configure.py", "discussion", "pilot"]]
+                )
 
     def test_existing_instructions_are_preserved(self):
         self.assertTrue(

@@ -5,7 +5,14 @@ from typing import Annotated, Literal
 
 from agent import converse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
-from review_report import ReviewReport, consolidate, ordered_findings, render, validate_report
+from review_report import (
+    ReviewReport,
+    consolidate,
+    ordered_findings,
+    render,
+    traceability_items,
+    validate_report,
+)
 
 ROLES = ("Code Reviewer", "Application Security Engineer")
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -59,9 +66,36 @@ class SpecialistReview(BaseModel):
     infrastructure_error: str | None
 
 
+class TraceabilityChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    changed_paths: list[Text] = Field(min_length=1)
+    behavior: Text
+    status: Literal["covered", "not_needed", "missing", "uncertain"]
+    requirement_ids: list[Text] = Field(default_factory=list)
+    documentation: list[Text] = Field(default_factory=list)
+    implementation: list[Text] = Field(default_factory=list)
+    verification: list[Text] = Field(default_factory=list)
+    rationale: Text
+    remediation: Text | None = None
+
+
+class TraceabilityAssessment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project: Text
+    summary: Text
+    changes: list[TraceabilityChange]
+
+
+class TraceableSpecialistReview(SpecialistReview):
+    traceability_assessment: list[TraceabilityAssessment] = Field(min_length=1)
+
+
 class RoleReview(SpecialistReview):
     role: str
     thread_id: str
+    traceability_assessment: list[TraceabilityAssessment] | None = None
 
 
 class ReviewResult(BaseModel):
@@ -70,6 +104,7 @@ class ReviewResult(BaseModel):
     reviews: list[RoleReview] = Field(default_factory=list)
     infrastructure_errors: list[str] = Field(default_factory=list)
     presentation: ReviewReport | None = None
+    traceability_context: dict[str, dict] = Field(default_factory=dict)
 
     def report(self, repository=None, sha=None):
         return render(self, repository, sha)
@@ -77,35 +112,80 @@ class ReviewResult(BaseModel):
     def repair_instructions(self):
         if self.presentation:
             report = validate_report(self, self.presentation)
-            return (
-                "\n\n".join(
-                    f"{primary.file}:{primary.line} — {group.title}\n{group.description}\n"
-                    f"Evidence: {group.evidence}\nFix: {group.fix}"
-                    for group, primary, blocking, _ in ordered_findings(self, report)
-                    if blocking
-                )
-                or "No blocking review findings."
+            ordinary = "\n\n".join(
+                f"{primary.file}:{primary.line} — {group.title}\n{group.description}\n"
+                f"Evidence: {group.evidence}\nFix: {group.fix}"
+                for group, primary, blocking, _ in ordered_findings(self, report)
+                if blocking
             )
-        # Only blockers go back to the builder, including when tests also failed.
-        # Keep each original report in the artifacts; collapse exact duplicates here.
-        findings = dict.fromkeys(
-            f.describe() for review in self.reviews for f in review.blocking_findings
-        )
-        return "\n\n".join(findings) or "No blocking review findings."
+        else:
+            # Only blockers go back to the builder, including when tests failed.
+            findings = dict.fromkeys(
+                f.describe() for review in self.reviews for f in review.blocking_findings
+            )
+            ordinary = "\n\n".join(findings)
+        gaps = [
+            f"Traceability — {project}: {', '.join(change.changed_paths)}\n"
+            f"Behavior: {change.behavior}\nGap: {change.rationale}\nFix: {change.remediation}"
+            for project, change in traceability_items(self)
+            if change.status == "missing"
+        ]
+        return "\n\n".join(filter(None, [ordinary, *gaps])) or "No blocking review findings."
 
 
-def coordinator_prompt(context):
+def coordinator_prompt(context, traceability=None):
+    schema = (
+        "Code Reviewer final-response JSON schema (includes the required traceability assessment):\n"
+        + json.dumps(TraceableSpecialistReview.model_json_schema())
+        + "\nApplication Security Engineer final-response JSON schema:\n"
+        + json.dumps(SpecialistReview.model_json_schema())
+        if traceability
+        else "Specialist final-response JSON schema (no Markdown fences):\n"
+        + json.dumps(SpecialistReview.model_json_schema())
+    )
     return (
         "FACTORY_SPECIALIST_REVIEW_V1\n"
         "Apply the factory-review skill to this change.\n"
-        "Specialist final-response JSON schema (no Markdown fences):\n"
-        + json.dumps(SpecialistReview.model_json_schema())
+        + schema
         + "\n\nReview context:\n"
         + context
     )
 
 
-def evaluate(events):
+def validate_assessments(assessments, expected):
+    """Check required accounting and outcomes; relevance remains the reviewer's judgment."""
+    projects = [item.project for item in assessments]
+    if len(set(projects)) != len(projects) or set(projects) != set(expected):
+        raise ValueError("Traceability assessment must cover exactly the opted-in repositories")
+    for assessment in assessments:
+        paths = set(expected[assessment.project]["changed_paths"])
+        accounted = set()
+        for change in assessment.changes:
+            if not set(change.changed_paths) <= paths:
+                raise ValueError(
+                    f"{assessment.project}: assessment includes paths outside the scoped change"
+                )
+            accounted.update(change.changed_paths)
+            if change.status == "covered" and not all(
+                (
+                    change.requirement_ids,
+                    change.documentation,
+                    change.implementation,
+                    change.verification,
+                )
+            ):
+                raise ValueError(
+                    f"{assessment.project}: covered behavior needs requirement, documentation, implementation and verification references"
+                )
+            if change.status == "missing" and not change.remediation:
+                raise ValueError(
+                    f"{assessment.project}: missing traceability needs a concrete repair"
+                )
+        if accounted != paths:
+            raise ValueError(f"{assessment.project}: traceability assessment omits changed paths")
+
+
+def evaluate(events, traceability=None):
     # ACPToolCallEvent comes from the adapter, not assistant prose or a shell's output.
     evidence = [
         event
@@ -151,9 +231,24 @@ def evaluate(events):
                     errors.append(f"{role}: native review did not complete.")
                     continue
                 try:
-                    review = SpecialistReview.model_validate_json(agent.get("message") or "")
+                    schema = (
+                        TraceableSpecialistReview
+                        if traceability and role == "Code Reviewer"
+                        else SpecialistReview
+                    )
+                    review = schema.model_validate_json(agent.get("message") or "")
+                    if isinstance(review, TraceableSpecialistReview):
+                        validate_assessments(review.traceability_assessment, traceability)
                 except (ValidationError, TypeError):
-                    errors.append(f"{role}: final response is not valid specialist JSON.")
+                    required = (
+                        " with the required traceability assessment"
+                        if traceability and role == "Code Reviewer"
+                        else ""
+                    )
+                    errors.append(f"{role}: final response is not valid specialist JSON{required}.")
+                    continue
+                except ValueError as exc:
+                    errors.append(f"{role}: {exc}")
                     continue
                 blocking, advisory = [], []
                 for proposed, findings in (
@@ -169,11 +264,22 @@ def evaluate(events):
                             blocking.append(finding)
                         else:
                             advisory.append(finding)
-                if review.verdict == "BLOCKED" or review.infrastructure_error:
+                assessments = getattr(review, "traceability_assessment", None) or []
+                uncertain = [
+                    a.project
+                    for a in assessments
+                    if any(c.status == "uncertain" for c in a.changes)
+                ]
+                gaps = any(c.status == "missing" for a in assessments for c in a.changes)
+                if uncertain:
+                    errors.append(
+                        f"{role}: required traceability remains uncertain for {', '.join(uncertain)}"
+                    )
+                if review.verdict == "BLOCKED" or review.infrastructure_error or uncertain:
                     errors.append(f"{role}: {review.infrastructure_error or 'review incomplete'}")
                     verdict = "BLOCKED"
                 else:
-                    verdict = "CHANGES_REQUESTED" if blocking else "PASS"
+                    verdict = "CHANGES_REQUESTED" if blocking or gaps else "PASS"
                 results.append(
                     RoleReview(
                         **review.model_dump(
@@ -187,23 +293,40 @@ def evaluate(events):
                     )
                 )
     blockers = sum(len(review.blocking_findings) for review in results)
+    gaps = sum(
+        change.status == "missing"
+        for review in results
+        for assessment in review.traceability_assessment or []
+        for change in assessment.changes
+    )
     advisory = sum(len(review.non_blocking_findings) for review in results)
-    verdict = "BLOCKED" if errors else "CHANGES_REQUESTED" if blockers else "PASS"
+    verdict = "BLOCKED" if errors else "CHANGES_REQUESTED" if blockers or gaps else "PASS"
     summary = f"{blockers} blocking finding(s); {advisory} non-blocking finding(s)."
+    if traceability:
+        summary += f" {gaps} traceability gap(s)."
     if errors:
         summary += " " + " ".join(errors)
     return ReviewResult(
-        verdict=verdict, summary=summary, reviews=results, infrastructure_errors=errors
+        verdict=verdict,
+        summary=summary,
+        reviews=results,
+        infrastructure_errors=errors,
+        traceability_context={
+            project: {key: value[key] for key in ("scope", "changed_paths") if key in value}
+            for project, value in (traceability or {}).items()
+        },
     )
 
 
-def review_code(workspace, context, *, title="Independent review", transcript=None):
+def review_code(
+    workspace, context, *, title="Independent review", transcript=None, traceability=None
+):
     events = []
     failure = None
     try:
         converse(
             workspace,
-            coordinator_prompt(context),
+            coordinator_prompt(context, traceability),
             title=title,
             transcript=transcript,
             event_log=events,
@@ -211,7 +334,7 @@ def review_code(workspace, context, *, title="Independent review", transcript=No
         )
     except Exception as exc:
         failure = f"Review coordinator failed: {type(exc).__name__}: {exc}"
-    result = evaluate(events)
+    result = evaluate(events, traceability)
     if failure:
         result.verdict = "BLOCKED"
         result.infrastructure_errors.append(failure)

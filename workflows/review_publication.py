@@ -6,15 +6,39 @@ from pathlib import Path
 
 from common import github, issues, lock
 from policy import pr_eligible
-from review import ROLES, ReviewResult, evaluate
-from review_report import ReviewReport, validate_report
+from review import ROLES, ReviewResult, evaluate, validate_assessments
+from review_report import ReviewReport, traceability_items, validate_report
 
 
 class PublicationError(RuntimeError):
     pass
 
 
+def validate_traceability(config, review):
+    from traceability import scope_for
+
+    scope = scope_for(config)
+    expected = review.traceability_context
+    if scope is None:
+        if expected:
+            raise PublicationError("Traceability configuration changed; a fresh review is required")
+        return
+    project = config["project"]
+    if set(expected) != {project} or expected[project].get("scope") != scope:
+        raise PublicationError(
+            "Required traceability scope is missing or changed; a fresh review is required"
+        )
+    code = next((item for item in review.reviews if item.role == "Code Reviewer"), None)
+    try:
+        validate_assessments(code.traceability_assessment or [] if code else [], expected)
+    except ValueError as exc:
+        raise PublicationError(str(exc)) from exc
+    if any(change.status == "uncertain" for _, change in traceability_items(review)):
+        raise PublicationError("Required traceability assessment remains uncertain")
+
+
 def publish(config, pr, review, credential):
+    validate_traceability(config, review)
     if (
         len(review.reviews) != len(ROLES)
         or {item.role for item in review.reviews} != set(ROLES)
@@ -26,9 +50,13 @@ def publish(config, pr, review, credential):
     if review.presentation is None:
         raise PublicationError("A consolidated report is required before publication")
     validate_report(review, review.presentation)
-    blocked = any(item.blocking_findings for item in review.reviews)
+    blocked = any(item.blocking_findings for item in review.reviews) or any(
+        change.status == "missing" for _, change in traceability_items(review)
+    )
     if review.verdict != ("CHANGES_REQUESTED" if blocked else "PASS"):
-        raise PublicationError("Review verdict does not match its blocking findings")
+        raise PublicationError(
+            "Review verdict does not match its blocking findings or traceability obligations"
+        )
     repo, number, sha = config["repository"], pr["number"], pr["head"]["sha"]
     event = "REQUEST_CHANGES" if blocked else "APPROVE"
     expected = "CHANGES_REQUESTED" if blocked else "APPROVED"
@@ -86,10 +114,12 @@ def load_saved(config, pr, artifact):
         }.items()
     ):
         raise PublicationError("Saved review does not match this repository, PR and commit")
-    review = evaluate(
-        [json.loads(line) for line in (artifact / "review.jsonl").read_text().splitlines()]
-    )
     stored = ReviewResult.model_validate_json((artifact / "review.json").read_text())
+    validate_traceability(config, stored)
+    review = evaluate(
+        [json.loads(line) for line in (artifact / "review.jsonl").read_text().splitlines()],
+        stored.traceability_context,
+    )
     if review.model_dump(exclude={"presentation"}) != stored.model_dump(exclude={"presentation"}):
         raise PublicationError("Saved report does not match native specialist execution evidence")
     legacy_presentation = artifact / "review-presentation.json"

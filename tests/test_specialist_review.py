@@ -1,6 +1,7 @@
 """Publication requires both native specialists and material blocking findings only."""
 
 import copy
+import importlib.util
 import json
 import tempfile
 import unittest
@@ -257,6 +258,76 @@ class SpecialistRepairTests(unittest.TestCase):
 
 
 class ManualSpecialistReviewTests(unittest.TestCase):
+    @unittest.skipUnless(
+        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
+    )
+    def test_opted_in_pr_review_receives_scope_and_accessible_patch_context(self):
+        from test_traceability_review import assessed, change
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            artifact = root / "artifacts"
+            artifact.mkdir()
+            scope = json.loads(
+                (Path(__file__).parent / "fixtures/traceability-scope.json").read_text()
+            )
+            config = {"project": "example", "repository": "org/repo", "traceability_scope": scope}
+            pr = {"number": 42, "head": {"sha": "head"}}
+            files = [
+                {"filename": "session.py", "patch": "fixture patch"},
+                {"filename": "outside.txt"},
+            ]
+
+            def checkout(*args):
+                source = root / "checkout"
+                source.mkdir()
+                (source / "session.py").write_text("pass\n")
+                return source
+
+            def reviewed(workspace, prompt, **kwargs):
+                expected = kwargs["traceability"]
+                context = expected["example"]
+                self.assertEqual(context["scope"], scope)
+                self.assertEqual(context["changed_paths"], ["session.py"])
+                self.assertTrue((Path(context["source"]) / "session.py").is_file())
+                self.assertEqual(
+                    json.loads(Path(context["pr_context"]).read_text())["files"], files
+                )
+                self.assertIsNone(context["evidence_directory"])
+                return review.evaluate(
+                    [
+                        evidence(
+                            code=specialist(
+                                traceability_assessment=[assessed([change()], project="example")]
+                            )
+                        )
+                    ],
+                    expected,
+                )
+
+            with (
+                patch.object(monitor, "DATA", root),
+                patch.object(monitor, "job_id", return_value="fixture"),
+                patch.object(monitor, "evidence", return_value=artifact),
+                patch.object(monitor, "lock", return_value=nullcontext()),
+                patch.object(monitor.reviews, "_prepare_repository", side_effect=checkout),
+                patch.object(monitor.reviews, "_load_repo_review_guide", return_value=""),
+                patch.object(
+                    monitor.issues,
+                    "_github_paginate",
+                    side_effect=lambda token, path: files if path.endswith("/files") else [],
+                ),
+                patch.object(monitor, "worker", return_value=nullcontext(Mock())),
+                patch.object(monitor, "review_code", side_effect=reviewed),
+                patch.object(monitor.reviews, "_get_pr", return_value=pr),
+                patch.object(monitor, "pr_eligible", return_value=True),
+                patch.object(monitor, "publish_review") as publish,
+            ):
+                self.assertTrue(monitor._review_pr(config, pr, "offline-token"))
+                self.assertEqual(publish.call_args.args[2].verdict, "PASS")
+            retained = json.loads((artifact / "review.json").read_text())
+            self.assertEqual(retained["traceability_context"]["example"]["scope"], scope)
+
     def test_manual_reviews_save_both_reports_and_recheck_pr_revision(self):
         for stale, blocked in ((False, False), (True, False), (False, True)):
             with tempfile.TemporaryDirectory() as temp:

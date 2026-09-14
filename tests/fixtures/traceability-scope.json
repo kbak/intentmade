@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "name": "session-checks",
+  "inputs": ["requirements.md", "session.py", "tests"],
+  "specification_paths": ["requirements.md"],
+  "test_paths": ["tests"],
+  "required_coverage": {"req": ["impl", "utest"]},
+  "policy": {"require_revision_increase": false, "allow_skipped_tests": true},
+  "tests": {
+    "format": "command",
+    "command": ["python", "-m", "unittest", "discover", "-s", "tests", "-v"],
+    "timeout_seconds": 60
+  }
+}

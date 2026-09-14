@@ -1,5 +1,6 @@
 """Required skills survive native serialization, worktree attachment and bundle delivery."""
 
+import importlib.util
 import os
 import tempfile
 import unittest
@@ -13,6 +14,43 @@ from openhands.sdk.context import Skill, SkillValidationError
 
 
 class FactorySkillTests(unittest.TestCase):
+    @unittest.skipUnless(
+        importlib.util.find_spec("openhands_traceability"), "Requires the pilot test image"
+    )
+    def test_opted_in_context_is_saved_before_worktree_creation_and_on_repair(self):
+        workspace = Mock()
+        identity = str(uuid4())
+        workspace.working_dir = "/workspaces/source"
+        workspace.client.post.return_value.json.return_value = {
+            "id": identity,
+            "workspace": {"working_dir": "/workspaces/worktrees/task"},
+        }
+        conversation = Mock()
+        conversation.state.execution_status.value = "finished"
+        with (
+            patch.dict(os.environ, FACTORY_CODEX_MODEL="test/high"),
+            patch.object(agent, "Conversation", return_value=conversation) as create,
+            patch.object(agent, "get_agent_final_response", return_value="Done"),
+        ):
+            saved_id = agent.worktree(workspace, traceability=True)
+            saved = ACPAgent.model_validate(workspace.client.post.call_args.kwargs["json"]["agent"])
+            self.assertEqual(
+                [s.name for s in saved.agent_context.skills],
+                ["factory-implementation", "versioned-traceability"],
+            )
+            for identity in (saved_id, None):
+                agent.converse(
+                    workspace,
+                    "Continue or repair this task",
+                    mode="agent-full-access",
+                    conversation_id=identity,
+                    skill="factory-implementation",
+                    traceability=True,
+                )
+                self.assertEqual(
+                    create.call_args.kwargs["agent"].agent_context, saved.agent_context
+                )
+
     def test_native_acp_context_contains_selected_body_without_worker_file_access(self):
         for name in (
             "factory-implementation",

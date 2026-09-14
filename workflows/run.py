@@ -11,6 +11,7 @@ from typing import Literal
 
 import browser_qa
 import reporting
+import traceability
 from agent import converse, worktree
 from cleanup import job_directory
 from common import DATA, api, evidence, git, github, identifier, issues, job_id, lock, token
@@ -284,6 +285,7 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
     results, test_output = {}, []
     with job_directory(DATA, artifact) as root:
         prepare_sources(root, states)
+        trace_runs = traceability.prepare(configs, states, root, artifact, attempt)
         active = root / "active"
         active.mkdir()
         exports = {}
@@ -292,7 +294,11 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                 try:
                     for project, state in states.items():
                         workspace.working_dir = state["source"]
-                        state["conversation"] = worktree(workspace)
+                        state["conversation"] = (
+                            worktree(workspace, traceability=True)
+                            if project in trace_runs
+                            else worktree(workspace)
+                        )
                         state["worktree"] = workspace.working_dir
                         worker_git(workspace, ["branch", "-M", state["branch"]], state["worktree"])
                         if state.get("merge_base"):
@@ -320,11 +326,26 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                     conversation_id = (
                         None if len(states) > 1 else next(iter(states.values()))["conversation"]
                     )
+                    environments = {}
+                    for index, config in enumerate(configs):
+                        project = config["project"]
+                        checkout = states[project]["worktree"]
+                        env = {
+                            "PROJECT_DIR": checkout,
+                            "FACTORY_WORKSPACE": str(active),
+                            "COMPOSE_PROJECT_NAME": f"factory-tests-{index}",
+                        }
+                        if config.get("test_profile"):
+                            env["FACTORY_TESTS"] = "/factory-tests/" + config["test_profile"]
+                        if project in trace_runs:
+                            env["TMPDIR"] = str(trace_runs[project]["scratch"])
+                        environments[project] = env
                     implementation = converse(
                         workspace,
                         prompt
                         + "\n\nTask repositories:\n"
                         + task_context(states)
+                        + traceability.instructions(trace_runs, states, environments)
                         + "\nBase-branch merge results (resolve any conflicts, preserving both sides' intended behavior):\n"
                         + "\n".join(s.get("merge_output", "") for s in states.values())
                         + "\nApply the factory-implementation skill to the approved specification.",
@@ -334,6 +355,7 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                         response_model=ImplementationResult,
                         skill="factory-implementation",
                         transcript=artifact / f"implementation-{attempt}.jsonl",
+                        traceability=bool(trace_runs),
                     )
                     (artifact / f"implementation-{attempt}.json").write_text(
                         implementation.model_dump_json(indent=2)
@@ -350,31 +372,35 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                             + "\n\n"
                             + "\n".join(f"- {q}" for q in implementation.questions)
                         )
-                    for index, config in enumerate(configs):
+                    for config in configs:
                         project = config["project"]
                         phase(f"{task}: testing {project} (attempt {attempt + 1})")
                         checkout = states[project]["worktree"]
                         repo_artifact = artifact / project
                         repo_artifact.mkdir(exist_ok=True)
-                        env = {
-                            "PROJECT_DIR": checkout,
-                            "FACTORY_WORKSPACE": str(active),
-                            "COMPOSE_PROJECT_NAME": f"factory-tests-{index}",
-                        }
-                        if config.get("test_profile"):
-                            env["FACTORY_TESTS"] = "/factory-tests/" + config["test_profile"]
+                        env = environments[project]
                         command = " ".join(
                             key + "=" + shlex.quote(value) for key, value in env.items()
                         )
-                        result = workspace.execute_command(
-                            command + " bash -c " + shlex.quote(config["test_command"]),
-                            cwd=checkout,
-                            timeout=5400,
-                        )
+                        if project in trace_runs:
+                            result = traceability.check(
+                                workspace, states[project], trace_runs[project], env
+                            )
+                        else:
+                            result = workspace.execute_command(
+                                command + " bash -c " + shlex.quote(config["test_command"]),
+                                cwd=checkout,
+                                timeout=5400,
+                            )
                         results[project] = result.exit_code
                         output = result.stdout + result.stderr
                         test_output.append(project + ":\n" + output[-10000:])
-                        (repo_artifact / f"tests-{attempt}.log").write_text(output)
+                        log_name = (
+                            f"traceability-check-{attempt}.log"
+                            if project in trace_runs
+                            else f"tests-{attempt}.log"
+                        )
+                        (repo_artifact / log_name).write_text(output)
                 finally:
                     errors = []
                     for project, state in states.items():
@@ -415,6 +441,17 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                     retention_errors.append(f"{project}: {exc}")
             if retention_errors:
                 raise RuntimeError("Could not retain task branches: " + "; ".join(retention_errors))
+            for project, paths in trace_runs.items():
+                results[project] = traceability.collect(
+                    states[project], paths, results.get(project)
+                )
+                details = states[project]["traceability"]
+                log = paths["retained"] / "tests.log"
+                if log.is_file():
+                    output = log.read_text(errors="replace")
+                    (artifact / project / f"tests-{attempt}.log").write_text(output)
+                    test_output.append(project + ":\n" + output[-10000:])
+                test_output.append(project + " traceability:\n" + json.dumps(details))
     return results, test_output
 
 
@@ -424,6 +461,7 @@ def review_changes(configs, states, request, results, transcript=None):
     with job_directory(DATA) as root:
         review_states = {project: dict(state) for project, state in states.items()}
         prepare_sources(root, review_states)
+        trace_review = traceability.prepare_review(configs, review_states, root)
         active = root / "active"
         active.mkdir()
         for project, state in review_states.items():
@@ -440,9 +478,11 @@ def review_changes(configs, states, request, results, transcript=None):
                 + "\nTest exit codes: "
                 + json.dumps(results)
                 + "\nSpecification:\n"
-                + request,
+                + request
+                + traceability.review_context(trace_review),
                 title="Independent review",
                 transcript=transcript,
+                **({"traceability": trace_review} if trace_review else {}),
             )
 
 
@@ -499,6 +539,7 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
             outcome["browser_qa"] = (
                 browser_checks(configs, states, request, artifact, attempt)
                 if all(code == 0 for code in results.values())
+                and traceability.checks_passed(configs, states)
                 else {}
             )
             blocked = [
@@ -524,6 +565,7 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
             report = review.report()
             (artifact / f"review-{attempt}.md").write_text(report)
             (artifact / f"review-{attempt}.json").write_text(review.model_dump_json(indent=2))
+            traceability.record_review(configs, states, review, artifact / f"review-{attempt}.json")
             if review.verdict == "BLOCKED":
                 raise RuntimeError("Independent review infrastructure blocked: " + review.summary)
             browser_passed = all(r["status"] == "PASS" for r in outcome["browser_qa"].values())
@@ -531,6 +573,7 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
                 all(code == 0 for code in results.values())
                 and review.verdict == "PASS"
                 and browser_passed
+                and traceability.checks_passed(configs, states)
             ):
                 outcome["validation"] = "PASSED"
                 break
@@ -548,11 +591,23 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
             )
         else:
             raise RuntimeError(
-                "Tests, browser QA or review require attention; branches and evidence retained.\n\n"
+                "Tests, traceability, browser QA or review require attention; branches and evidence retained.\n\n"
                 + "Test exit codes: "
                 + json.dumps(results)
                 + "\n\n"
                 + review.summary
+                + (
+                    "\nTraceability:\n"
+                    + json.dumps(
+                        {
+                            project: state["traceability"].get("diagnostics", [])
+                            for project, state in states.items()
+                            if "traceability" in state
+                        }
+                    )
+                    if any("traceability" in state for state in states.values())
+                    else ""
+                )
             )
     except BaseException as exc:
         outcome.update(

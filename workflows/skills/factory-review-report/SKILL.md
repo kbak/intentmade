@@ -21,6 +21,10 @@ advisory findings. Do not add findings or change verdicts, blocking status,
 severity or locations; the factory derives those from the original sources.
 Source IDs are provenance, not prose.
 
+Any required traceability assessment is retained and rendered directly from
+Code Reviewer's result. Do not turn its gaps into code/security findings or
+downgrade its outcome in the coverage summary.
+
 Write a specific short title, a description connecting trigger to impact,
 concise evidence with code identifiers in backticks, and a practical fix with
 a regression check where relevant. Aim for 80–140 words total per finding;
