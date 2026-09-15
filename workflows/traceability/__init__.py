@@ -31,10 +31,10 @@ def discussion_context(configs):
     if any("traceability_scope" in repo for repo in result["repositories"].values()):
         from importlib.resources import files
 
-        result["requirements_guidance"] = (
-            files("versioned_traceability")
-            .joinpath("skills/versioned-traceability/references/requirements.md")
-            .read_text(encoding="utf-8")
+        directory = files("versioned_traceability") / "skills/versioned-traceability/references"
+        result["requirements_guidance"] = "\n\n".join(
+            (directory / name).read_text(encoding="utf-8")
+            for name in ("requirements.md", "semantics.md")
         )
     return result
 
@@ -273,6 +273,13 @@ def prepare_review(configs, states, root):
 def review_context(selected):
     if not selected:
         return ""
+    from importlib.resources import files
+
+    semantics = (
+        files("versioned_traceability")
+        .joinpath("skills/versioned-traceability/references/semantics.md")
+        .read_text(encoding="utf-8")
+    )
     return (
         "\n\nRequired Code Reviewer traceability assessment (only these repositories and changed paths):\n"
         + json.dumps(selected)
@@ -285,6 +292,8 @@ def review_context(selected):
         "traceability gaps; do not invent a code or security defect to make them blocking. "
         "Evidence directories listed above are accessible in this workspace. Null means no "
         "retained checker bundle is available; do not claim to have read one."
+        "\n\nThe shared semantic contract is included below. Apply it when interpreting "
+        "traceability artifacts and reporting conclusions.\n\n" + semantics
     )
 
 

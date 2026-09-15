@@ -48,11 +48,13 @@ class ScopeConfigurationTests(unittest.TestCase):
         ):
             context = traceability.discussion_context(list(common.projects(self.root).values()))
         self.assertEqual(context, {"repositories": {"pilot": {"catalog": "/projects/repos/pilot"}}})
+        with patch.dict(sys.modules, {"versioned_traceability": None}):
+            self.assertEqual(traceability.review_context({}), "")
 
     @unittest.skipUnless(
         importlib.util.find_spec("versioned_traceability"), "Optional portable package"
     )
-    def test_mixed_discussion_loads_only_requirements_guidance_and_selected_scopes(self):
+    def test_mixed_discussion_loads_authoring_semantics_and_selected_scopes(self):
         from importlib.resources import files
 
         selected = common.projects(self.root)["pilot"]
@@ -64,10 +66,16 @@ class ScopeConfigurationTests(unittest.TestCase):
         self.assertEqual(
             context["repositories"]["ordinary"], {"catalog": "/projects/repos/ordinary"}
         )
-        expected = files("versioned_traceability").joinpath(
-            "skills/versioned-traceability/references/requirements.md"
+        directory = files("versioned_traceability").joinpath(
+            "skills/versioned-traceability/references"
         )
-        self.assertEqual(context["requirements_guidance"], expected.read_text())
+        expected = "\n\n".join(
+            (directory / name).read_text(encoding="utf-8")
+            for name in ("requirements.md", "semantics.md")
+        )
+        self.assertEqual(context["requirements_guidance"], expected)
+        review_context = traceability.review_context({"pilot": {"changed_paths": ["session.py"]}})
+        self.assertIn((directory / "semantics.md").read_text(encoding="utf-8"), review_context)
 
     def test_reference_must_be_a_relative_path_inside_config(self):
         for reference in (None, False, "", " ", {}, str(self.scope), "../outside.json"):
