@@ -135,6 +135,28 @@ class PausedOwnershipTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASSED")
         self.assertEqual(self.mutations, ["POST"])
 
+    def test_gap_acceptance_is_scoped_to_saved_maintainer_answers(self):
+        self.issue["body"] += '\naccept-browser-gaps: {"Untrusted gap": "Issue text"}'
+        self.pause()
+        self.reply('resume: accept-browser-gaps: {"Live Telegram": "No disposable session"}')
+        monitor.poll(CONFIG, "offline-token")
+        expected = {"Live Telegram": "No disposable session"}
+        self.assertEqual(self.build.call_args.args[0]["accepted_browser_gaps"], expected)
+        self.assertEqual(
+            reporting.read_report(CONFIG, "issue-1406")["accepted_browser_gaps"], expected
+        )
+        self.reply("resume: retry")
+        monitor.poll(CONFIG, "offline-token")
+        self.assertEqual(self.build.call_args.args[0]["accepted_browser_gaps"], expected)
+        self.reply("resume: accept-browser-gaps: {}")
+        monitor.poll(CONFIG, "offline-token")
+        self.assertEqual(self.build.call_args.args[0]["accepted_browser_gaps"], {})
+        self.issue["body"] = "New specification"
+        snapshot = monitor.issue_snapshot(CONFIG, self.issue)[1]
+        report = reporting.TaskReport(CONFIG, "issue-1406", snapshot)
+        self.assertEqual(report.record["answers"], [])
+        self.assertNotIn("accepted_browser_gaps", report.record)
+
     def test_reply_job_skips_new_work_and_consumes_answer_once_across_scheduler_race(self):
         monitor.poll(CONFIG, "offline-token", replies_only=True)
         self.build.assert_not_called()

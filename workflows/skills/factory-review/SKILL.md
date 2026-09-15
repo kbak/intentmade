@@ -36,6 +36,13 @@ security scanners or checked current vulnerability databases unless their
 actual results are supplied. Lack of an optional scanner alone does not make
 source review incomplete; disclose that coverage limitation in the summary.
 
+Controller-supplied browser evidence may report `ACCEPTED_GAPS`: named unavailable
+infrastructure checks accepted by the maintainer for this task. Preserve these
+as unverified coverage in your summary; their absence alone does not block review.
+Assess source and available tests normally. This acceptance does not cover
+observed defects, failed required tests, unavailable review source, or required
+traceability obligations.
+
 When prior reviews or author fix claims are supplied, reassess the earlier
 actionable findings against current source. Identify each as fixed, partially
 fixed, still present or not verified, with the supporting code change or check.

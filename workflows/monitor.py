@@ -10,6 +10,7 @@ import tempfile
 import urllib.error
 from pathlib import Path
 
+import browser_qa
 import followup
 import reporting
 import review_publication
@@ -279,6 +280,13 @@ def implement_issue(config, issue, credential, resume=None):
             answer_id=resume.get("id") if resume else None,
         )
     try:
+        answers = (
+            report.record.get("answers", []) if report else ([resume["answer"]] if resume else [])
+        )
+        accepted = browser_qa.accepted_gaps(answers)
+        if report:
+            report.record["accepted_browser_gaps"] = accepted
+            reporting.write_report(config, report.task, report.record)
         discussion = issues._github_paginate(credential, f"/repos/{repo}/issues/{number}/comments")
         request = (
             content["title"]
@@ -297,7 +305,12 @@ def implement_issue(config, issue, credential, resume=None):
                 )
         base = github(credential, "GET", f"/repos/{repo}/commits/{config['branch']}")["sha"]
         result = build(
-            {**config, "assignee": identity, "issue_approval": approval},
+            {
+                **config,
+                "assignee": identity,
+                "issue_approval": approval,
+                "accepted_browser_gaps": accepted,
+            },
             "issue-" + str(number),
             request,
             base,

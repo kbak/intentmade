@@ -70,6 +70,10 @@ def browser_evidence(results):
         return
     for project, result in results.items():
         text = f"**Browser QA — {project}: {result['status']}**\n\nCommit: `{result['commit']}`\n\n{result['summary']}"
+        if result.get("accepted_gaps"):
+            from browser_qa import limitations
+
+            text += limitations(result)
         for check in result.get("checks", []):
             text += f"\n\n- {check['name']}: {check['status']} — {check['observed']}"
         try:
@@ -118,6 +122,7 @@ class TaskReport:
         self.record = read_report(config, task) or {}
         if self.record.get("snapshot") != snapshot:
             self.record["answers"] = []
+            self.record.pop("accepted_browser_gaps", None)
         self.record.update(task=task, repository=config["repository"], snapshot=snapshot)
         if not self.record.get("conversation_id"):
             created = api(

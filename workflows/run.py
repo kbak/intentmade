@@ -144,11 +144,13 @@ def publish(
     *,
     summary=None,
     title=None,
+    browser_result=None,
 ):
     title = pull_request_title(title or request, config)
     body = (
         (summary or request.splitlines()[0]).strip()[:35000]
         + "\n\n### Validation\n\n- Tests passed.\n- Independent code and security reviews passed.\n"
+        + browser_qa.limitations(browser_result or {})
         + (f"\nCloses #{issue}\n" if issue else "")
     )
     if issue:
@@ -568,14 +570,18 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
             traceability.record_review(configs, states, review, artifact / f"review-{attempt}.json")
             if review.verdict == "BLOCKED":
                 raise RuntimeError("Independent review infrastructure blocked: " + review.summary)
-            browser_passed = all(r["status"] == "PASS" for r in outcome["browser_qa"].values())
+            browser_passed = all(browser_qa.passed(r) for r in outcome["browser_qa"].values())
             if (
                 all(code == 0 for code in results.values())
                 and review.verdict == "PASS"
                 and browser_passed
                 and traceability.checks_passed(configs, states)
             ):
-                outcome["validation"] = "PASSED"
+                outcome["validation"] = (
+                    "PASSED_WITH_GAPS"
+                    if any(r["status"] == "ACCEPTED_GAPS" for r in outcome["browser_qa"].values())
+                    else "PASSED"
+                )
                 break
             prompt = (
                 request
@@ -653,6 +659,7 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
                     issue,
                     summary=state.get("summary"),
                     title=state.get("title"),
+                    browser_result=outcome["browser_qa"].get(config["project"]),
                 )
                 save()
     except BaseException as exc:

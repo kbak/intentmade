@@ -1,5 +1,6 @@
 """Native MCP serialization, retained image evidence, and mandatory QA verdicts."""
 
+import copy
 import json
 import os
 import tempfile
@@ -22,6 +23,140 @@ from pydantic import ValidationError
 
 
 class BrowserQATests(unittest.TestCase):
+    def gap_result(self):
+        return {
+            "status": "BLOCKED",
+            "summary": "Local flow works; Telegram unavailable",
+            "checks": [
+                {"name": "Local flow", "status": "PASS", "observed": "Warning retained"},
+                {
+                    "name": "Live Telegram",
+                    "status": "BLOCKED",
+                    "observed": "No disposable session",
+                    "blocker_kind": "infrastructure",
+                },
+            ],
+            "screenshots": [{"path": "/retained/1.png"}],
+        }
+
+    def test_only_explicit_named_gap_directives_grant_and_replace_acceptance(self):
+        self.assertEqual(browser_qa.accepted_gaps(["Just retry"]), {})
+        answer = 'accept-browser-gaps: {"Live Telegram": "No disposable session"}'
+        self.assertEqual(
+            browser_qa.accepted_gaps([answer, "retry"]), {"Live Telegram": "No disposable session"}
+        )
+        self.assertEqual(browser_qa.accepted_gaps([answer, "accept-browser-gaps: {}"]), {})
+        self.assertEqual(
+            browser_qa.accepted_gaps(["accept-browser-gaps: broken", answer]),
+            {"Live Telegram": "No disposable session"},
+        )
+        for value in ("true", "[]", '{"Live Telegram": ""}', '{"Live Telegram": 1}', "broken"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                browser_qa.accepted_gaps(["accept-browser-gaps: " + value])
+
+    def test_acceptance_preserves_unverified_checks_and_rejects_other_failures(self):
+        accepted = {"Live Telegram": "Publish draft with documented gap"}
+        for problem in (
+            None,
+            "unaccepted",
+            "verification",
+            "failure",
+            "evidence",
+            "no_pass",
+            "no_blocked",
+        ):
+            result = self.gap_result()
+            if problem == "unaccepted":
+                result["checks"][-1]["name"] = "Other service"
+            elif problem == "verification":
+                result["checks"][-1]["blocker_kind"] = "verification"
+            elif problem == "failure":
+                result["checks"][0]["status"] = "FAIL"
+            elif problem == "evidence":
+                result["screenshots"] = []
+            elif problem == "no_pass":
+                result["checks"] = result["checks"][1:]
+            elif problem == "no_blocked":
+                result["checks"] = result["checks"][:1]
+            with self.subTest(problem=problem):
+                before = copy.deepcopy(result)
+                browser_qa.accept_infrastructure_gaps(result, accepted)
+                if problem:
+                    self.assertEqual(result, before)
+                else:
+                    self.assertTrue(browser_qa.passed(result))
+                    self.assertEqual(result["reported_status"], "BLOCKED")
+                    self.assertEqual(result["checks"], before["checks"])
+                    self.assertIn(
+                        "Not verified: No disposable session", browser_qa.limitations(result)
+                    )
+
+    def test_accepted_gaps_reach_review_and_publication_but_do_not_waive_tests_or_review(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = {
+                "project": "example",
+                "repository": "org/repo",
+                "repair_attempts": 0,
+                "publish_draft": True,
+            }
+            states = {
+                "example": {
+                    "base": "base",
+                    "commit": "head",
+                    "repository": "/retained",
+                    "branch": "task",
+                }
+            }
+            qa = self.gap_result()
+            browser_qa.accept_infrastructure_gaps(qa, {"Live Telegram": "No disposable session"})
+            for test_code, verdict in (
+                (0, "PASS"),
+                (1, "PASS"),
+                (0, "CHANGES_REQUESTED"),
+                (0, "BLOCKED"),
+            ):
+                with (
+                    self.subTest(test_code=test_code, verdict=verdict),
+                    patch.object(
+                        run, "implementation_attempt", return_value=({"example": test_code}, [])
+                    ),
+                    patch.object(run, "browser_checks", return_value={"example": qa}),
+                    patch.object(
+                        run,
+                        "review_changes",
+                        return_value=run.ReviewResult(verdict=verdict, summary="Review"),
+                    ) as review,
+                    patch.object(run, "publish", return_value="https://example.test/pr") as publish,
+                ):
+                    if test_code or verdict != "PASS":
+                        with self.assertRaises(RuntimeError):
+                            run.execute_build(
+                                [config],
+                                "task",
+                                "Approved",
+                                "",
+                                None,
+                                True,
+                                root,
+                                copy.deepcopy(states),
+                            )
+                        publish.assert_not_called()
+                    else:
+                        result = run.execute_build(
+                            [config],
+                            "task",
+                            "Approved",
+                            "",
+                            None,
+                            True,
+                            root,
+                            copy.deepcopy(states),
+                        )
+                        self.assertEqual(result["validation"], "PASSED_WITH_GAPS")
+                        self.assertIn("No disposable session", review.call_args.args[2])
+                        self.assertEqual(publish.call_args.kwargs["browser_result"], qa)
+
     def test_native_acp_roundtrip_retains_browser_config_only_when_requested(self):
         with patch.dict(os.environ, FACTORY_CODEX_MODEL="test/high"):
             configured = agent.worker_agent(
@@ -132,7 +267,10 @@ class BrowserQATests(unittest.TestCase):
                     )
                 ],
             )
-            config = {"browser_qa": {"start_command": "true", "url": "http://localhost"}}
+            config = {
+                "browser_qa": {"start_command": "true", "url": "http://localhost"},
+                "accepted_browser_gaps": {"Live Telegram": "No disposable session"},
+            }
             state = {"source": str(checkout), "commit": commit, "base": commit}
             for mutation in (False, True):
 
@@ -152,6 +290,42 @@ class BrowserQATests(unittest.TestCase):
                     )
                 self.assertEqual(result["status"], "BLOCKED" if mutation else "PASS")
                 self.assertEqual(result["commit"], commit)
+
+            # Acceptance only happens after all controller integrity checks.
+            (checkout / "app.html").write_text("Original")
+            response = browser_qa.BrowserResult.model_validate(
+                {
+                    **self.gap_result(),
+                    "screenshots": [
+                        {
+                            "filename": "screen.png",
+                            "caption": "Local flow",
+                            "url": "http://localhost",
+                        }
+                    ],
+                }
+            )
+            for failure in (None, "source", "startup", "screenshot"):
+                (checkout / "app.html").write_text("Original")
+                config["browser_qa"]["start_command"] = "false" if failure == "startup" else "true"
+
+                def verify_gap(*args, **kwargs):
+                    if failure == "source":
+                        (checkout / "app.html").write_text("Changed")
+                    if failure == "screenshot":
+                        (captures / "screen.png").unlink()
+                    return response
+
+                with patch.object(browser_qa, "converse", side_effect=verify_gap):
+                    result = browser_qa.run(
+                        LocalWorkspace(working_dir=str(checkout)),
+                        config,
+                        state,
+                        "Verify",
+                        captures,
+                        root / str(failure),
+                    )
+                self.assertEqual(result["status"], "BLOCKED" if failure else "ACCEPTED_GAPS")
 
     def test_qa_failure_uses_existing_repair_loop_and_blocked_qa_never_publishes(self):
         with tempfile.TemporaryDirectory() as temp:

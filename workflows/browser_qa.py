@@ -21,6 +21,7 @@ class BrowserCheck(BaseModel):
     name: str = Field(min_length=1)
     status: Literal["PASS", "FAIL", "BLOCKED"]
     observed: str = Field(min_length=1)
+    blocker_kind: Literal["infrastructure", "verification"] = "verification"
 
 
 class Screenshot(BaseModel):
@@ -45,7 +46,77 @@ class BrowserResult(BaseModel):
             raise ValueError("Browser FAIL requires an observed failing check")
         if len({s.filename for s in self.screenshots}) != len(self.screenshots):
             raise ValueError("Screenshot filenames must be unique")
+        if len({c.name for c in self.checks}) != len(self.checks):
+            raise ValueError("Browser check names must be unique")
         return self
+
+
+def accepted_gaps(answers):
+    """Read explicit directives only from maintainer replies to this specification.
+
+    The last directive replaces the acceptance, including {} to revoke it.
+    Issue bodies, repository instructions and worker output cannot grant it.
+    """
+    directive = "{}"
+    for answer in answers:
+        for line in answer.splitlines():
+            prefix = "accept-browser-gaps:"
+            if line.strip().startswith(prefix):
+                directive = line.strip()[len(prefix) :]
+    try:
+        value = json.loads(directive)
+    except ValueError as exc:
+        raise ValueError(
+            "accept-browser-gaps requires a JSON object of check names and reasons"
+        ) from exc
+    if (
+        not isinstance(value, dict)
+        or len(value) > 30
+        or any(
+            not name.strip() or not isinstance(reason, str) or not reason.strip()
+            for name, reason in value.items()
+        )
+    ):
+        raise ValueError("accept-browser-gaps requires check names and nonempty reasons")
+    return value
+
+
+def accept_infrastructure_gaps(result, accepted):
+    """Called only after startup, evidence retention and source integrity succeed."""
+    checks = result.get("checks", [])
+    blocked = [c for c in checks if c["status"] == "BLOCKED"]
+    if (
+        result["status"] != "BLOCKED"
+        or not blocked
+        or not any(c["status"] == "PASS" for c in checks)
+        or any(c["status"] == "FAIL" for c in checks)
+        or not result.get("screenshots")
+        or any(
+            c.get("blocker_kind") != "infrastructure" or c["name"] not in accepted for c in blocked
+        )
+    ):
+        return
+    result.update(
+        status="ACCEPTED_GAPS",
+        reported_status="BLOCKED",
+        accepted_gaps={c["name"]: accepted[c["name"]] for c in blocked},
+    )
+
+
+def passed(result):
+    return result["status"] in {"PASS", "ACCEPTED_GAPS"}
+
+
+def limitations(result):
+    accepted = result.get("accepted_gaps", {})
+    if not accepted:
+        return ""
+    return "\n\n### Accepted verification gaps\n\n" + "\n".join(
+        f"- **{check['name']}** — Not verified: {check['observed']} "
+        f"Maintainer acceptance: {accepted[check['name']]}"
+        for check in result["checks"]
+        if check["name"] in accepted
+    )
 
 
 def selected(config, state):
@@ -125,6 +196,7 @@ def retain(workspace, output, destination, screenshots):
 def run(workspace, config, state, request, output, destination):
     settings, checkout = config["browser_qa"], state["source"]
     expected = state["commit"]
+    accepted = config.get("accepted_browser_gaps", {})
     result = {"status": "BLOCKED", "commit": expected, "screenshots": []}
     destination.mkdir(parents=True, exist_ok=True)
     try:
@@ -151,8 +223,13 @@ def run(workspace, config, state, request, output, destination):
             + f"Save PNG screenshots with simple filenames under {output}.\n"
             + "Repository QA instructions:\n"
             + settings.get("instructions", "")
-            + "\nApproved specification:\n"
-            + request,
+            + "\nTask-scoped maintainer acceptance of unavailable infrastructure checks:\n"
+            + json.dumps(accepted)
+            + "\nFor those same unavailable dependencies, reuse the exact check names above. "
+            "Still report them BLOCKED with blocker_kind=infrastructure and explain what was "
+            "not tested. Test all available behavior. Do not broaden acceptance to other gaps, "
+            "observed defects, or missing evidence. The parent applies acceptance after verifying "
+            "screenshots and source integrity.\n" + "\nApproved specification:\n" + request,
             mode="agent-full-access",
             title="Browser acceptance QA",
             response_model=BrowserResult,
@@ -170,6 +247,7 @@ def run(workspace, config, state, request, output, destination):
             raise RuntimeError(
                 "QA modified the source checkout; evidence does not verify the retained commit"
             )
+        accept_infrastructure_gaps(result, accepted)
     except Exception as exc:
         result.update(status="BLOCKED", summary=f"{type(exc).__name__}: {exc}")
         # Do not accidentally treat model-reported, unretained filenames as attachments.

@@ -227,6 +227,23 @@ The final commit must pass tests, applicable browser QA and independent review
 before publication. `browser_qa: null` disables this stage; path patterns define
 its scope, so include shared files that affect your UI as needed.
 
+For a paused issue, a maintainer can explicitly accept named infrastructure gaps
+in a `resume:` reply or `retry-issue --answer-file` response. Include this line
+(use the exact check names from the browser report):
+
+```text
+accept-browser-gaps: {"Live Telegram integration": "No disposable session available; publish a draft with this limitation documented."}
+```
+
+Acceptance belongs only to that issue's unchanged specification and survives
+retries. A later directive replaces it; `{}` revokes it. Ordinary issue text and
+worker claims cannot grant acceptance. Available checks must still pass and
+screenshots and the unchanged checkout must validate. Startup failures, missing
+evidence, observed defects, failed tests and incomplete independent review still
+block publication. Accepted checks remain `BLOCKED` in the evidence; the parent
+records browser status `ACCEPTED_GAPS` and validation `PASSED_WITH_GAPS`, supplies
+the limitations to independent review, and lists them in the draft PR.
+
 After adding repositories, run `init` and `configure` from the tooling checkout.
 Use `refresh NAME` to update the local code catalog used in discussions. Build
 submissions resolve the remote base commit independently of that catalog.

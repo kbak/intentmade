@@ -324,6 +324,16 @@ class UpstreamTests(unittest.TestCase):
                     "Approved feature",
                     "fixture-token",
                     summary="Allow users to retry failed invitation validation.",
+                    browser_result={
+                        "accepted_gaps": {"Live Telegram": "No disposable session"},
+                        "checks": [
+                            {
+                                "name": "Live Telegram",
+                                "status": "BLOCKED",
+                                "observed": "Reaction delivery unavailable",
+                            }
+                        ],
+                    },
                 )
             self.assertTrue(captured[0]["draft"])
             self.assertEqual(captured[0]["base"], "trunk")
@@ -335,6 +345,9 @@ class UpstreamTests(unittest.TestCase):
             self.assertNotIn("Factory", captured[0]["body"])
             self.assertNotIn("Canvas", captured[0]["body"])
             self.assertNotIn(str(root), captured[0]["body"])
+            self.assertIn("Accepted verification gaps", captured[0]["body"])
+            self.assertIn("Not verified: Reaction delivery unavailable", captured[0]["body"])
+            self.assertIn("Maintainer acceptance: No disposable session", captured[0]["body"])
             pushed = common.git(
                 ["--git-dir", str(remote), "rev-parse", "refs/heads/factory/feature"]
             ).stdout.strip()

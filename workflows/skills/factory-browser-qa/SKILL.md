@@ -28,6 +28,14 @@ passing tests, reading code, a login screen, or mocked API responses alone do
 not prove the affected authenticated workflow works. Report any mocked data
 explicitly and mark unverified live behavior BLOCKED. Do not invent evidence.
 
+For a BLOCKED check, set `blocker_kind` to `infrastructure` only when a named
+unavailable service, integration or account prevents execution. Other missing
+verification or evidence uses `verification`. Keep accepted infrastructure gaps
+BLOCKED in your response and reuse their exact supplied check names when the
+same dependencies remain unavailable. The parent controller applies the
+maintainer's task-scoped acceptance after validating the evidence and checkout.
+Acceptance never turns an observed defect into a gap or excuses available checks.
+
 After three materially different attempts at one verification approach, switch
 approaches. After two approaches fail, report what remains unverified as BLOCKED
 with a specific prerequisite. A missing account, service, or usable browser is
