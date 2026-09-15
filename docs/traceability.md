@@ -191,6 +191,23 @@ make sense; these structural checks do not prove semantic relevance or completen
 Existing requirements can suffice without new IDs or documentation edits. Changes
 outside the selected scope and opted-out repositories keep ordinary review rules.
 
+The controller also resolves every cited `requirement_ids` entry against an OFT
+import of the reviewed source snapshot. Bare complete IDs such as
+`req~session-expiration~1` select the candidate; `base:req~session-expiration~1`
+explicitly selects the baseline. Unknown IDs, wrong revisions, or unavailable
+source indexes leave review incomplete. The index includes specification items
+within the configured specification paths, including intermediate design items.
+Documentation, implementation, and verification explanations are still assessed
+by the reviewer; their relevance is not established by ID existence.
+
+Task review indexes both retained Git commits. PR review indexes the supplied
+candidate archive without requiring Git metadata; a baseline archive is not
+available in that flow, so historical IDs cannot be resolved there. Imports use
+the pinned OFT runtime and do not run project tests. Source identities and ID
+inventories are retained with the review for publication retries; the complete
+inventory is not injected into agent prompts. An older saved review without the
+index cannot validate its requirement citations and needs a fresh review.
+
 Retained checker evidence is copied into the read-only review workspace alongside
 the fresh source clones. Repairs receive concrete traceability gaps separately
 from code/security findings, then get new checks and a fresh assessment. Ordinary

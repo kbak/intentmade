@@ -140,6 +140,10 @@ def _review_pr(config, pr, credential):
             if scoped is not None
             else {}
         )
+        if trace_review:
+            trace_review[config["project"]]["requirement_index"] = traceability.requirement_index(
+                root / "source", scoped["scope"], sha, archive=True
+            )
         with worker(root, config) as workspace:
             review = review_code(
                 workspace,

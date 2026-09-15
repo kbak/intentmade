@@ -115,7 +115,13 @@ class PublicationTests(unittest.TestCase):
     )
     def test_traceability_gap_requests_changes_without_a_code_or_security_finding(self):
         scope = json.loads((Path(__file__).parent / "fixtures/traceability-scope.json").read_text())
-        expected = {"example": {"scope": scope, "changed_paths": ["session.py"]}}
+        expected = {
+            "example": {
+                "scope": scope,
+                "changed_paths": ["session.py"],
+                "requirement_index": {"candidate": {"ids": ["req~session-expiration~1"]}},
+            }
+        }
         native = evidence(
             code=specialist(
                 traceability_assessment=[
@@ -159,6 +165,11 @@ class PublicationTests(unittest.TestCase):
                 review_publication.load_saved(
                     {**CONFIG, "traceability_scope": changed_scope}, PR, artifact
                 )
+            legacy = result.model_dump()
+            del legacy["traceability_context"]["example"]["requirement_index"]
+            (artifact / "review.json").write_text(json.dumps(legacy))
+            with self.assertRaisesRegex(review_publication.PublicationError, "source index"):
+                review_publication.load_saved(config, PR, artifact)
 
     @unittest.skipUnless(
         importlib.util.find_spec("versioned_traceability"), "Optional portable package"

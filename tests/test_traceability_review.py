@@ -9,7 +9,15 @@ import review
 import review_report
 from test_specialist_review import evidence, finding, specialist
 
-EXPECTED = {"pilot": {"changed_paths": ["session.py"]}}
+EXPECTED = {
+    "pilot": {
+        "changed_paths": ["session.py"],
+        "requirement_index": {
+            "candidate": {"ids": ["req~session-expiration~1"]},
+            "base": {"ids": ["req~session-expiration~0"]},
+        },
+    }
+}
 
 
 def change(status="covered", **updates):
@@ -46,6 +54,39 @@ def result(changes=None, expected=None, **specialist_fields):
 
 
 class AssessmentGateTests(unittest.TestCase):
+    def test_unknown_and_stale_requirement_ids_block_review(self):
+        for identifier in ("req~invented~1", "req~session-expiration~0", "req~session-expiration"):
+            with self.subTest(identifier=identifier):
+                reviewed = result([change(requirement_ids=[identifier])])
+                self.assertEqual(reviewed.verdict, "BLOCKED")
+                self.assertIn("unknown requirement ID or revision", reviewed.summary)
+
+    def test_historical_citation_requires_an_explicit_available_snapshot(self):
+        reviewed = result([change(requirement_ids=["base:req~session-expiration~0"])])
+        self.assertEqual(reviewed.verdict, "PASS")
+        self.assertEqual(reviewed.traceability_context, EXPECTED)
+        unavailable = copy.deepcopy(EXPECTED)
+        del unavailable["pilot"]["requirement_index"]["base"]
+        reviewed = result(
+            [change(requirement_ids=["base:req~session-expiration~0"])], expected=unavailable
+        )
+        self.assertEqual(reviewed.verdict, "BLOCKED")
+        self.assertIn("snapshot not available", reviewed.summary)
+
+    def test_missing_or_failed_index_cannot_validate_a_citation(self):
+        for indexed in ({}, {"requirement_index": {"candidate": {"error": "OFT import failed"}}}):
+            reviewed = result(expected={"pilot": {"changed_paths": ["session.py"], **indexed}})
+            self.assertEqual(reviewed.verdict, "BLOCKED")
+            self.assertIn("a source index is required", reviewed.summary)
+
+    def test_malformed_id_list_cannot_match_by_substring(self):
+        for ids in ("prefix-req~session-expiration~1-suffix", None, [1]):
+            expected = copy.deepcopy(EXPECTED)
+            expected["pilot"]["requirement_index"]["candidate"]["ids"] = ids
+            reviewed = result(expected=expected)
+            self.assertEqual(reviewed.verdict, "BLOCKED")
+            self.assertIn("malformed requirement ID index", reviewed.summary)
+
     def test_ordinary_review_requires_no_assessment(self):
         ordinary = review.evaluate([evidence()])
         self.assertEqual(ordinary.verdict, "PASS")

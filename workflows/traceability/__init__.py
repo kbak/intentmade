@@ -229,6 +229,38 @@ def review_scope(config, changed_paths):
     }
 
 
+def requirement_index(source, scope, candidate, base=None, *, archive=False):
+    """Resolve review citations through OFT before an agent sees the source."""
+    from versioned_traceability.common import CheckError, within
+    from versioned_traceability.oft import default_jar, export_items, validate_jar
+    from versioned_traceability.snapshot import archive_snapshot, snapshot
+
+    versions = {"candidate": candidate}
+    if base is not None:
+        versions["base"] = base
+    indexed = {}
+    with tempfile.TemporaryDirectory(prefix="factory-review-ids-") as directory:
+        root = Path(directory)
+        for label, commit in versions.items():
+            try:
+                jar = default_jar().resolve()
+                validate_jar(jar)
+                capture = archive_snapshot if archive else snapshot
+                snap = capture(Path(source), commit, root / label)
+                items, _, _ = export_items(snap, scope["inputs"], jar, "java", root, label)
+                ids = [
+                    item["id"]
+                    for item in items
+                    if within(item["path"], scope["specification_paths"])
+                ]
+                if len(ids) != len(set(ids)):
+                    raise CheckError("Duplicate specification IDs in review snapshot")
+                indexed[label] = {"source": snap.identity(), "ids": sorted(ids)}
+            except (CheckError, OSError, ValueError) as exc:
+                indexed[label] = {"error": str(exc)}
+    return indexed
+
+
 def prepare_review(configs, states, root):
     """Make the checked scope, diff inventory and retained evidence accessible to review."""
     from common import git
@@ -255,6 +287,9 @@ def prepare_review(configs, states, root):
         ).stdout.split("\0")
         context = review_scope(config, [path for path in changed if path])
         context.update(source=state["source"], base=state["base"], candidate=state["commit"])
+        context["requirement_index"] = requirement_index(
+            state["source"], context["scope"], state["commit"], state["base"]
+        )
         record = state.get("traceability", {})
         context["check"] = {
             key: record.get(key) for key in ("status", "check_exit_code", "diagnostics")
@@ -280,9 +315,21 @@ def review_context(selected):
         .joinpath("skills/versioned-traceability/references/semantics.md")
         .read_text(encoding="utf-8")
     )
+    # Keep full ID inventories in controller validation and saved review records,
+    # rather than spending agent context on every requirement in each snapshot.
+    visible = {
+        project: {
+            **{key: value for key, value in context.items() if key != "requirement_index"},
+            "reference_snapshots": {
+                label: {key: value for key, value in entry.items() if key != "ids"}
+                for label, entry in context.get("requirement_index", {}).items()
+            },
+        }
+        for project, context in selected.items()
+    }
     return (
         "\n\nRequired Code Reviewer traceability assessment (only these repositories and changed paths):\n"
-        + json.dumps(selected)
+        + json.dumps(visible)
         + "\nInspect the complete source diff against the supplied approved task and baseline. "
         "Assess changed promises, Needs/Covers, and test assertions explicitly. Test edits already "
         "within the task need no additional human confirmation. A change that removes or weakens "
@@ -292,6 +339,11 @@ def review_context(selected):
         "traceability gaps; do not invent a code or security defect to make them blocking. "
         "Evidence directories listed above are accessible in this workspace. Null means no "
         "retained checker bundle is available; do not claim to have read one."
+        " Requirement IDs are resolved against OFT imports of the recorded source snapshots. "
+        "Use complete IDs with revisions in requirement_ids: unprefixed IDs refer to the "
+        "candidate; prefix historical citations with base: (for example base:req~timeout~1). "
+        "Only cite a snapshot listed in reference_snapshots. If its index has an error or a "
+        "historical snapshot is unavailable, explain the missing evidence instead of inventing an ID."
         "\n\nThe shared semantic contract is included below. Apply it when interpreting "
         "traceability artifacts and reporting conclusions.\n\n" + semantics
     )

@@ -166,6 +166,30 @@ def validate_assessments(assessments, expected):
                     f"{assessment.project}: assessment includes paths outside the scoped change"
                 )
             accounted.update(change.changed_paths)
+            for reference in change.requirement_ids:
+                label, identifier = (
+                    reference.split(":", 1) if ":" in reference else ("candidate", reference)
+                )
+                indexed = expected[assessment.project].get("requirement_index", {}).get(label)
+                if not isinstance(indexed, dict) or not indexed or "error" in indexed:
+                    detail = (
+                        indexed.get("error", "snapshot not available")
+                        if isinstance(indexed, dict)
+                        else "snapshot not available"
+                    )
+                    raise ValueError(
+                        f"{assessment.project}: cannot resolve {reference}: {detail}; a source index is required"
+                    )
+                if not isinstance(indexed.get("ids"), list) or any(
+                    not isinstance(item, str) for item in indexed["ids"]
+                ):
+                    raise ValueError(
+                        f"{assessment.project}: malformed requirement ID index; a fresh review is required"
+                    )
+                if identifier not in indexed["ids"]:
+                    raise ValueError(
+                        f"{assessment.project}: unknown requirement ID or revision in {label}: {identifier}"
+                    )
             if change.status == "covered" and not all(
                 (
                     change.requirement_ids,
@@ -312,7 +336,11 @@ def evaluate(events, traceability=None):
         reviews=results,
         infrastructure_errors=errors,
         traceability_context={
-            project: {key: value[key] for key in ("scope", "changed_paths") if key in value}
+            project: {
+                key: value[key]
+                for key in ("scope", "changed_paths", "requirement_index")
+                if key in value
+            }
             for project, value in (traceability or {}).items()
         },
     )

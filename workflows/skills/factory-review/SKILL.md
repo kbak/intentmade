@@ -73,7 +73,16 @@ component, design, or architecture relationships can suffice. Do not demand new
 IDs, document edits, or an annotation on every file, function, or line.
 
 Use `covered` with relevant requirement IDs and documentation, implementation,
-and verification references. Use `not_needed` with a concrete reason for a
+and verification references. In `requirement_ids`, use complete OFT IDs with
+revisions for the candidate. Prefix historical citations with `base:`; only use
+snapshots made available in the supplied reference context. The controller
+resolves IDs through OFT imports, so an invented ID or wrong revision cannot
+support a completed assessment. If source indexing failed or the needed
+historical snapshot is unavailable, explain that uncertainty. Other source
+references remain review explanations; ID resolution does not establish their
+semantic relevance.
+
+Use `not_needed` with a concrete reason for a
 mechanical change or a refactor already served by existing relationships.
 Use `missing` to identify the behavior and its missing requirement, reference,
 or verification connection, with a concrete repair. Use `uncertain` when a
