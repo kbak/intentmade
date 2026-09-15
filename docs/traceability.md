@@ -5,6 +5,28 @@ run tests, and review requirement changes before completing tasks. It uses
 `versioned-traceability` and `openhands-traceability` installed in the runtime.
 Registrations without `traceability_scope` use the usual test and review workflow.
 
+## Workflow at a glance
+
+The user discusses requirements and authorizes work with the Canvas coordinator.
+For repositories with `traceability_scope`, traceability enters each stage as follows:
+
+| Stage | Integration |
+| --- | --- |
+| **1. Requirements discussion** | The coordinator calls `configure.py discussion PROJECT`. [`discussion_context()`](../workflows/traceability/__init__.py) supplies the configured scope and the portable skill's `references/requirements.md`. The coordinator uses that guidance to discuss existing promises, requirement IDs and acceptance criteria. |
+| **2. Approved handoff** | Once the user approves the specification and requests implementation, the coordinator carries agreed Markdown, IDs, acceptance criteria and intended documentation paths into the task specification. |
+| **3. Implementation and repairs** | [`worker_agent()`](../workflows/agent.py) calls the adapter's `with_traceability()`. This injects the **full development SKILL.md plus its requirements reference**. The worker maintains requirements, implementation, tests and links, and runs checks for feedback. |
+| **4. Validation and review** | The controller runs the portable checker independently and verifies evidence against the exported commit. Code Reviewer follows the separate [factory-review skill](../workflows/skills/factory-review/SKILL.md) to assess traceability and unauthorized requirement/test weakening. Checks and independent review gate completion and draft PR publication. |
+
+`versioned-traceability` supplies the shared guidance, OFT validation and evidence.
+`openhands-traceability` attaches that guidance to agent context and forwards commands.
+The factory owns scope selection, authorization, handoffs, repairs and completion
+gates. Its provisioned runtime supplies the selected tool versions to workers.
+
+For an existing project, [recover and accept a baseline](https://github.com/kbak/versioned-traceability/blob/main/docs/recovery.md)
+before this development loop, then enable `traceability_scope` in the factory
+registration. Installing the skills or recovering a baseline does not enable that
+policy automatically. Ordinary feature work uses the development skill.
+
 ## Configuration
 
 A portable scope can live in the project repository or in separate

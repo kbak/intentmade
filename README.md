@@ -148,6 +148,11 @@ coordinator can submit the job from chat, or you can submit an approved file:
 ./scripts/factoryctl submit example-app ./approved-spec.md --run
 ```
 
+For traceability-enabled repositories, see the
+[four-stage workflow summary](docs/traceability.md#workflow-at-a-glance) for where
+shared requirements guidance, the development skill, and independent checks/review
+enter this process.
+
 Omit `--run` to inspect the prepared job in **Automate** before starting it. A
 job implements the specification, runs the configured tests and requests an
 independent review. It allows one repair attempt by default. Tests and review
