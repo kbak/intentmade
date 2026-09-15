@@ -251,7 +251,10 @@ class SpecialistRepairTests(unittest.TestCase):
                 self.assertEqual(output["status"], "PASSED")
                 self.assertEqual(implement.call_count, 2 if fail_tests else 1)
                 publish.assert_called_once()
-                self.assertIn("Optional header hardening", (root / "review-0.md").read_text())
+                self.assertIn(
+                    "Optional header hardening",
+                    (root / f"review-{1 if fail_tests else 0}.md").read_text(),
+                )
                 self.assertNotIn("Optional header hardening", implement.call_args.args[3])
                 if fail_tests:
                     self.assertIn("failed assertion", implement.call_args.args[3])

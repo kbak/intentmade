@@ -468,6 +468,17 @@ class PipelineTests(unittest.TestCase):
                     if mode == "agent-full-access":
                         (Path(workspace.working_dir) / "code.txt").write_text("implemented")
                         return run.ImplementationResult(status="IMPLEMENTED", summary="Implemented")
+                    evidence = json.loads(
+                        prompt.split(
+                            "Controller test evidence (read the complete logs when assessing failures):\n",
+                            1,
+                        )[1].splitlines()[0]
+                    )
+                    self.assertEqual(evidence["example"]["command"], "unused")
+                    self.assertEqual(
+                        Path(evidence["example"]["logs"]["tests-0.log"]).read_text(),
+                        "test evidence",
+                    )
                     return run.ReviewResult(verdict=verdict, summary="Review findings")
 
                 config = {**CONFIG, "repair_attempts": 0, "test_command": "unused"}

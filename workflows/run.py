@@ -283,10 +283,42 @@ def task_context(states, path_key="worktree"):
     )
 
 
+def stage_test_evidence(configs, artifact, attempt, root):
+    """Copy controller-retained logs into the next worker's visible workspace."""
+    evidence = {}
+    for config in configs:
+        project = config["project"]
+        source = artifact / project
+        target = root / "test-evidence" / project
+        logs = {}
+        for name in (f"tests-{attempt}.log", f"traceability-check-{attempt}.log"):
+            if (source / name).is_file():
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source / name, target / name)
+                logs[name] = str(target / name)
+        metadata = source / f"test-command-{attempt}.json"
+        command = (
+            json.loads(metadata.read_text())
+            if metadata.is_file()
+            else {
+                "command": config.get("test_command"),
+            }
+        )
+        evidence[project] = {**command, "logs": logs}
+    return (
+        "\n\nController test evidence (read the complete logs when assessing failures):\n"
+        + json.dumps(evidence)
+        + "\nThese tests ran in the configured application environment. The agent host's "
+        "Python environment is not the test environment; it need not have pytest installed.\n"
+    )
+
+
 def implementation_attempt(configs, states, task, prompt, artifact, attempt):
     results, test_output = {}, []
     with job_directory(DATA, artifact) as root:
         prepare_sources(root, states)
+        if attempt:
+            prompt += stage_test_evidence(configs, artifact, attempt - 1, root)
         trace_runs = traceability.prepare(configs, states, root, artifact, attempt)
         active = root / "active"
         active.mkdir()
@@ -384,6 +416,15 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                         command = " ".join(
                             key + "=" + shlex.quote(value) for key, value in env.items()
                         )
+                        test_command = config.get("test_command")
+                        if project in trace_runs:
+                            test_command = config["traceability_scope"]["tests"]["command"]
+                        (repo_artifact / f"test-command-{attempt}.json").write_text(
+                            json.dumps(
+                                {"command": test_command, "cwd": checkout, "environment": env},
+                                indent=2,
+                            )
+                        )
                         if project in trace_runs:
                             result = traceability.check(
                                 workspace, states[project], trace_runs[project], env
@@ -457,12 +498,14 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
     return results, test_output
 
 
-def review_changes(configs, states, request, results, transcript=None):
+def review_changes(configs, states, request, results, transcript=None, *, artifact=None, attempt=0):
     # Review a fresh clone of the retained commits after the implementation
     # worker has exited. Its processes and mutable Git configuration are absent.
     with job_directory(DATA) as root:
         review_states = {project: dict(state) for project, state in states.items()}
         prepare_sources(root, review_states)
+        if artifact is not None:
+            request += stage_test_evidence(configs, artifact, attempt, root)
         trace_review = traceability.prepare_review(configs, review_states, root)
         active = root / "active"
         active.mkdir()
@@ -532,12 +575,38 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
     prompt = request
     try:
         for attempt in range(min(c["repair_attempts"] for c in configs) + 1):
-            outcome.update(phase="IMPLEMENTING" if attempt == 0 else "REPAIRING", attempt=attempt)
+            outcome.update(
+                phase="IMPLEMENTING" if attempt == 0 else "REPAIRING",
+                attempt=attempt,
+                browser_qa={},
+            )
             save()
             phase(f"{task}: {outcome['phase'].lower()} (attempt {attempt + 1})")
             results, test_output = implementation_attempt(
                 configs, states, task, prompt, artifact, attempt
             )
+            outcome["tests"] = results
+            if any(code != 0 for code in results.values()):
+                outcome["phase"] = "TESTS_FAILED"
+                save()
+                details = (
+                    "\nTest exit codes: "
+                    + json.dumps(results)
+                    + "\nTest output:\n"
+                    + "\n".join(test_output)[-30000:]
+                )
+                if attempt == min(c["repair_attempts"] for c in configs):
+                    raise RuntimeError(
+                        "Configured tests failed; branches and full test logs retained." + details
+                    )
+                prompt = (
+                    request
+                    + "\n\nThe controller's configured tests failed. Diagnose the retained command "
+                    "and full logs, then fix the cause within this specification. Do not waive "
+                    "failed tests or treat earlier agent-run checks as the controller result."
+                    + details
+                )
+                continue
             outcome["browser_qa"] = (
                 browser_checks(configs, states, request, artifact, attempt)
                 if all(code == 0 for code in results.values())
@@ -556,6 +625,8 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
                 configs,
                 states,
                 request
+                + "\nController test output:\n"
+                + "\n".join(test_output)[-30000:]
                 + (
                     "\nBrowser QA evidence:\n" + json.dumps(outcome["browser_qa"])
                     if outcome["browser_qa"]
@@ -563,6 +634,8 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
                 ),
                 results,
                 artifact / f"review-{attempt}.jsonl",
+                artifact=artifact,
+                attempt=attempt,
             )
             report = review.report()
             (artifact / f"review-{attempt}.md").write_text(report)

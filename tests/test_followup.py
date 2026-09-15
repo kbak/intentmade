@@ -344,7 +344,7 @@ class FollowupTests(unittest.TestCase):
                 title="fix: restore scanning",
             )
 
-        def review(configs, states, request, results, transcript=None):
+        def review(configs, states, request, results, transcript=None, **kwargs):
             self.assertEqual(states["example"]["base"], base)
             self.assertEqual(results, {"example": 0})
             return run.ReviewResult(verdict="PASS", summary="Reviewed against current main")

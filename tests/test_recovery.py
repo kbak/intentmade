@@ -67,10 +67,51 @@ class RecoveryTests(unittest.TestCase):
                     [config], "task", "Original specification", "token", 42, True, root, states
                 )
             self.assertEqual(result["status"], "PASSED")
-            self.assertEqual(review.call_count, 2)
+            self.assertEqual(review.call_count, 1)
             self.assertIn("Original specification", implement.call_args.args[3])
             self.assertIn("expected retry button", implement.call_args.args[3])
             publish.assert_called_once()
+
+    def test_exhausted_test_failures_do_not_start_review(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with (
+                patch.object(
+                    run,
+                    "implementation_attempt",
+                    return_value=({"example": 1}, ["Missing static/assets"]),
+                ),
+                patch.object(run, "review_changes") as review,
+                patch.object(run, "publish") as publish,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "Missing static/assets"):
+                    run.execute_build(
+                        [{"repair_attempts": 0}], "task", "spec", "", None, True, Path(temp), {}
+                    )
+            review.assert_not_called()
+            publish.assert_not_called()
+            result = json.loads((Path(temp) / "result.json").read_text())
+            self.assertEqual(result["phase"], "TESTS_FAILED")
+            self.assertEqual(result["tests"], {"example": 1})
+
+    def test_full_test_logs_and_command_are_visible_in_next_worker(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            artifact = root / "retained"
+            source = artifact / "example"
+            source.mkdir(parents=True)
+            output = "Important first failure\n" + "Later output\n" * 5000
+            (source / "tests-0.log").write_text(output)
+            (source / "test-command-0.json").write_text(
+                json.dumps({"command": "bash /profile/run.sh unit", "cwd": "/old/checkout"})
+            )
+            context = run.stage_test_evidence(
+                [{"project": "example"}], artifact, 0, root / "worker"
+            )
+            target = root / "worker/test-evidence/example/tests-0.log"
+            self.assertEqual(target.read_text(), output)
+            self.assertIn(str(target), context)
+            self.assertIn("bash /profile/run.sh unit", context)
+            self.assertNotIn("Important first failure", context)
 
     def test_questions_stop_before_review_and_publication_and_save_detail(self):
         with tempfile.TemporaryDirectory() as temp:

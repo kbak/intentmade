@@ -314,6 +314,9 @@ title lacks one.
 | Published PR maintenance | PRs recorded as published by this instance, including drafts. Address eligible review feedback, check CI, repair failures and merge newer base commits into the existing task branch. |
 
 Tests and independent review must pass before creating a PR or pushing a repair.
+Failed configured tests enter the bounded repair loop before independent review.
+Each repair worker and reviewer receives the retained test command and complete
+logs in its own workspace; the review host does not need application test tools.
 The scheduler does not launch another agent review of its own PRs after
 publication, including when a draft becomes ready or CI turns green. Publication
 starts CI monitoring. Recorded PR updates take priority over new issues. Repairs
