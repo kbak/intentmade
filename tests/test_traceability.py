@@ -327,7 +327,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
         self.assertEqual(indexed["candidate"]["source"]["commit"], commit)
         self.assertEqual(indexed["base"]["source"]["commit"], self.states["pilot"]["base"])
 
-    def test_archive_requirement_index_needs_no_git_and_rejects_symlinks(self):
+    def test_archive_requirement_index_needs_no_git_and_rejects_absolute_symlinks(self):
         source = self.root / "archive"
         shutil.copytree(self.root / "seed", source, ignore=shutil.ignore_patterns(".git"))
         indexed = traceability.requirement_index(
@@ -340,7 +340,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
         failed = traceability.requirement_index(
             source, self.config["traceability_scope"], "archive-sha", archive=True
         )
-        self.assertIn("Symlinks are not supported", failed["candidate"]["error"])
+        self.assertIn("Symlink must use a relative target", failed["candidate"]["error"])
 
     def test_ordinary_test_edit_uses_existing_review_without_new_human_approval(self):
         def edit(root, attempt):
