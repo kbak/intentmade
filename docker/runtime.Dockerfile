@@ -1,4 +1,4 @@
-FROM ghcr.io/openhands/agent-canvas:1.18.0@sha256:64d73ec6c066b425e872e1a58d52d8b5d901b617a8e945b1430415c5fd4ea4d1
+FROM ghcr.io/openhands/agent-canvas:1.19.0@sha256:7297294fab096329a2246f06da14e8e7cc1ec85dec17d1887cc18745cf059086
 USER root
 # Pin the Codex/ACP versions used by the factory integrations.
 RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global \
