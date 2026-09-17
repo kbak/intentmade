@@ -12,6 +12,7 @@ from pathlib import Path
 
 import browser_qa
 import followup
+import measurements
 import reporting
 import review_publication
 import review_requests
@@ -27,6 +28,8 @@ from sandbox import worker
 
 
 def review_pr(config, pr, credential):
+    artifact = evidence(job_id() + "-pr-" + str(pr["number"]))
+    metrics = artifact / "metrics.json"
     report = (
         TaskReport(config, f"pr-{pr['number']}", review_requests.snapshot(config, pr))
         if reporting.ACTIVE
@@ -35,37 +38,56 @@ def review_pr(config, pr, credential):
     if report:
         report.update("REVIEWING", f"Reviewing commit {pr['head']['sha']}.")
     try:
-        previous = review_requests.read(config, pr) or {}
-        if previous.get("status") == "PUBLICATION_FAILED" and review_publication.current_protocol(
-            previous["artifact"]
+        with measurements.task(
+            artifact, f"pr-{pr['number']}", "review", {config["project"]: config["repository"]}
         ):
-            artifact = Path(previous["artifact"])
-            review = review_publication.load_saved(config, pr, artifact)
-            if review.presentation is None:
-                # Upgrade reports saved before consolidation without rewriting
-                # their native evidence or running the specialists again.
-                with lock(config["project"] + ".build"), job_directory(DATA, artifact) as root:
-                    (root / "source").mkdir()
-                    with worker(root, config) as workspace:
-                        review.presentation = consolidate(
-                            workspace, review, transcript=artifact / "review-report.jsonl"
-                        )
-                (artifact / "review-presentation.json").write_text(
-                    review.presentation.model_dump_json(indent=2)
-                )
-            publish_review(config, pr, review, credential, artifact)
-            body = review.report(config["repository"], pr["head"]["sha"])
-            current = True
-        else:
-            artifact = evidence(job_id() + "-pr-" + str(pr["number"]))
-            current = _review_pr(config, pr, credential)
-            body = (artifact / "review.md").read_text()
+            previous = review_requests.read(config, pr) or {}
+            retry = previous.get(
+                "status"
+            ) == "PUBLICATION_FAILED" and review_publication.current_protocol(previous["artifact"])
+            measurements.begin_attempt(0, "publication_retry" if retry else "initial")
+            measurements.update(
+                {
+                    "status": "RUNNING",
+                    "repositories": {config["project"]: {"commit": pr["head"]["sha"]}},
+                }
+            )
+            if retry:
+                retained = Path(previous["artifact"])
+                review = review_publication.load_saved(config, pr, retained)
+                if review.presentation is None:
+                    # Upgrade reports saved before consolidation without rewriting
+                    # their native evidence or running the specialists again.
+                    with lock(config["project"] + ".build"), job_directory(DATA, artifact) as root:
+                        (root / "source").mkdir()
+                        with worker(root, config) as workspace:
+                            review.presentation = consolidate(
+                                workspace, review, transcript=artifact / "review-report.jsonl"
+                            )
+                    (retained / "review-presentation.json").write_text(
+                        review.presentation.model_dump_json(indent=2)
+                    )
+                measurements.review(review, retained / "review.json")
+                with measurements.stage("publication", config["project"]):
+                    publish_review(config, pr, review, credential, retained)
+                body = review.report(config["repository"], pr["head"]["sha"])
+                current = True
+            else:
+                current = _review_pr(config, pr, credential)
+                body = (artifact / "review.md").read_text()
+            measurements.update(
+                {
+                    "status": "REVIEWED" if current else "STALE",
+                    "repositories": {config["project"]: {"commit": pr["head"]["sha"]}},
+                }
+            )
         if report:
             posted = (review_requests.read(config, pr) or {}).get("github_review", {})
             link = f"\n\n[GitHub review]({posted['html_url']})" if posted else ""
             report.update(
                 "REVIEWED" if current else "STALE",
                 body + link,
+                metrics=metrics,
                 github_review=posted,
             )
         return current
@@ -76,6 +98,7 @@ def review_pr(config, pr, credential):
                 if isinstance(exc, review_publication.PublicationError)
                 else "FAILED",
                 str(exc),
+                metrics=metrics,
             )
         raise
 
@@ -151,7 +174,7 @@ def _review_pr(config, pr, credential):
             trace_review[config["project"]]["requirement_index"] = traceability.requirement_index(
                 root / "source", scoped["scope"], sha, archive=True
             )
-        with worker(root, config) as workspace:
+        with measurements.stage("review"), worker(root, config) as workspace:
             review = review_code(
                 workspace,
                 f"Review PR #{number} in {repo} at exact commit {sha}. Read AGENTS.md, CLAUDE.md and relevant nested guidance first. "
@@ -177,6 +200,7 @@ def _review_pr(config, pr, credential):
         report = review.report(repo, sha)
         (artifact / "review.md").write_text(report)
         (artifact / "review.json").write_text(review.model_dump_json(indent=2))
+        measurements.review(review, artifact / "review.json")
         if review.verdict == "BLOCKED":
             raise RuntimeError("Independent review infrastructure blocked: " + review.summary)
         fresh = reviews._get_pr(credential, repo, number)
@@ -190,7 +214,8 @@ def _review_pr(config, pr, credential):
         }
         (artifact / "result.json").write_text(json.dumps(result, indent=2))
         if current:
-            publish_review(config, pr, review, credential, artifact)
+            with measurements.stage("publication", config["project"]):
+                publish_review(config, pr, review, credential, artifact)
         else:
             review_requests.remember(config, pr, "STALE")
         print(json.dumps(result) + "\n" + report, flush=True)
@@ -353,6 +378,9 @@ def implement_issue(config, issue, credential, resume=None):
                 + "\n\nReply `resume: YOUR ANSWER` to continue, or `resume: retry` "
                 "after an infrastructure fix. No PR has been confirmed by this run.",
                 failure=str(exc),
+                metrics=Path("/projects/artifacts")
+                / (job_id() + "-issue-" + str(number))
+                / "metrics.json",
             )
         if isinstance(exc, NeedsInput):
             # Waiting for the maintainer is a pause in the same owned task.

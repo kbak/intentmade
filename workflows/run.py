@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 import browser_qa
+import measurements
 import reporting
 import traceability
 from agent import converse, worktree
@@ -425,16 +426,17 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                                 indent=2,
                             )
                         )
-                        if project in trace_runs:
-                            result = traceability.check(
-                                workspace, states[project], trace_runs[project], env
-                            )
-                        else:
-                            result = workspace.execute_command(
-                                command + " bash -c " + shlex.quote(config["test_command"]),
-                                cwd=checkout,
-                                timeout=5400,
-                            )
+                        with measurements.stage("tests", project):
+                            if project in trace_runs:
+                                result = traceability.check(
+                                    workspace, states[project], trace_runs[project], env
+                                )
+                            else:
+                                result = workspace.execute_command(
+                                    command + " bash -c " + shlex.quote(config["test_command"]),
+                                    cwd=checkout,
+                                    timeout=5400,
+                                )
                         results[project] = result.exit_code
                         output = result.stdout + result.stderr
                         test_output.append(project + ":\n" + output[-10000:])
@@ -586,34 +588,84 @@ def browser_checks(configs, states, request, artifact, attempt):
 
 
 def execute_build(configs, task, request, credential, issue, publish_draft, artifact, states):
-    for state in states.values():
-        state["commit_message"] = change_title(request)
-    outcome = {"task": task, "status": "RUNNING", "repositories": states}
     local_report = None
     if reporting.ACTIVE and not reporting.ACTIVE.get("conversation_id"):
         local_report = reporting.TaskReport(configs[0], task)
         local_report.update("RUNNING", "Implementing and validating the approved task.")
+    try:
+        with measurements.task(
+            artifact,
+            task,
+            "maintenance"
+            if any(c.get("repair_pr") for c in configs)
+            else "issue"
+            if issue
+            else "feature",
+            {c["project"]: c.get("repository", "") for c in configs if "project" in c},
+        ):
+            result = _execute_build(
+                configs, task, request, credential, issue, publish_draft, artifact, states
+            )
+    except BaseException as exc:
+        if local_report:
+            saved = json.loads((artifact / "result.json").read_text())
+            local_report.update(saved["status"], str(exc), result=saved)
+        raise
+    if local_report:
+        local_report.update(
+            "PASSED",
+            "\n".join(s["pull_request"] for s in states.values() if s.get("pull_request"))
+            or "Validated; evidence retained.",
+            result=result,
+        )
+    return result
+
+
+def _execute_build(configs, task, request, credential, issue, publish_draft, artifact, states):
+    for state in states.values():
+        state["commit_message"] = change_title(request)
+    outcome = {
+        "task": task,
+        "status": "RUNNING",
+        "repositories": states,
+        "metrics": str(artifact / "metrics.json"),
+    }
 
     def save():
         (artifact / "result.json").write_text(json.dumps(outcome, indent=2))
+        measurements.update(outcome)
 
     prompt = request
+    repair_reason = "pr_maintenance" if any(c.get("repair_pr") for c in configs) else "initial"
     try:
         for attempt in range(min(c["repair_attempts"] for c in configs) + 1):
+            measurements.begin_attempt(attempt, repair_reason)
             outcome.update(
                 phase="IMPLEMENTING" if attempt == 0 else "REPAIRING",
                 attempt=attempt,
                 browser_qa={},
+                tests={},
             )
             save()
             phase(f"{task}: {outcome['phase'].lower()} (attempt {attempt + 1})")
-            results, test_output = implementation_attempt(
-                configs, states, task, prompt, artifact, attempt
-            )
+            with measurements.stage("implementation_and_tests"):
+                results, test_output = implementation_attempt(
+                    configs, states, task, prompt, artifact, attempt
+                )
             outcome["tests"] = results
             if any(code != 0 for code in results.values()):
                 outcome["phase"] = "TESTS_FAILED"
                 save()
+                measurements.end_attempt("TESTS_FAILED")
+                repair_reason = (
+                    "traceability"
+                    if any(
+                        state.get("traceability", {}).get("status")
+                        not in {None, "passed", "review_required"}
+                        for state in states.values()
+                    )
+                    else "tests"
+                )
                 details = (
                     "\nTest exit codes: "
                     + json.dumps(results)
@@ -632,12 +684,13 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
                     + details
                 )
                 continue
-            outcome["browser_qa"] = (
-                browser_checks(configs, states, request, artifact, attempt)
-                if all(code == 0 for code in results.values())
-                and traceability.checks_passed(configs, states)
-                else {}
-            )
+            with measurements.stage("browser_qa"):
+                outcome["browser_qa"] = (
+                    browser_checks(configs, states, request, artifact, attempt)
+                    if all(code == 0 for code in results.values())
+                    and traceability.checks_passed(configs, states)
+                    else {}
+                )
             blocked = [
                 r["summary"] for r in outcome["browser_qa"].values() if r["status"] == "BLOCKED"
             ]
@@ -646,25 +699,27 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
             outcome.update(phase="REVIEWING", tests=results)
             save()
             phase(f"{task}: independent review (attempt {attempt + 1})")
-            review = review_changes(
-                configs,
-                states,
-                request
-                + "\nController test output:\n"
-                + "\n".join(test_output)[-30000:]
-                + (
-                    "\nBrowser QA evidence:\n" + json.dumps(outcome["browser_qa"])
-                    if outcome["browser_qa"]
-                    else ""
-                ),
-                results,
-                artifact / f"review-{attempt}.jsonl",
-                artifact=artifact,
-                attempt=attempt,
-            )
+            with measurements.stage("review"):
+                review = review_changes(
+                    configs,
+                    states,
+                    request
+                    + "\nController test output:\n"
+                    + "\n".join(test_output)[-30000:]
+                    + (
+                        "\nBrowser QA evidence:\n" + json.dumps(outcome["browser_qa"])
+                        if outcome["browser_qa"]
+                        else ""
+                    ),
+                    results,
+                    artifact / f"review-{attempt}.jsonl",
+                    artifact=artifact,
+                    attempt=attempt,
+                )
             report = review.report()
             (artifact / f"review-{attempt}.md").write_text(report)
             (artifact / f"review-{attempt}.json").write_text(review.model_dump_json(indent=2))
+            measurements.review(review, artifact / f"review-{attempt}.json")
             traceability.record_review(configs, states, review, artifact / f"review-{attempt}.json")
             if review.verdict == "BLOCKED":
                 raise RuntimeError("Independent review infrastructure blocked: " + review.summary)
@@ -680,7 +735,12 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
                     if any(r["status"] == "ACCEPTED_GAPS" for r in outcome["browser_qa"].values())
                     else "PASSED"
                 )
+                save()
+                measurements.end_attempt(outcome["validation"])
                 break
+            repair_reason = "review" if browser_passed else "browser_qa"
+            save()
+            measurements.end_attempt("CHANGES_REQUESTED")
             prompt = (
                 request
                 + "\n\nFix the failed tests and blocking review findings within this specification. "
@@ -718,8 +778,6 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
             status="NEEDS_INPUT" if isinstance(exc, NeedsInput) else "FAILED",
             error=f"{type(exc).__name__}: {exc}",
         )
-        if local_report:
-            local_report.update(outcome["status"], outcome["error"], result=outcome)
         raise
     finally:
         save()
@@ -746,36 +804,28 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
             should_publish = config["publish_draft"] if publish_draft is None else publish_draft
             if should_publish and config["repository"] and state["commit"] != state["base"]:
                 repo_artifact = artifact / config["project"]
-                state["pull_request"] = publish(
-                    config,
-                    task,
-                    Path(state["repository"]),
-                    state["branch"],
-                    repo_artifact,
-                    request,
-                    credential,
-                    issue,
-                    summary=state.get("summary"),
-                    title=state.get("title"),
-                    browser_result=outcome["browser_qa"].get(config["project"]),
-                )
+                with measurements.stage("publication", config["project"]):
+                    state["pull_request"] = publish(
+                        config,
+                        task,
+                        Path(state["repository"]),
+                        state["branch"],
+                        repo_artifact,
+                        request,
+                        credential,
+                        issue,
+                        summary=state.get("summary"),
+                        title=state.get("title"),
+                        browser_result=outcome["browser_qa"].get(config["project"]),
+                    )
                 save()
     except BaseException as exc:
         outcome["status"] = "PUBLICATION_FAILED"
         outcome["error"] = f"{type(exc).__name__}: {exc}"
         save()
-        if local_report:
-            local_report.update(outcome["status"], outcome["error"], result=outcome)
         raise
     outcome["phase"] = "DONE"
     save()
-    if local_report:
-        local_report.update(
-            "PASSED",
-            "\n".join(s["pull_request"] for s in states.values() if s.get("pull_request"))
-            or "Validated; evidence retained.",
-            result=outcome,
-        )
     print(json.dumps(outcome), flush=True)
     return outcome
 

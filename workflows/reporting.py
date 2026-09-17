@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import httpx
+import measurements
 from common import DATA, api, identifier, session_api_key
 from openhands.sdk.agent import ACPAgent
 
@@ -157,7 +158,15 @@ class TaskReport:
                 ACTIVE["conversation_id"] = current
         write_report(config, task, self.record)
 
-    def update(self, status, message, **details):
+    def update(self, status, message, *, metrics=None, **details):
+        metrics = metrics or details.get("result", {}).get("metrics")
+        if metrics:
+            details["metrics"] = str(metrics)
+            try:
+                measured = json.loads(Path(metrics).read_text())
+                message += "\n\n" + measurements.render(measured) + f"\n\nMetrics: `{metrics}`"
+            except (OSError, ValueError, KeyError, TypeError):
+                message += "\n\nFactory measurements unavailable; validation outcome is unchanged."
         self.record.update(status=status, updated_at=now(), **details)
         write_report(self.config, self.task, self.record)
         # Durable result comes first. An unavailable UI must not lose work.

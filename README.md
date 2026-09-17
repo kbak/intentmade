@@ -135,6 +135,12 @@ as limitations, not as confirmed vulnerabilities or proof of safety.
 
 ### Factory skills
 
+Builds and reviews retain [task measurements](docs/measurements.md) with their
+artifacts and show a concise summary in the persistent Canvas chat. Records
+include attempt history, durations, available OpenHands usage, validation
+outcomes and reviewer-reported traceability gaps. A local CLI displays and
+aggregates them, and can append human effort or later outcome observations.
+
 Edit the procedures under [workflows/skills/](workflows/skills/) to change
 implementation, review, browser QA, or report-writing instructions.
 

@@ -2,9 +2,11 @@
 
 import json
 import os
+import time
 from pathlib import Path
 from uuid import UUID
 
+import measurements
 from common import session_api_key
 from openhands.sdk import AgentContext, Conversation
 from openhands.sdk.agent import ACPAgent
@@ -71,6 +73,8 @@ def converse(
         secrets=workspace.get_secrets(names=["CODEX_AUTH_JSON"]),
         visualizer=None,
     )
+    started = time.monotonic()
+    usage_before = measurements.usage_snapshot(conversation) if measurements.CURRENT.get() else None
     try:
         workspace.client.patch(
             f"/api/conversations/{conversation.id}", json={"title": title}
@@ -104,6 +108,10 @@ def converse(
                     "Do not use tools or add commentary." + schema
                 )
     finally:
+        try:
+            measurements.record_agent(conversation, usage_before, started, skill, transcript)
+        except Exception as exc:
+            print(f"Agent metrics unavailable: {type(exc).__name__}", flush=True)
         if event_log is not None:
             event_log.extend(event.model_dump(mode="json") for event in conversation.state.events)
         if transcript:

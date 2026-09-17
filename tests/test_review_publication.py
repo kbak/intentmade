@@ -286,6 +286,9 @@ class PublicationRecoveryTests(unittest.TestCase):
             for name, text in originals.items():
                 (artifact / name).write_text(text)
             presentation = validate_report(result, draft_report(result))
+            metric_runs = [root / "measurement-1", root / "measurement-2"]
+            for directory in metric_runs:
+                directory.mkdir()
             with (
                 patch.object(
                     monitor.review_requests,
@@ -293,6 +296,8 @@ class PublicationRecoveryTests(unittest.TestCase):
                     return_value={"status": "PUBLICATION_FAILED", "artifact": str(artifact)},
                 ),
                 patch.object(monitor.reporting, "ACTIVE", None),
+                patch.object(monitor, "job_id", return_value="fixture"),
+                patch.object(monitor, "evidence", side_effect=metric_runs),
                 patch.object(monitor, "_review_pr") as rerun,
                 patch.object(monitor, "publish_review") as publish,
                 patch.object(monitor, "lock", return_value=nullcontext()),
@@ -306,6 +311,11 @@ class PublicationRecoveryTests(unittest.TestCase):
                 rerun.assert_not_called()
                 self.assertEqual(publish.call_count, 2)
                 self.assertEqual(publish.call_args.args[2].presentation, presentation)
+            for directory in metric_runs:
+                metrics = json.loads((directory / "metrics.json").read_text())
+                self.assertEqual(metrics["attempts"][0]["reason"], "publication_retry")
+                self.assertEqual(metrics["review"]["evidence"], str(artifact / "review.json"))
+                self.assertEqual(metrics["agents"], [])
             for name, text in originals.items():
                 self.assertEqual((artifact / name).read_text(), text)
             presentation.source_digest = "wrong evidence"
@@ -330,9 +340,13 @@ class PublicationRecoveryTests(unittest.TestCase):
                 "state": "APPROVED",
                 "html_url": "https://github.com/org/repo/pull/42#pullrequestreview-123",
             }
+            metrics = root / "measurement"
+            metrics.mkdir()
             with (
                 patch.object(review_requests, "DATA", root),
                 patch.object(review_requests, "job_id", return_value="run"),
+                patch.object(monitor, "job_id", return_value="run"),
+                patch.object(monitor, "evidence", return_value=metrics),
                 patch.object(monitor.reporting, "ACTIVE", None),
                 patch.object(monitor, "_review_pr") as rerun,
                 patch.object(

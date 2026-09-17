@@ -104,13 +104,13 @@ def snapshot(config, record):
     return {"repository": config["repository"], "pr": record["number"], "head": record["head"]}
 
 
-def report_status(config, record, status, message):
+def report_status(config, record, status, message, *, metrics=None):
     changed = record.get("status") != status or record.get("message") != message
     record.update(status=status, message=message)
     save(config, record)
     if changed and reporting.ACTIVE:
         TaskReport(config, f"pr-{record['number']}", snapshot(config, record)).update(
-            status, message
+            status, message, metrics=metrics
         )
 
 
@@ -507,6 +507,7 @@ def maintain(config, pr, action, credential):
                 current_record,
                 "WATCHING",
                 f"Updated PR #{pr['number']} after tests and independent review; waiting for GitHub CI.",
+                metrics=artifact / "metrics.json",
             )
             if report:
                 current_report = reporting.read_report(config, f"pr-{pr['number']}")
@@ -521,6 +522,7 @@ def maintain(config, pr, action, credential):
                 current_record,
                 "NEEDS_INPUT" if isinstance(exc, NeedsInput) else "FAILED",
                 f"{exc}\n\nEvidence: {artifact}. Reply `resume: YOUR ANSWER` or `resume: retry` to continue.",
+                metrics=artifact / "metrics.json",
             )
             if isinstance(exc, NeedsInput):
                 return False
