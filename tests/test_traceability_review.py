@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import unittest
+from unittest.mock import patch
 
 import review
 import review_report
@@ -216,6 +217,37 @@ class AssessmentGateTests(unittest.TestCase):
         reviewed.reviews[0].traceability_assessment[0].changes[0].status = "uncertain"
         with self.assertRaisesRegex(ValueError, "different specialist evidence"):
             reviewed.report()
+
+    def test_human_summary_exposes_gaps_without_changing_agent_inputs_or_repairs(self):
+        reviewed = result(
+            [
+                change(behavior="Existing coverage"),
+                change(
+                    "missing", behavior="Logout", remediation="Link the approved logout promise."
+                ),
+                change("uncertain", behavior="Remote verification"),
+                change("not_needed", behavior="Mechanical rename"),
+            ]
+        )
+        original = reviewed.model_dump_json()
+        repair = reviewed.repair_instructions()
+        prompt = review.coordinator_prompt("Existing task", EXPECTED)
+        with patch.object(
+            review_report, "converse", side_effect=AssertionError("No new agent pass")
+        ):
+            text = reviewed.report()
+        self.assertIn("**Review incomplete**", text)
+        self.assertIn("Assessed changes: 4. Distinct changed paths: 1.", text)
+        self.assertIn("1 missing · 1 uncertain · 1 covered · 1 needing no additional tracing", text)
+        folded = text.index("<details>")
+        self.assertLess(text.index("Missing traceability — Logout"), folded)
+        self.assertLess(text.index("Uncertain — Remote verification"), folded)
+        self.assertGreater(text.index("Covered — Existing coverage"), folded)
+        self.assertIn("Verification references do not establish that tests ran", text)
+        self.assertIn("test_expiration checks both sides of 1800", text)
+        self.assertEqual(reviewed.model_dump_json(), original)
+        self.assertEqual(reviewed.repair_instructions(), repair)
+        self.assertEqual(review.coordinator_prompt("Existing task", EXPECTED), prompt)
 
     def test_saved_ordinary_reports_keep_their_original_digest(self):
         reviewed = review.evaluate([evidence()])

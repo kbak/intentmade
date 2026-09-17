@@ -227,6 +227,13 @@ Artifacts are retained under the project's task output:
 
 The existing task-level `review-N.json` and `review-N.md` retain the assessment
 with the code and security review; no separate assessment report is created.
+The Markdown report summarizes assessment outcomes and shows missing or uncertain
+connections before collapsible details for covered/mechanical changes. Verification
+references remain review judgments, not claims that individual tests executed.
+Each portable check also retains `summary.md` in its evidence directory, with
+changed specification IDs, recorded test outcomes, and source/policy identity.
+Both presentations use existing results. They add no agent calls, injected context,
+required tool interactions, review obligations, or approval steps.
 
 The task result records `check_exit_code`, the matched commit, and the
 independent review verdict/report. Exit 4 means automated checks passed with

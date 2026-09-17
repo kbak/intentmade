@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections import Counter
 from typing import Annotated
 from urllib.parse import quote
 
@@ -131,6 +132,55 @@ def ordered_findings(review, report):
     return sorted(rows, key=lambda row: (not row[2], ranks[row[3]]))
 
 
+def render_traceability(assessment):
+    """Present existing judgments; do not expand agent context or review obligations."""
+    labels = {
+        "covered": "Covered",
+        "not_needed": "No additional tracing needed",
+        "missing": "Missing traceability",
+        "uncertain": "Uncertain",
+    }
+    counts = Counter(change.status for change in assessment.changes)
+    paths = {path for change in assessment.changes for path in change.changed_paths}
+    details = [f"### Traceability — {assessment.project}", assessment.summary]
+    if not assessment.changes:
+        details.append("No scoped changes to assess.")
+        return "\n\n".join(details)
+    details += [
+        f"Assessed changes: {len(assessment.changes)}. Distinct changed paths: {len(paths)}.",
+        f"**{counts['missing']} missing · {counts['uncertain']} uncertain · "
+        f"{counts['covered']} covered · {counts['not_needed']} needing no additional tracing**",
+        "These are review judgments. Verification references do not establish that tests ran.",
+    ]
+    attention, completed = [], []
+    for change in assessment.changes:
+        references = [
+            f"{label}: {', '.join(values)}"
+            for label, values in (
+                ("Requirements", change.requirement_ids),
+                ("Documentation", change.documentation),
+                ("Implementation", change.implementation),
+                ("Verification references", change.verification),
+            )
+            if values
+        ]
+        section = (
+            f"**{labels[change.status]} — {change.behavior}**\n\n"
+            f"Changed paths: {', '.join(change.changed_paths)}\n\n{change.rationale}"
+            + ("\n\n" + "\n\n".join(references) if references else "")
+            + ("\n\nFix: " + change.remediation if change.remediation else "")
+        )
+        (attention if change.status in {"missing", "uncertain"} else completed).append(section)
+    details.extend(attention)
+    if completed:
+        details.append(
+            "<details>\n<summary>Covered changes and changes needing no additional tracing</summary>\n\n"
+            + "\n\n".join(completed)
+            + "\n\n</details>"
+        )
+    return "\n\n".join(details)
+
+
 def render(review, repository=None, sha=None):
     report = (
         validate_report(review, review.presentation)
@@ -175,33 +225,9 @@ def render(review, repository=None, sha=None):
             + "\n".join("- " + item for item in report.coverage)
             + "\n\n</details>"
         )
-    labels = {
-        "covered": "Covered",
-        "not_needed": "No additional tracing needed",
-        "missing": "Missing traceability",
-        "uncertain": "Uncertain",
-    }
     for specialist in review.reviews:
         for assessment in specialist.traceability_assessment or []:
-            details = [f"### Traceability — {assessment.project}", assessment.summary]
-            for change in assessment.changes:
-                references = [
-                    f"{label}: {', '.join(values)}"
-                    for label, values in (
-                        ("Requirements", change.requirement_ids),
-                        ("Documentation", change.documentation),
-                        ("Implementation", change.implementation),
-                        ("Verification", change.verification),
-                    )
-                    if values
-                ]
-                details.append(
-                    f"**{labels[change.status]} — {change.behavior}**\n\n"
-                    f"Changed paths: {', '.join(change.changed_paths)}\n\n{change.rationale}"
-                    + ("\n\n" + "\n\n".join(references) if references else "")
-                    + ("\n\nFix: " + change.remediation if change.remediation else "")
-                )
-            sections.append("\n\n".join(details))
+            sections.append(render_traceability(assessment))
     if review.infrastructure_errors:
         sections.append(
             "### Review could not finish\n\n"
