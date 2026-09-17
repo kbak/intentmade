@@ -6,7 +6,7 @@ export async function emitFactoryReviewEvidence(client, update, threadId, turnId
     toolCallId: `factory-review:${threadId}:${turnId}`,
     title: "Factory specialist review",
     kind: "other",
-    rawInput: { version: 1, threadId, turnId },
+    rawInput: { version: 2, threadId, turnId },
   };
   try {
     const root = await client.readSessionThread(threadId);

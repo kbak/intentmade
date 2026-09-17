@@ -149,7 +149,7 @@ def publish(
     title = pull_request_title(title or request, config)
     body = (
         (summary or request.splitlines()[0]).strip()[:35000]
-        + "\n\n### Validation\n\n- Tests passed.\n- Independent code and security reviews passed.\n"
+        + "\n\n### Validation\n\n- Tests passed.\n- Alibaba code and security review passed.\n"
         + browser_qa.limitations(browser_result or {})
         + (f"\nCloses #{issue}\n" if issue else "")
     )
@@ -527,6 +527,15 @@ def review_changes(configs, states, request, results, transcript=None, *, artifa
                 + traceability.review_context(trace_review),
                 title="Independent review",
                 transcript=transcript,
+                sources={
+                    project: {
+                        "source": state["source"],
+                        "base": state["base"],
+                        "candidate": state["commit"],
+                    }
+                    for project, state in review_states.items()
+                },
+                input_path=root / "ocr-review.json",
                 **({"traceability": trace_review} if trace_review else {}),
             )
 

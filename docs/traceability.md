@@ -15,7 +15,7 @@ For repositories with `traceability_scope`, traceability enters each stage as fo
 | **1. Requirements discussion** | The coordinator calls `configure.py discussion PROJECT`. [`discussion_context()`](../workflows/traceability/__init__.py) supplies the configured scope and the portable skill's requirements and semantics references. The coordinator uses that guidance to discuss existing promises, requirement IDs and acceptance criteria. |
 | **2. Approved handoff** | Once the user approves the specification and requests implementation, the coordinator carries agreed Markdown, IDs, acceptance criteria and intended documentation paths into the task specification. |
 | **3. Implementation and repairs** | [`worker_agent()`](../workflows/agent.py) calls the adapter's `with_traceability()`. This injects the **full development SKILL.md plus its requirements and semantics references**. The worker maintains requirements, implementation, tests and links, and runs checks for feedback. |
-| **4. Validation and review** | The controller runs the portable checker independently and verifies evidence against the exported commit. Code Reviewer follows the separate [factory-review skill](../workflows/skills/factory-review/SKILL.md) to assess traceability and unauthorized requirement/test weakening. Checks and independent review gate completion and draft PR publication. |
+| **4. Validation and review** | The controller runs the portable checker independently and verifies evidence against the exported commit. Alibaba Reviewer follows the separate [factory-review skill](../workflows/skills/factory-review/SKILL.md) to assess traceability and unauthorized requirement/test weakening. Checks and independent review gate completion and draft PR publication. |
 
 `versioned-traceability` supplies the shared guidance, OFT validation and evidence.
 `openhands-traceability` attaches that guidance to agent context and forwards commands.
@@ -169,7 +169,7 @@ the checks.
 
 ## Review assessment
 
-For opted-in repositories, Code Reviewer assesses changed behavior within the
+For opted-in repositories, Alibaba Reviewer assesses changed behavior within the
 configured `inputs`, even when requirements and tests were not edited. It follows
 relevant requirements, implementation references, and test assertions or other
 configured verification, including links through existing design or architecture

@@ -1,8 +1,9 @@
-"""Publication requires both native specialists and material blocking findings only."""
+"""Publication requires the native Alibaba reviewer and material blocking findings only."""
 
 import copy
 import importlib.util
 import json
+import shutil
 import tempfile
 import unittest
 from contextlib import nullcontext
@@ -45,28 +46,36 @@ def specialist(**changes):
 
 
 def evidence(code=None, security=None):
+    # Assemble correctness and security fixtures into the single Alibaba result.
+    result = copy.deepcopy(code or specialist())
+    if security:
+        for name in ("blocking_findings", "non_blocking_findings"):
+            result[name].extend(security[name])
+        if security["verdict"] != "PASS":
+            result["verdict"] = security["verdict"]
+        if security["infrastructure_error"]:
+            result["infrastructure_error"] = security["infrastructure_error"]
     return {
         "kind": "ACPToolCallEvent",
         "title": "Factory specialist review",
         "status": "completed",
-        "raw_input": {"version": 1, "threadId": "parent", "turnId": "turn"},
+        "raw_input": {"version": 2, "threadId": "parent", "turnId": "turn"},
         "raw_output": {
             "agents": [
                 {
-                    "thread_id": f"child-{i}",
+                    "thread_id": "child-0",
                     "parent_thread_id": "parent",
-                    "role": role,
+                    "role": review.ROLES[0],
                     "status": "completed",
-                    "message": json.dumps(result or specialist()),
+                    "message": json.dumps(result),
                 }
-                for i, (role, result) in enumerate(zip(review.ROLES, (code, security)))
             ]
         },
     }
 
 
 class SpecialistVerdictTests(unittest.TestCase):
-    def test_both_clean_reviews_pass_without_finding_quota(self):
+    def test_clean_review_passes_without_finding_quota(self):
         result = review.evaluate([evidence()])
         self.assertEqual(result.verdict, "PASS")
         self.assertEqual([r.role for r in result.reviews], list(review.ROLES))
@@ -92,7 +101,7 @@ class SpecialistVerdictTests(unittest.TestCase):
                     ]
                 )
                 self.assertEqual(result.verdict, "PASS")
-                self.assertEqual(result.reviews[1].verdict, "PASS")
+                self.assertEqual(result.reviews[0].verdict, "PASS")
                 self.assertIn("Optional improvement", result.report())
                 self.assertNotIn("Optional improvement", result.repair_instructions())
 
@@ -113,7 +122,7 @@ class SpecialistVerdictTests(unittest.TestCase):
             ]
         )
         self.assertEqual(result.verdict, "PASS")
-        self.assertEqual(result.reviews[1].non_blocking_findings[0].severity, "high")
+        self.assertEqual(result.reviews[0].non_blocking_findings[0].severity, "high")
 
     def test_medium_security_requires_exploitability_and_material_impact(self):
         for exploitability in (False, True):
@@ -136,7 +145,7 @@ class SpecialistVerdictTests(unittest.TestCase):
                 expected = "CHANGES_REQUESTED" if exploitability and material else "PASS"
                 self.assertEqual(result.verdict, expected)
 
-    def test_material_code_defect_blocks_independently_of_security_review(self):
+    def test_material_code_defect_blocks_in_combined_review(self):
         result = review.evaluate(
             [
                 evidence(
@@ -145,7 +154,7 @@ class SpecialistVerdictTests(unittest.TestCase):
             ]
         )
         self.assertEqual(result.verdict, "CHANGES_REQUESTED")
-        self.assertEqual(result.reviews[1].verdict, "PASS")
+        self.assertEqual(result.reviews[0].verdict, "CHANGES_REQUESTED")
 
     def test_material_code_failure_is_not_downgraded_by_a_low_security_severity_label(self):
         result = review.evaluate(
@@ -164,7 +173,7 @@ class SpecialistVerdictTests(unittest.TestCase):
             lambda e: e["raw_output"]["agents"].pop(),
             lambda e: e["raw_output"]["agents"][0].update(role="default"),
             lambda e: e["raw_output"]["agents"][0].update(parent_thread_id="other"),
-            lambda e: e["raw_output"]["agents"][0].update(thread_id="child-1"),
+            lambda e: e["raw_output"]["agents"][0].update(thread_id=""),
             lambda e: e["raw_output"]["agents"][0].update(status="inProgress"),
             lambda e: e["raw_output"]["agents"][0].update(message="PASS"),
             lambda e: e["raw_output"]["agents"][0].update(
@@ -193,6 +202,7 @@ class SpecialistVerdictTests(unittest.TestCase):
             return "Everything passed!"
 
         with (
+            patch.object(review, "prepare", return_value={}),
             patch.object(review, "converse", converse),
             patch.object(
                 review,
@@ -275,7 +285,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                 (Path(__file__).parent / "fixtures/traceability-scope.json").read_text()
             )
             config = {"project": "example", "repository": "org/repo", "traceability_scope": scope}
-            pr = {"number": 42, "head": {"sha": "head"}}
+            pr = {"number": 42, "head": {"sha": "head"}, "changed_files": 2}
             files = [
                 {"filename": "session.py", "patch": "fixture patch"},
                 {"filename": "outside.txt"},
@@ -283,8 +293,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
 
             def checkout(*args):
                 source = root / "checkout"
-                source.mkdir()
-                (source / "session.py").write_text("pass\n")
+                shutil.copytree(Path(__file__).parent / "fixtures/traceability", source)
                 return source
 
             def reviewed(workspace, prompt, **kwargs):
@@ -331,7 +340,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
             retained = json.loads((artifact / "review.json").read_text())
             self.assertEqual(retained["traceability_context"]["example"]["scope"], scope)
 
-    def test_manual_reviews_save_both_reports_and_recheck_pr_revision(self):
+    def test_manual_reviews_save_reports_and_recheck_pr_revision(self):
         for stale, blocked in ((False, False), (True, False), (False, True)):
             with tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
@@ -366,7 +375,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                 ):
                     args = (
                         {"project": "example", "repository": "org/repo"},
-                        {"number": 42, "head": {"sha": "head"}},
+                        {"number": 42, "head": {"sha": "head"}, "changed_files": 0},
                         "token",
                     )
                     if blocked:

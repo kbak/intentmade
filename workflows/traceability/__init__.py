@@ -328,7 +328,7 @@ def review_context(selected):
         for project, context in selected.items()
     }
     return (
-        "\n\nRequired Code Reviewer traceability assessment (only these repositories and changed paths):\n"
+        "\n\nRequired Alibaba Reviewer traceability assessment (only these repositories and changed paths):\n"
         + json.dumps(visible)
         + "\nInspect the complete source diff against the supplied approved task and baseline. "
         "Assess changed promises, Needs/Covers, and test assertions explicitly. Test edits already "

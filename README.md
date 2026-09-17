@@ -73,33 +73,65 @@ for its lifetime and retains its role's permissions (reviews stay read-only).
 Editing the profile affects subsequent workers without rebuilding the image.
 Rerunning `configure` preserves the existing profile and its model selection.
 
-### Independent code and security review
+### Alibaba code and security review
 
-Automatic reviews and `factoryctl review` run the Code Reviewer and Application
-Security Engineer independently against the same change. Both use a fresh,
-read-only worker and the selected model. The result is:
+Automatic reviews and `factoryctl review` use one native **Alibaba Reviewer**,
+backed by [Open Code Review](https://github.com/alibaba/open-code-review)'s
+`open-code-review-delegate` procedure. OCR prepares the file inventory and review
+rules; the existing Codex subscription and selected model perform the review.
+There is no separate OCR model endpoint or API key. The agency Code Reviewer and
+Application Security Engineer are no longer used by the review pipeline.
+
+The runtime pins OCR **1.12.4**, its matching delegation skill, and the optional
+Cloudflare audit skill by checksum in `docker/runtime.Dockerfile`. The controller
+runs OCR preparation before the read-only reviewer starts. Implementation reviews
+use Git ranges; standalone PR reviews use GitHub's complete changed-file inventory
+and exact-commit source archives with OCR's rule resolution. Archive reviews do
+not invent Git history. Missing required patches/source, incomplete file inventory,
+or missing native reviewer evidence prevent approval. Every selected file must
+have a coverage record, including files that OCR's preview would exclude.
+A controller-owned rule configuration preserves Alibaba's built-in rules;
+repository rule files cannot replace them or waive required coverage.
 
 | Verdict | Effect |
 | --- | --- |
-| `PASS` | Both reviews completed with no blocking findings. |
+| `PASS` | Alibaba review completed with no blockers and complete required coverage. |
 | `CHANGES_REQUESTED` | Blocking findings enter the repair loop with any failed tests. |
-| `BLOCKED` | Missing source, execution evidence, or reports stop publication without spending a repair attempt. |
+| `BLOCKED` | Missing source, coverage, execution evidence, or reports stop publication without spending a repair attempt. |
 
 Material code defects and high/critical security findings block publication.
 Medium security findings block when demonstrated exploitability and material
 impact support them. Other findings remain advisory. Each blocker must cite
 source evidence and a concrete failure or attack scenario. For repositories with
-[traceability enabled](docs/traceability.md#review-assessment), Code Reviewer also
-assesses the scoped behavior changes against relevant requirements and verification.
+[traceability enabled](docs/traceability.md#review-assessment), Alibaba Reviewer
+also assesses scoped behavior changes against relevant requirements and verification.
 Concrete traceability gaps request changes; missing or uncertain required
-assessments leave review incomplete. They are retained separately from ordinary
-findings in the same review report.
+assessments leave review incomplete. They remain separate from ordinary findings.
 
-Follow-up reviews reassess previous findings against the current code. Reports
-identify verified fixes, partial fixes, unresolved issues, and additional
-findings. The combined report retains every specialist finding and its blocking
-status. Review JSON and transcripts are saved with task artifacts. Scanner
-coverage is limited to results actually available to the reviewers.
+Follow-up reviews reassess previous findings against current code. Reports identify
+verified fixes, partial fixes, unresolved issues, and additional findings. Review
+JSON, native transcripts, file coverage, and OCR inputs are retained with task
+artifacts. Existing publication-failure artifacts from the former two-reviewer
+protocol require a fresh review; they cannot satisfy the new execution contract.
+
+### Optional Cloudflare security audits
+
+For an in-depth security review, explicitly ask Canvas to apply the
+**Cloudflare security-audit skill**, for example:
+
+> Use the Cloudflare security-audit skill to audit the authentication and tenant isolation
+> in /projects/repos/example. Write the audit to
+> /projects/requests/security-audits/example-auth-01.
+
+The Canvas coordinator applies the pinned
+[Cloudflare security-audit skill](https://github.com/cloudflare/security-audit-skill)
+with the existing subscription. It coordinates independent hunting and validation,
+keeps source read-only, and writes the upstream reports and coverage ledger to the
+specified external directory. It is not invoked by automatic PR reviews and does
+not publish GitHub verdicts. The skill permits execution of target code only with
+its required sandbox controls; otherwise affected candidates remain
+`needs_validation` and source inspection can continue. Report unresolved checks
+as limitations, not as confirmed vulnerabilities or proof of safety.
 
 ### Factory skills
 

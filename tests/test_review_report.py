@@ -49,7 +49,7 @@ def merged_report(result):
     groups = []
     for index in range(2):
         group = copy.deepcopy(draft.findings[index])
-        group.source_ids = [f"0:blocking:{index}", f"1:blocking:{index}"]
+        group.source_ids = [f"0:blocking:{index}", f"0:blocking:{index + 2}"]
         groups.append(group)
     return review_report.ReviewReport(
         findings=groups,
@@ -72,7 +72,7 @@ class ConsolidationTests(unittest.TestCase):
         for text in (
             "None.",
             "Non-blocking findings",
-            "Code Reviewer —",
+            "Alibaba Reviewer —",
             "4 blocking",
             "CHANGES_REQUESTED",
         ):
@@ -134,7 +134,7 @@ class ConsolidationTests(unittest.TestCase):
             ]
         )
         draft = review_report.draft_report(result)
-        draft.findings[0].source_ids = ["0:blocking:0", "1:advisory:0"]
+        draft.findings[0].source_ids = ["0:blocking:0", "0:advisory:0"]
         draft.findings = draft.findings[:1]
         result.presentation = review_report.validate_report(result, draft)
         text = result.report()
@@ -219,10 +219,11 @@ class ConsolidationTests(unittest.TestCase):
 
         def consolidate(workspace, result, **kwargs):
             order.append("consolidation")
-            self.assertEqual(len(result.reviews), 2)
+            self.assertEqual(len(result.reviews), 1)
             return review_report.validate_report(result, review_report.draft_report(result))
 
         with (
+            patch.object(review, "prepare", return_value={}),
             patch.object(review, "converse", side_effect=converse),
             patch.object(review, "consolidate", side_effect=consolidate),
         ):
@@ -236,6 +237,7 @@ class ConsolidationTests(unittest.TestCase):
             kwargs["event_log"].append(evidence())
 
         with (
+            patch.object(review, "prepare", return_value={}),
             patch.object(review, "converse", side_effect=converse),
             patch.object(review, "consolidate", side_effect=ValueError("missing source")),
         ):

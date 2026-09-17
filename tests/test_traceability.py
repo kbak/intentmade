@@ -127,6 +127,17 @@ class TraceabilityPipelineTests(unittest.TestCase):
                     code = specialist(traceability_assessment=[assessed(changes)])
 
             def converse(workspace, prompt, **options):
+                inputs = json.loads(Path(kwargs["input_path"]).read_text())["projects"]
+                code["coverage"] = [
+                    {
+                        "project": project,
+                        **item,
+                        "outcome": "reviewed",
+                        "evidence": "Scripted fixture review.",
+                    }
+                    for project, spec in inputs.items()
+                    for item in spec["files"]
+                ]
                 options["event_log"].append(evidence(code=code))
 
             with (
@@ -340,7 +351,9 @@ class TraceabilityPipelineTests(unittest.TestCase):
         failed = traceability.requirement_index(
             source, self.config["traceability_scope"], "archive-sha", archive=True
         )
-        self.assertIn("Symlink must use a relative target", failed["candidate"]["error"])
+        # Portable releases differ in whether all symlinks or only unsafe
+        # targets are rejected; an absolute target must never become evidence.
+        self.assertIn("Symlink", failed["candidate"]["error"])
 
     def test_ordinary_test_edit_uses_existing_review_without_new_human_approval(self):
         def edit(root, attempt):

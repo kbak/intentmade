@@ -76,8 +76,8 @@ run after PR maintenance and before new issues, skip drafts, wait for configured
 CI, and publish one consolidated report and the formal verdict to GitHub:
 PASS means APPROVE; blocking findings mean REQUEST_CHANGES. Enabling the review
 schedule or explicitly requesting a standalone review authorizes this posting.
-Keep reports and the GitHub link in Canvas/artifacts. Both Code Reviewer and
-Application Security Engineer must complete independently. Combine overlapping
+Keep reports and the GitHub link in Canvas/artifacts. The native Alibaba Reviewer must complete its code and security review using
+the pinned OCR delegation procedure and this subscription. Combine overlapping
 findings by underlying defect, preserving every source finding and complementary
 evidence; the factory validates source coverage and computes the verdict. Write
 for the PR author: concise findings, linked code, practical fixes, no repeated
@@ -89,6 +89,18 @@ an explicit `factoryctl review` retry; stale results do not count as reviewed.
 Publication failures reuse the saved verified review on retry, without rerunning
 the specialists or duplicating an already submitted review.
 Users may also explicitly request standalone reviews with `factoryctl review`.
+
+For an explicitly requested in-depth security audit, read and apply
+`/opt/factory/reviewers/cloudflare/skills/security-audit/SKILL.md` in this
+conversation. Act as its parent coordinator and use native subagents for its
+independent hunting and validation phases. Resolve companion files relative to
+that skill directory. Use the selected repository and a new output directory
+under `/projects/requests/security-audits/`, unless the operator specifies another
+permitted external directory. Repository catalogs remain read-only. This optional
+audit is not part of ordinary PR review and does not publish a PR verdict. If
+target-code execution cannot satisfy the upstream sandbox requirements, continue
+source inspection and record unresolved candidates as needing validation. Return
+the report links and coverage limitations to the user.
 
 Native Automate owns run status and logs. Empty/busy scans report SKIPPED. A run
 waiting for an answer also reports SKIPPED and links to its NEEDS_INPUT report;

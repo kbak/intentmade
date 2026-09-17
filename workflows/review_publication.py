@@ -6,12 +6,16 @@ from pathlib import Path
 
 from common import github, issues, lock
 from policy import pr_eligible
-from review import ROLES, ReviewResult, evaluate, validate_assessments
+from review import ROLES, ReviewResult, evaluate, validate_assessments, validate_coverage
 from review_report import ReviewReport, traceability_items, validate_report
 
 
 class PublicationError(RuntimeError):
     pass
+
+
+def current_protocol(artifact):
+    return json.loads((Path(artifact) / "review.json").read_text()).get("review_protocol") == 2
 
 
 def validate_traceability(config, review):
@@ -28,7 +32,7 @@ def validate_traceability(config, review):
         raise PublicationError(
             "Required traceability scope is missing or changed; a fresh review is required"
         )
-    code = next((item for item in review.reviews if item.role == "Code Reviewer"), None)
+    code = next((item for item in review.reviews if item.role == ROLES[0]), None)
     try:
         validate_assessments(code.traceability_assessment or [] if code else [], expected)
     except ValueError as exc:
@@ -46,7 +50,8 @@ def publish(config, pr, review, credential):
         or any(item.infrastructure_error or item.verdict == "BLOCKED" for item in review.reviews)
         or review.verdict == "BLOCKED"
     ):
-        raise PublicationError("Both code and security reviews must complete before publication")
+        raise PublicationError("Alibaba code and security review must complete before publication")
+    validate_coverage(review.reviews[0].coverage, review.review_inputs)
     if review.presentation is None:
         raise PublicationError("A consolidated report is required before publication")
     validate_report(review, review.presentation)
@@ -103,6 +108,8 @@ def publish(config, pr, review, credential):
 
 def load_saved(config, pr, artifact):
     artifact = Path(artifact)
+    if not current_protocol(artifact):
+        raise PublicationError("Review protocol changed; a fresh Alibaba review is required")
     saved = json.loads((artifact / "result.json").read_text())
     if any(
         saved.get(key) != value
@@ -119,6 +126,7 @@ def load_saved(config, pr, artifact):
     review = evaluate(
         [json.loads(line) for line in (artifact / "review.jsonl").read_text().splitlines()],
         stored.traceability_context,
+        stored.review_inputs,
     )
     if review.model_dump(exclude={"presentation"}) != stored.model_dump(exclude={"presentation"}):
         raise PublicationError("Saved report does not match native specialist execution evidence")

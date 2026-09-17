@@ -191,7 +191,7 @@ class PublicationTests(unittest.TestCase):
     def test_missing_specialist_or_inconsistent_verdict_cannot_post(self):
         good = present([evidence()])
         bad_verdict = good.model_copy(update={"verdict": "CHANGES_REQUESTED"})
-        missing = good.model_copy(update={"reviews": good.reviews[:1]})
+        missing = good.model_copy(update={"reviews": []})
         for result in (present([]), bad_verdict, missing):
             with (
                 self.subTest(verdict=result.verdict),
@@ -199,6 +199,39 @@ class PublicationTests(unittest.TestCase):
             ):
                 review_publication.publish(CONFIG, PR, result, "secret")
         self.assertEqual(self.calls, [])
+
+    def test_publication_cannot_drop_required_file_coverage(self):
+        result = present([evidence()])
+        result.review_inputs = {"example": {"files": [{"path": "app.py", "status": "modified"}]}}
+        with self.assertRaisesRegex(ValueError, "every selected file"):
+            review_publication.publish(CONFIG, PR, result, "secret")
+        self.assertEqual(self.calls, [])
+
+    def test_old_protocol_publication_retry_runs_a_fresh_review(self):
+        with tempfile.TemporaryDirectory() as temp:
+            artifact = Path(temp)
+            (artifact / "review.json").write_text('{"verdict":"PASS"}')
+            (artifact / "review.md").write_text("Fresh Alibaba review")
+            with (
+                patch.object(monitor.reporting, "ACTIVE", None),
+                patch.object(
+                    monitor.review_requests,
+                    "read",
+                    return_value={
+                        "status": "PUBLICATION_FAILED",
+                        "artifact": str(artifact),
+                    },
+                ),
+                patch.object(monitor, "evidence", return_value=artifact),
+                patch.object(monitor, "job_id", return_value="fixture"),
+                patch.object(monitor, "_review_pr", return_value=True) as fresh,
+                patch.object(monitor, "publish_review") as publish,
+            ):
+                self.assertTrue(monitor.review_pr(CONFIG, PR, "secret"))
+                fresh.assert_called_once_with(CONFIG, PR, "secret")
+                publish.assert_not_called()
+            with self.assertRaisesRegex(review_publication.PublicationError, "fresh Alibaba"):
+                review_publication.load_saved(CONFIG, PR, artifact)
 
     def test_changed_head_or_failed_ci_never_posts(self):
         result = present([evidence()])

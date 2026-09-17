@@ -35,6 +35,8 @@ await import(pathToFileURL('/acp-node/lib/node_modules/@agentclientprotocol/code
             roles.mkdir()
             custom = roles / "code-reviewer.toml"
             custom.write_text('name = "Custom Reviewer"\n')
+            reviewer = roles / "alibaba-reviewer.toml"
+            reviewer.write_text('name = "Stale Factory Reviewer"\n')
             auth = home / "auth.json"
             auth.write_text(json.dumps({"test": "preserve credential file"}))
             before = auth.read_bytes()
@@ -48,11 +50,34 @@ await import(pathToFileURL('/acp-node/lib/node_modules/@agentclientprotocol/code
                     timeout=20,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(len(list(roles.glob("*.toml"))), 273)
+                self.assertEqual(len(list(roles.glob("*.toml"))), 274)
                 self.assertEqual(custom.read_text(), 'name = "Custom Reviewer"\n')
                 self.assertEqual(auth.read_bytes(), before)
+                self.assertEqual(tomllib.loads(reviewer.read_text())["name"], "Alibaba Reviewer")
                 frontend = tomllib.loads((roles / "frontend-developer.toml").read_text())
                 self.assertEqual(frontend["name"], "Frontend Developer")
+
+    def test_cloudflare_bundle_has_executable_validators_and_companion_files(self):
+        skill = Path("/opt/factory/reviewers/cloudflare/skills/security-audit")
+        for name in (
+            "SKILL.md",
+            "RECONNAISSANCE.md",
+            "HUNTING.md",
+            "VALIDATION-AND-REPORTING.md",
+            "report-schema.json",
+        ):
+            self.assertTrue((skill / name).is_file())
+        subprocess.run(
+            [
+                "node",
+                "--test",
+                str(skill / "validate-findings.test.cjs"),
+                str(skill / "validate-coverage-ledger.test.cjs"),
+            ],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
 
 
 if __name__ == "__main__":

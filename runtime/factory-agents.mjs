@@ -7,6 +7,7 @@ import { join } from "node:path";
 export function installFactoryAgents(
   codexHome = process.env.CODEX_HOME || join(homedir(), ".codex"),
   source = "/opt/factory/agency-agents/agents",
+  reviewers = "/opt/factory/reviewers/agents",
 ) {
   const destination = join(codexHome, "agents");
   mkdirSync(destination, { recursive: true });
@@ -17,6 +18,11 @@ export function installFactoryAgents(
       // Keep any operator customization when a durable home is reused.
       if (error.code !== "EEXIST") throw error;
     }
+  }
+  // Factory-owned review identities are versioned with the runtime. Refresh
+  // these even in a durable credential home so stale procedures cannot persist.
+  for (const file of readdirSync(reviewers).filter((name) => name.endsWith(".toml"))) {
+    copyFileSync(join(reviewers, file), join(destination, file));
   }
 }
 

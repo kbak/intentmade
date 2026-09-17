@@ -1,5 +1,17 @@
 FROM ghcr.io/openhands/agent-canvas:1.19.0@sha256:7297294fab096329a2246f06da14e8e7cc1ec85dec17d1887cc18745cf059086
 USER root
+# OCR delegation performs no model calls. Pin its executable and matching skill.
+ADD --checksum=sha256:4d2c4f39a98d3e26ac0b76d5f0af304c661f5dad12937c39b2cba4e8e92adeaf --chmod=755 https://github.com/alibaba/open-code-review/releases/download/v1.12.4/opencodereview-linux-amd64 /usr/local/bin/ocr
+ADD --checksum=sha256:2046da3cf30a4b672236c66f707d02383de5792498a8e6d7b9fece6be2c212b9 https://codeload.github.com/alibaba/open-code-review/tar.gz/refs/tags/v1.12.4 /tmp/alibaba-review.tar.gz
+ADD --checksum=sha256:53e708ebf770dfe35b57df0586a5058707081a870cd149ce30a2d57c51ed29b6 https://codeload.github.com/cloudflare/security-audit-skill/tar.gz/c1c8a8c1471069fb0e188eeaff69b8e8db6564a8 /tmp/cloudflare-audit.tar.gz
+RUN mkdir -p /opt/factory/reviewers/alibaba /opt/factory/reviewers/cloudflare && \
+    tar -xzf /tmp/alibaba-review.tar.gz -C /opt/factory/reviewers/alibaba --strip-components=1 --wildcards '*/skills/open-code-review-delegate/*' '*/LICENSE' && \
+    tar -xzf /tmp/cloudflare-audit.tar.gz -C /opt/factory/reviewers/cloudflare --strip-components=1 && \
+    rm /tmp/alibaba-review.tar.gz /tmp/cloudflare-audit.tar.gz && \
+    ocr version && git --version
+COPY runtime/install_reviewers.py /opt/factory/install_reviewers.py
+COPY runtime/ocr-rule.json /opt/factory/reviewers/rule.json
+RUN python /opt/factory/install_reviewers.py && chmod -R a+rX /opt/factory/reviewers
 # Pin the Codex/ACP versions used by the factory integrations.
 RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global \
     @agentclientprotocol/codex-acp@1.10.0 @openai/codex@0.153.4

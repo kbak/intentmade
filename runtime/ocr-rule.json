@@ -1,0 +1,10 @@
+{
+  "include": ["**"],
+  "rules": [
+    {
+      "path": "**",
+      "rule": "Apply the factory-supplied evidence, material-impact, coverage and traceability policy.",
+      "merge_system_rule": true
+    }
+  ]
+}

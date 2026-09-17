@@ -56,8 +56,9 @@ docker run --rm --network none --entrypoint python \
 ```
 
 This probe uses a local scripted model endpoint to check Codex/ACP instruction
-delivery, concurrent specialist selection, inherited model/permissions, and
-retained reports. It checks the protocol, not model review quality. Rebuild and
+delivery, Alibaba reviewer selection, inherited model/permissions, and
+retained reports. Offline OCR tests cover Git ranges, source archives, and required
+file accounting. It checks the protocol, not model review quality. Rebuild and
 rerun after changing the runtime, Codex/ACP pins, or bundled roles.
 
 ## Sandbox and network probes

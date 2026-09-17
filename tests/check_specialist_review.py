@@ -22,7 +22,7 @@ from review_report import ReviewReport
 
 
 def main():
-    barrier = threading.Barrier(2, timeout=15)
+    barrier = threading.Barrier(1, timeout=15)
     finished, verified, failures = set(), set(), []
     parent_requests = 0
     context = stage_context("factory-review")
@@ -31,13 +31,10 @@ def main():
     report_procedure = report_context.skills[0].content
     stage = "review"
     instructions = {
-        key: tomllib.loads(Path(f"/opt/factory/agency-agents/agents/{slug}.toml").read_text())[
+        key: tomllib.loads(Path(f"/opt/factory/reviewers/agents/{slug}.toml").read_text())[
             "developer_instructions"
         ]
-        for key, slug in (
-            ("code", "code-reviewer"),
-            ("security", "application-security-engineer"),
-        )
+        for key, slug in (("code", "alibaba-reviewer"),)
     }
 
     def function(name, key, args):
@@ -89,19 +86,19 @@ def main():
                     )
                     assert 'access="write"' not in environment, "Child has write permissions"
                     assert 'access="read"' in environment, "Child sandbox was not advertised"
-                    # Neither specialist responds until both model requests arrive.
+                    # The scripted reviewer reaches the model endpoint.
                     barrier.wait()
                     verified.add(key)
                 except Exception as exc:
                     failures.append(f"{key}: {type(exc).__name__}: {exc}")
                 report = {
-                    "verdict": "CHANGES_REQUESTED" if key == "security" else "PASS",
+                    "verdict": "CHANGES_REQUESTED",
                     "summary": "Scripted native specialist result.",
                     "blocking_findings": [],
                     "non_blocking_findings": [],
                     "infrastructure_error": None,
                 }
-                if key == "security":
+                if key == "code":
                     report["blocking_findings"].append(
                         {
                             "title": "Optional header hardening",
@@ -137,13 +134,13 @@ def main():
                                 + procedure,
                             },
                         )
-                        for key, role in zip(("code", "security"), ROLES)
+                        for key, role in zip(("code",), ROLES)
                     ]
-                elif parent_requests == 2 or (len(finished) < 2 and parent_requests < 6):
+                elif parent_requests == 2 or (len(finished) < 1 and parent_requests < 6):
                     items = [
                         function("wait_agent", f"wait_{parent_requests}", {"timeout_ms": 10000})
                     ]
-                answer = '{"summary":"Both specialists completed."}'
+                answer = '{"summary":"Alibaba reviewer completed."}'
             if not items:
                 items = [
                     {
@@ -229,11 +226,11 @@ requires_openai_auth = false
                 [event.model_dump(mode="json") for event in conversation.state.events]
             )
             assert not failures, failures
-            assert verified == {"code", "security"}, "Both native roles must execute concurrently"
+            assert verified == {"code"}, "The native Alibaba role must execute"
             assert result.verdict == "PASS", result.model_dump_json(indent=2)
-            assert len(result.reviews) == 2
-            assert len(result.reviews[1].non_blocking_findings) == 1
-            assert not result.reviews[1].blocking_findings
+            assert len(result.reviews) == 1
+            assert len(result.reviews[0].non_blocking_findings) == 1
+            assert not result.reviews[0].blocking_findings
             conversation.close()
             stage = "report"
             conversation = Conversation(
@@ -256,7 +253,7 @@ requires_openai_auth = false
                 event.kind == "ACPToolCallEvent" for event in conversation.state.events
             ), "Report editor used tools"
             print(
-                "PASS: native skill delivery, both review roles, concurrent execution, inherited Astra/xhigh and read-only policy, advisory verdict, and tool-free report editing."
+                "PASS: native skill delivery, Alibaba review role, inherited Astra/xhigh and read-only policy, advisory verdict, and tool-free report editing."
             )
         finally:
             conversation.close()

@@ -1,9 +1,11 @@
-"""Parallel native specialists, with a blocking-only verdict computed by the factory."""
+"""Alibaba subscription review, with coverage and verdict computed by the factory."""
 
 import json
+import shutil
 from typing import Annotated, Literal
 
 from agent import converse
+from ocr_review import prepare
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 from review_report import (
     ReviewReport,
@@ -14,7 +16,7 @@ from review_report import (
     validate_report,
 )
 
-ROLES = ("Code Reviewer", "Application Security Engineer")
+ROLES = ("Alibaba Reviewer",)
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Verdict = Literal["PASS", "CHANGES_REQUESTED", "BLOCKED"]
 
@@ -56,6 +58,16 @@ class Finding(BaseModel):
         )
 
 
+class FileCoverage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project: Text
+    path: Text
+    status: Text
+    outcome: Literal["reviewed", "unavailable"]
+    evidence: Text
+
+
 class SpecialistReview(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -64,6 +76,7 @@ class SpecialistReview(BaseModel):
     blocking_findings: list[Finding]
     non_blocking_findings: list[Finding]
     infrastructure_error: str | None
+    coverage: list[FileCoverage] = Field(default_factory=list)
 
 
 class TraceabilityChange(BaseModel):
@@ -99,12 +112,14 @@ class RoleReview(SpecialistReview):
 
 
 class ReviewResult(BaseModel):
+    review_protocol: Literal[2] = 2
     verdict: Verdict
     summary: str
     reviews: list[RoleReview] = Field(default_factory=list)
     infrastructure_errors: list[str] = Field(default_factory=list)
     presentation: ReviewReport | None = None
     traceability_context: dict[str, dict] = Field(default_factory=dict)
+    review_inputs: dict[str, dict] = Field(default_factory=dict)
 
     def report(self, repository=None, sha=None):
         return render(self, repository, sha)
@@ -135,16 +150,14 @@ class ReviewResult(BaseModel):
 
 def coordinator_prompt(context, traceability=None):
     schema = (
-        "Code Reviewer final-response JSON schema (includes the required traceability assessment):\n"
+        "Alibaba Reviewer final-response JSON schema (includes the required traceability assessment):\n"
         + json.dumps(TraceableSpecialistReview.model_json_schema())
-        + "\nApplication Security Engineer final-response JSON schema:\n"
-        + json.dumps(SpecialistReview.model_json_schema())
         if traceability
         else "Specialist final-response JSON schema (no Markdown fences):\n"
         + json.dumps(SpecialistReview.model_json_schema())
     )
     return (
-        "FACTORY_SPECIALIST_REVIEW_V1\n"
+        "FACTORY_SPECIALIST_REVIEW_V2\n"
         "Apply the factory-review skill to this change.\n"
         + schema
         + "\n\nReview context:\n"
@@ -209,7 +222,20 @@ def validate_assessments(assessments, expected):
             raise ValueError(f"{assessment.project}: traceability assessment omits changed paths")
 
 
-def evaluate(events, traceability=None):
+def validate_coverage(coverage, expected):
+    required = {
+        (project, item["path"], item["status"])
+        for project, spec in expected.items()
+        for item in spec["files"]
+    }
+    actual = [(item.project, item.path, item.status) for item in coverage]
+    if len(actual) != len(set(actual)) or set(actual) != required:
+        raise ValueError("Review coverage must account for every selected file exactly once")
+    if any(item.outcome != "reviewed" for item in coverage):
+        raise ValueError("Required source or patch evidence remains unavailable")
+
+
+def evaluate(events, traceability=None, review_inputs=None):
     # ACPToolCallEvent comes from the adapter, not assistant prose or a shell's output.
     evidence = [
         event
@@ -217,7 +243,7 @@ def evaluate(events, traceability=None):
         if event.get("kind") == "ACPToolCallEvent"
         and event.get("title") == "Factory specialist review"
         and isinstance(event.get("raw_input"), dict)
-        and event["raw_input"].get("version") == 1
+        and event["raw_input"].get("version") == 2
     ]
     errors, results = [], []
     if not evidence:
@@ -232,8 +258,8 @@ def evaluate(events, traceability=None):
         else:
             agents = payload["agents"]
             root = event["raw_input"].get("threadId")
-            if len(agents) != 2:
-                errors.append("Expected exactly two native review subagents.")
+            if len(agents) != len(ROLES):
+                errors.append("Expected exactly one native Alibaba review subagent.")
             seen = set()
             for role in ROLES:
                 matches = [a for a in agents if isinstance(a, dict) and a.get("role") == role]
@@ -255,20 +281,13 @@ def evaluate(events, traceability=None):
                     errors.append(f"{role}: native review did not complete.")
                     continue
                 try:
-                    schema = (
-                        TraceableSpecialistReview
-                        if traceability and role == "Code Reviewer"
-                        else SpecialistReview
-                    )
+                    schema = TraceableSpecialistReview if traceability else SpecialistReview
                     review = schema.model_validate_json(agent.get("message") or "")
+                    validate_coverage(review.coverage, review_inputs or {})
                     if isinstance(review, TraceableSpecialistReview):
                         validate_assessments(review.traceability_assessment, traceability)
                 except (ValidationError, TypeError):
-                    required = (
-                        " with the required traceability assessment"
-                        if traceability and role == "Code Reviewer"
-                        else ""
-                    )
+                    required = " with the required traceability assessment" if traceability else ""
                     errors.append(f"{role}: final response is not valid specialist JSON{required}.")
                     continue
                 except ValueError as exc:
@@ -343,15 +362,28 @@ def evaluate(events, traceability=None):
             }
             for project, value in (traceability or {}).items()
         },
+        review_inputs=review_inputs or {},
     )
 
 
 def review_code(
-    workspace, context, *, title="Independent review", transcript=None, traceability=None
+    workspace,
+    context,
+    *,
+    title="Independent review",
+    transcript=None,
+    traceability=None,
+    sources=None,
+    input_path=None,
 ):
     events = []
     failure = None
+    review_inputs = {}
     try:
+        review_inputs = prepare(workspace, sources, input_path)
+        if transcript:
+            shutil.copyfile(input_path, transcript.with_name(transcript.stem + "-ocr-input.json"))
+        context += f"\n\nController-prepared OCR delegation input: {input_path}. Read this file before reviewing."
         converse(
             workspace,
             coordinator_prompt(context, traceability),
@@ -362,7 +394,7 @@ def review_code(
         )
     except Exception as exc:
         failure = f"Review coordinator failed: {type(exc).__name__}: {exc}"
-    result = evaluate(events, traceability)
+    result = evaluate(events, traceability, review_inputs)
     if failure:
         result.verdict = "BLOCKED"
         result.infrastructure_errors.append(failure)

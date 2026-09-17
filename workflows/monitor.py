@@ -32,7 +32,9 @@ def review_pr(config, pr, credential):
         report.update("REVIEWING", f"Reviewing commit {pr['head']['sha']}.")
     try:
         previous = review_requests.read(config, pr) or {}
-        if previous.get("status") == "PUBLICATION_FAILED":
+        if previous.get("status") == "PUBLICATION_FAILED" and review_publication.current_protocol(
+            previous["artifact"]
+        ):
             artifact = Path(previous["artifact"])
             review = review_publication.load_saved(config, pr, artifact)
             if review.presentation is None:
@@ -157,6 +159,15 @@ def _review_pr(config, pr, credential):
                 + traceability.review_context(trace_review),
                 title=f"PR review — {repo} #{number}",
                 transcript=artifact / "review.jsonl",
+                sources={
+                    config["project"]: {
+                        "source": str(root / "source"),
+                        "candidate": sha,
+                        "files": context["files"],
+                        "changed_files": pr["changed_files"],
+                    }
+                },
+                input_path=root / "ocr-review.json",
                 **({"traceability": trace_review} if trace_review else {}),
             )
         report = review.report(repo, sha)
@@ -571,7 +582,7 @@ def poll(config, credential, replies_only=False):
                     state["done"][key] = "completed" if result else "ineligible"
                     processed += bool(result)
             elif kind == "review":
-                phase(f"Reviewing PR #{item['number']} with code and security specialists")
+                phase(f"Reviewing PR #{item['number']} with Alibaba code and security review")
                 review_requests.remember(config, item, "STARTED")
                 current = review_pr(config, item, credential)
                 review_requests.remember(config, item, "REVIEWED" if current else "STALE")

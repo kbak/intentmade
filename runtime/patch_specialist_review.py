@@ -6,7 +6,7 @@ from pathlib import Path
 
 ADAPTER = Path("/acp-node/lib/node_modules/@agentclientprotocol/codex-acp")
 MARKER = "    const clearRecoveredSessionFailure = async (handler) => {\n"
-REPLACEMENT = """    if (params.prompt.some((block) => block.type === "text" && block.text.startsWith("FACTORY_SPECIALIST_REVIEW_V1\\n"))) {
+REPLACEMENT = """    if (params.prompt.some((block) => block.type === "text" && block.text.startsWith("FACTORY_SPECIALIST_REVIEW_V2\\n"))) {
       sessionState.factorySpecialistReview = true;
     }
     const clearRecoveredSessionFailure = async (handler) => {

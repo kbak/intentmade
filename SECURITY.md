@@ -13,8 +13,8 @@ integration tests. The parent keeps the GitHub credential and publishes draft
 PRs only after the configured tests and independent review pass. Merge and
 deployment remain operator actions.
 
-Standalone requested/manual PR reviews publish one consolidated report from both
-completed specialists and their computed verdict to GitHub. PASS submits APPROVE;
+Standalone requested/manual PR reviews publish one consolidated report from the completed
+Alibaba reviewer and its factory-computed verdict to GitHub. PASS submits APPROVE;
 blocking findings submit REQUEST_CHANGES. Only the parent has GitHub credentials and can submit;
 it rechecks the reviewed commit and CI before posting. Incomplete or stale
 reviews cannot approve a PR. Publication does not merge or deploy the change.
@@ -43,10 +43,10 @@ removes the daily cap; per-poll batching and repository locks still apply.
 - Independent review uses a fresh clone in a new worker after implementation
   exits. Triage also runs in a worker, with a copy of the catalog. Neither runs
   repository tools in the credential-bearing Canvas process.
-- Review runs the Code Reviewer and Application Security Engineer roles in
-  parallel under a read-only coordinator. The adapter obtains role identities,
+- Review runs one Alibaba Reviewer under a read-only coordinator, using OCR
+  delegation with the existing subscription. The adapter obtains role identities,
   parent/child relationships, completion and final messages from native Codex
-  thread records. The factory validates both reports and computes a verdict
+  thread records. The factory validates its report and file coverage and computes a verdict
   from blocking findings; it does not trust a coordinator's claim of success.
   Minor findings are advisory. Missing or malformed review evidence prevents
   publication. A read-only editing pass groups duplicate findings for publication;
