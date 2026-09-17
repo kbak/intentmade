@@ -129,6 +129,27 @@ def attempted(config, pr):
     return bool(record) and record["status"] != "STALE"
 
 
+def snapshot(config, pr):
+    return {
+        "repository": config["repository"].casefold(),
+        "pr": pr["number"],
+        "head": pr["head"]["sha"],
+    }
+
+
+def retryable(config, pr, reply):
+    if not reply:
+        return False
+    record = read(config, pr) or {}
+    return (
+        record.get("status") in {"FAILED", "PUBLICATION_FAILED"}
+        and record.get("answer_id") != reply["id"]
+        # Older standalone reports did not save a snapshot. Their per-head
+        # failure receipt still has to exist; a reply cannot waive a new head.
+        and reply.get("snapshot") in (None, snapshot(config, pr))
+    )
+
+
 def read(config, pr):
     path = receipt_path(config, pr)
     return json.loads(path.read_text()) if path.exists() else None

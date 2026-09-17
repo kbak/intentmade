@@ -133,6 +133,7 @@ class RequestedReviewSchedulerTests(unittest.TestCase):
         for target, name, value in (
             (monitor, "DATA", self.root),
             (review_requests, "DATA", self.root),
+            (monitor.reporting, "DATA", self.root),
             (monitor, "job_id", lambda: "run"),
             (review_requests, "job_id", lambda: "run"),
             (monitor, "review_pr", self.review),
@@ -293,6 +294,97 @@ class RequestedReviewSchedulerTests(unittest.TestCase):
         ):
             monitor.poll(CONFIG, "secret")
         self.review.assert_not_called()
+
+    def failed_reply(self, status="FAILED", snapshot=None):
+        review_requests.remember(CONFIG, self.pr, status)
+        key = f"pr:{self.pr['number']}:{self.pr['head']['sha']}"
+        self.state["done"][key] = "failed:previous-run"
+        return {"id": "answer-1", "answer": "retry", "snapshot": snapshot}
+
+    def test_explicit_retry_runs_once_in_reply_and_scheduled_scans(self):
+        for replies_only, snapshot in (
+            (True, None),  # Reports saved before PR snapshots were introduced.
+            (False, review_requests.snapshot(CONFIG, PR)),
+        ):
+            with self.subTest(replies_only=replies_only):
+                reply = self.failed_reply(snapshot=snapshot)
+                self.review.reset_mock()
+                with patch.object(monitor, "resume_reply", return_value=reply):
+                    monitor.poll(CONFIG, "secret", replies_only=replies_only)
+                    self.review.assert_called_once()
+                    self.assertEqual(review_requests.read(CONFIG, PR)["answer_id"], "answer-1")
+                    self.state["done"] = {}
+                    monitor.poll(CONFIG, "secret", replies_only=replies_only)
+                    self.review.assert_called_once()
+                review_requests.receipt_path(CONFIG, PR).unlink()
+
+    def test_failed_retry_consumes_answer_and_requires_another_explicit_reply(self):
+        reply = self.failed_reply()
+        self.review.side_effect = RuntimeError("Reviewer unavailable")
+        with patch.object(monitor, "resume_reply", return_value=reply):
+            with self.assertRaisesRegex(RuntimeError, "Reviewer unavailable"):
+                monitor.poll(CONFIG, "secret", replies_only=True)
+            self.state["done"] = {}
+            monitor.poll(CONFIG, "secret", replies_only=True)
+            self.review.assert_called_once()
+            reply["id"] = "answer-2"
+            self.review.side_effect = None
+            monitor.poll(CONFIG, "secret", replies_only=True)
+            self.assertEqual(self.review.call_count, 2)
+
+    def test_retry_preserves_publication_failure_evidence_until_review_starts(self):
+        reply = self.failed_reply("PUBLICATION_FAILED")
+
+        def review(*args):
+            record = review_requests.read(CONFIG, PR)
+            self.assertEqual(record["status"], "PUBLICATION_FAILED")
+            self.assertEqual(record["answer_id"], reply["id"])
+            return True
+
+        self.review.side_effect = review
+        with patch.object(monitor, "resume_reply", return_value=reply):
+            monitor.poll(CONFIG, "secret", replies_only=True)
+        self.review.assert_called_once()
+
+    def test_retry_does_not_waive_revision_scope_ci_or_human_review_checks(self):
+        reply = self.failed_reply(snapshot=review_requests.snapshot(CONFIG, PR))
+        with patch.object(monitor, "resume_reply", return_value=reply):
+            self.eligible.return_value = False
+            monitor.poll(CONFIG, "secret", replies_only=True)
+            self.eligible.return_value = True
+            with patch.object(review_requests.ReviewRequests, "human_reviewed", return_value=True):
+                monitor.poll(CONFIG, "secret", replies_only=True)
+            for change in (
+                {"requested_teams": []},
+                {"head": {"sha": "b" * 40}},
+                {"draft": True},
+                {"state": "closed"},
+            ):
+                with patch.object(monitor.reviews, "_get_pr", side_effect=[PR, {**PR, **change}]):
+                    monitor.poll(CONFIG, "secret", replies_only=True)
+            reply["snapshot"]["head"] = "b" * 40
+            monitor.poll(CONFIG, "secret", replies_only=True)
+        self.review.assert_not_called()
+        self.assertNotIn("answer_id", review_requests.read(CONFIG, PR))
+
+    def test_busy_retry_preserves_failure_receipt_and_unconsumed_report(self):
+        reply = self.failed_reply()
+        record = {"status": "FAILED", "snapshot": None, "updated_at": "before-reply"}
+        monitor.reporting.write_report(CONFIG, "pr-42", record)
+        before = review_requests.read(CONFIG, PR)
+
+        def busy(*args):
+            monitor.reporting.write_report(CONFIG, "pr-42", {"status": "FAILED"})
+            raise BlockingIOError("busy")
+
+        self.review.side_effect = busy
+        with patch.object(monitor, "resume_reply", return_value=reply):
+            monitor.poll(CONFIG, "secret", replies_only=True)
+            self.assertEqual(review_requests.read(CONFIG, PR), before)
+            self.assertEqual(monitor.reporting.read_report(CONFIG, "pr-42"), record)
+            self.review.side_effect = None
+            monitor.poll(CONFIG, "secret", replies_only=True)
+            self.assertEqual(self.review.call_count, 2)
 
     def test_requested_review_runs_before_issue_with_shared_poll_budget(self):
         issue = {"number": 7, "title": "Issue", "body": "Build", "state": "open", "assignees": []}

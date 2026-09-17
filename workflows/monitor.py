@@ -27,7 +27,11 @@ from sandbox import worker
 
 
 def review_pr(config, pr, credential):
-    report = TaskReport(config, f"pr-{pr['number']}") if reporting.ACTIVE else None
+    report = (
+        TaskReport(config, f"pr-{pr['number']}", review_requests.snapshot(config, pr))
+        if reporting.ACTIVE
+        else None
+    )
     if report:
         report.update("REVIEWING", f"Reviewing commit {pr['head']['sha']}.")
     try:
@@ -492,17 +496,27 @@ def poll(config, credential, replies_only=False):
         # changes request enter standalone review.
         if not followup.read(config, item["number"]):
             try:
-                if replies_only or not requests.eligible(item):
+                resume = resume_reply(config, f"pr-{item['number']}")
+                if (replies_only and not resume) or not requests.eligible(item):
                     continue
                 fresh = reviews._get_pr(credential, repo, item["number"])
                 key = f"pr:{fresh['number']}:{fresh['head']['sha']}"
+                retry = review_requests.retryable(config, fresh, resume)
                 if (
-                    key not in state["done"]
-                    and not review_requests.attempted(config, fresh)
+                    (
+                        retry
+                        or (
+                            not replies_only
+                            and key not in state["done"]
+                            and not review_requests.attempted(config, fresh)
+                        )
+                    )
                     and requests.eligible(fresh)
                     and not requests.human_reviewed(fresh)
                     and pr_eligible(credential, fresh, config)
                 ):
+                    if retry:
+                        fresh = {**fresh, "factory_resume": resume}
                     requested_reviews.append(("review", key, fresh))
             except urllib.error.HTTPError as exc:
                 if exc.code != 404:
@@ -542,7 +556,8 @@ def poll(config, credential, replies_only=False):
     for kind, key, item in candidates:
         if remaining <= 0:
             break
-        if key in state["done"]:
+        review_resume = item.get("factory_resume") if kind == "review" else None
+        if key in state["done"] and not review_resume:
             continue
         if kind == "review":
             # Earlier work can take hours. Recheck review scope, human reviews,
@@ -560,7 +575,13 @@ def poll(config, credential, replies_only=False):
                 if exc.code != 404:
                     errors.append(f"PR #{item['number']}: review readiness check failed: {exc}")
                 continue
+            if review_resume and not review_requests.retryable(config, fresh, review_resume):
+                continue
             item = fresh
+        previous_review = review_requests.read(config, item) if kind == "review" else None
+        previous_report = (
+            reporting.read_report(config, f"pr-{item['number']}") if review_resume else None
+        )
         # Persist before execution so interruption cannot silently duplicate work.
         state["done"][key] = "started:" + job_id()
         state["count"] += 1
@@ -583,7 +604,19 @@ def poll(config, credential, replies_only=False):
                     processed += bool(result)
             elif kind == "review":
                 phase(f"Reviewing PR #{item['number']} with Alibaba code and security review")
-                review_requests.remember(config, item, "STARTED")
+                # Keep saved publication evidence available to review_pr while
+                # recording the answer before execution, so retries are one-shot.
+                status = (
+                    "PUBLICATION_FAILED"
+                    if previous_review and previous_review["status"] == "PUBLICATION_FAILED"
+                    else "STARTED"
+                )
+                review_requests.remember(
+                    config,
+                    item,
+                    status,
+                    **({"answer_id": review_resume["id"]} if review_resume else {}),
+                )
                 current = review_pr(config, item, credential)
                 review_requests.remember(config, item, "REVIEWED" if current else "STALE")
                 if current:
@@ -602,7 +635,14 @@ def poll(config, credential, replies_only=False):
         except BlockingIOError:
             state["done"].pop(key, None)
             if kind == "review":
-                review_requests.receipt_path(config, item).unlink(missing_ok=True)
+                if review_resume:
+                    review_requests.receipt_path(config, item).write_text(
+                        json.dumps(previous_review)
+                    )
+                    if previous_report:
+                        reporting.write_report(config, f"pr-{item['number']}", previous_report)
+                else:
+                    review_requests.receipt_path(config, item).unlink(missing_ok=True)
             if kind == "issue":
                 path, event, previous = receipt(key)
                 if previous and previous["event"] == event:

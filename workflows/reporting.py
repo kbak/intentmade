@@ -145,7 +145,7 @@ class TaskReport:
                 "An explicit resume message queues the continuation immediately. "
                 "If the repository is busy, it waits for the current work to finish. "
                 "The report assistant is read-only; native automation runs the continuation. "
-                "Only report that it has started when its RUNNING update appears.",
+                "Only report that it has started when its RUNNING or REVIEWING update appears.",
             )
         if ACTIVE:
             self.record["run_id"] = ACTIVE["run_id"]

@@ -44,8 +44,9 @@ def queue_reply(conversation_id):
             # acknowledgement is lost, even a duplicate run cannot apply it twice.
             reporting.post(
                 conversation_id,
-                "Your answer has queued a continuation. It will start as soon as the "
-                "repository is available; no scheduled scan is required.",
+                "Your answer has queued a continuation. The factory will recheck the task "
+                "before starting it. If the repository is busy, the continuation will wait; "
+                "no scheduled scan is required.",
             )
             return True
     return False
