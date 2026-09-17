@@ -445,12 +445,13 @@ new issues, within the existing poll and daily budgets. Team membership is
 checked through GitHub, including inherited membership through child teams; the
 connection needs organization membership read access. Each current commit is
 checked for submitted human reviews (`APPROVED`, `CHANGES_REQUESTED`, or
-`COMMENTED`); bot reviews, author self-comments, pending/dismissed reviews and
-reviews of older commits do not suppress a factory review. Review scope, commit
-and CI are rechecked before work.
+`COMMENTED`); bot reviews, factory-generated reports, author self-comments,
+pending/dismissed reviews and reviews of older commits do not suppress a factory
+review. Review scope, head commit, base branch and commit, and CI are rechecked
+before work and publication.
 
 A fresh review request is optional after this factory requests changes: a new,
-CI-ready commit can trigger a follow-up automatically. The factory requires its
+CI-ready head or base can trigger a follow-up automatically. The factory requires its
 own durable publication receipt and verifies that the connected account's latest
 submitted verdict is still that changes request. Approval or dismissal ends this
 automatic follow-up; an explicit account/team request continues to work as
@@ -458,8 +459,10 @@ before. Author comments claiming a fix and reviews posted outside this factory
 do not establish automatic follow-up scope. The reviewers receive the PR's
 discussion and previous reviews through the same review pipeline.
 
-Completed factory reviews have durable per-repository, PR and commit receipts,
-including manual reviews. New commits can receive a new review. Failed or
+Completed factory reviews have durable receipts bound to the repository, PR,
+head commit, base branch and base commit, including manual reviews. New commits
+and retargeted PRs can receive a new review. Saved reviews without a pinned base
+require a fresh review before publication. Failed or
 interrupted automatic attempts are reported and held for an explicit `factoryctl
 review` retry, avoiding repeated agent runs on every poll. A stale result does
 not count as a completed review.

@@ -23,6 +23,37 @@ from pydantic import ValidationError
 
 
 class BrowserQATests(unittest.TestCase):
+    def test_rename_selection_checks_both_removed_and_added_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            checkout = Path(temp)
+            common.git(["init", "-b", "main", str(checkout)])
+            common.git(["config", "user.email", "qa@example.test"], cwd=checkout)
+            common.git(["config", "user.name", "QA"], cwd=checkout)
+            (checkout / "frontend").mkdir()
+            (checkout / "frontend/index.html").write_text("Frontend")
+            common.git(["add", "."], cwd=checkout)
+            common.git(["commit", "-m", "Initial"], cwd=checkout)
+            base = common.git(["rev-parse", "HEAD"], cwd=checkout).stdout.strip()
+            (checkout / "archive").mkdir()
+            common.git(["mv", "frontend/index.html", "archive/index.html"], cwd=checkout)
+            common.git(["commit", "-m", "Move frontend"], cwd=checkout)
+            head = common.git(["rev-parse", "HEAD"], cwd=checkout).stdout.strip()
+            state = {"repository": str(checkout / ".git"), "base": base, "commit": head}
+            for paths, exclude, expected in (
+                (["frontend/**"], [], True),
+                (["archive/**"], [], True),
+                (["frontend/**"], ["archive/**"], True),
+                (["frontend/**"], ["frontend/**"], False),
+                (["unrelated/**"], [], False),
+            ):
+                with self.subTest(paths=paths, exclude=exclude):
+                    self.assertEqual(
+                        browser_qa.selected(
+                            {"browser_qa": {"paths": paths, "exclude": exclude}}, state
+                        ),
+                        expected,
+                    )
+
     def gap_result(self):
         return {
             "status": "BLOCKED",

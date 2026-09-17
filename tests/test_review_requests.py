@@ -27,6 +27,7 @@ PR = {
     "state": "open",
     "draft": False,
     "head": {"sha": "a" * 40},
+    "base": {"ref": "main", "sha": "c" * 40},
     "user": {"login": "author", "type": "User"},
     "requested_reviewers": [],
     "requested_teams": [{"slug": "engineers"}],
@@ -104,6 +105,7 @@ class RequestScopeTests(unittest.TestCase):
             ({"state": "CHANGES_REQUESTED"}, True),
             ({"state": "COMMENTED"}, True),
             ({"state": "PENDING"}, False),
+            ({"body": "<!-- factory-review:v1:org/repo:42:head -->"}, False),
             ({"state": "DISMISSED"}, False),
             ({"commit_id": "b" * 40}, False),
             ({"user": {"login": "bot", "type": "Bot"}}, False),
@@ -179,6 +181,24 @@ class RequestedReviewSchedulerTests(unittest.TestCase):
         monitor.poll(CONFIG, "secret")
         self.review.assert_not_called()
 
+    def test_base_change_with_same_head_requires_another_review(self):
+        monitor.poll(CONFIG, "secret")
+        self.pr["base"]["ref"] = "release"
+        monitor.poll(CONFIG, "secret")
+        self.assertEqual(self.review.call_count, 2)
+        self.pr["base"]["sha"] = "d" * 40
+        monitor.poll(CONFIG, "secret")
+        self.assertEqual(self.review.call_count, 3)
+        monitor.poll(CONFIG, "secret")
+        self.assertEqual(self.review.call_count, 3)
+
+    def test_failed_receipt_or_reply_cannot_cross_base_changes(self):
+        reply = self.failed_reply(snapshot=review_requests.snapshot(CONFIG, PR))
+        for base in ({"ref": "release", "sha": "c" * 40}, {"ref": "main", "sha": "d" * 40}):
+            changed = {**PR, "base": base}
+            self.assertFalse(review_requests.attempted(CONFIG, changed))
+            self.assertFalse(review_requests.retryable(CONFIG, changed, reply))
+
     def test_ci_is_rechecked_on_next_poll_without_pr_timestamp_change(self):
         self.eligible.return_value = False
         monitor.poll(CONFIG, "secret")
@@ -245,6 +265,8 @@ class RequestedReviewSchedulerTests(unittest.TestCase):
         for change in (
             {"requested_teams": []},
             {"head": {"sha": "b" * 40}},
+            {"base": {"ref": "release", "sha": "c" * 40}},
+            {"base": {"ref": "main", "sha": "d" * 40}},
             {"draft": True},
             {"state": "closed"},
         ):
@@ -297,7 +319,7 @@ class RequestedReviewSchedulerTests(unittest.TestCase):
 
     def failed_reply(self, status="FAILED", snapshot=None):
         review_requests.remember(CONFIG, self.pr, status)
-        key = f"pr:{self.pr['number']}:{self.pr['head']['sha']}"
+        key = f"pr:{self.pr['number']}:{review_requests.revision(self.pr)}"
         self.state["done"][key] = "failed:previous-run"
         return {"id": "answer-1", "answer": "retry", "snapshot": snapshot}
 
@@ -357,6 +379,8 @@ class RequestedReviewSchedulerTests(unittest.TestCase):
             for change in (
                 {"requested_teams": []},
                 {"head": {"sha": "b" * 40}},
+                {"base": {"ref": "release", "sha": "c" * 40}},
+                {"base": {"ref": "main", "sha": "d" * 40}},
                 {"draft": True},
                 {"state": "closed"},
             ):
@@ -443,6 +467,13 @@ class FollowUpScopeTests(unittest.TestCase):
 
     def test_own_published_changes_request_carries_over_to_a_new_commit(self):
         self.assertTrue(self.eligible())
+
+    def test_changes_request_carries_over_to_retargeted_same_head(self):
+        self.assertTrue(
+            self.eligible(
+                {**self.pr, "head": PR["head"], "base": {"ref": "release", "sha": "c" * 40}}
+            )
+        )
 
     def test_unrelated_pr_repository_author_and_unchanged_head_are_excluded(self):
         for change in (

@@ -209,11 +209,14 @@ def _review_pr(config, pr, credential):
         if review.verdict == "BLOCKED":
             raise RuntimeError("Independent review infrastructure blocked: " + review.summary)
         fresh = reviews._get_pr(credential, repo, number)
-        current = fresh["head"]["sha"] == sha and pr_eligible(credential, fresh, config)
+        current = review_requests.snapshot(config, fresh) == review_requests.snapshot(
+            config, pr
+        ) and pr_eligible(credential, fresh, config)
         result = {
             "repository": repo,
             "pr": number,
             "head": sha,
+            "base": review_requests.base(pr),
             "status": "REVIEWED" if current else "STALE",
             "verdict": review.verdict,
         }
@@ -533,7 +536,7 @@ def poll(config, credential, replies_only=False):
                 if (replies_only and not resume) or not requests.eligible(item):
                     continue
                 fresh = reviews._get_pr(credential, repo, item["number"])
-                key = f"pr:{fresh['number']}:{fresh['head']['sha']}"
+                key = f"pr:{fresh['number']}:{review_requests.revision(fresh)}"
                 retry = review_requests.retryable(config, fresh, resume)
                 if (
                     (
@@ -598,7 +601,8 @@ def poll(config, credential, replies_only=False):
             try:
                 fresh = reviews._get_pr(credential, repo, item["number"])
                 if (
-                    fresh["head"]["sha"] != item["head"]["sha"]
+                    review_requests.snapshot(config, fresh)
+                    != review_requests.snapshot(config, item)
                     or not review_requests.ReviewRequests(config, credential).eligible(fresh)
                     or requests.human_reviewed(fresh)
                     or not pr_eligible(credential, fresh, config)

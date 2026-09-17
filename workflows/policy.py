@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import re
+from collections import defaultdict
 from fnmatch import fnmatchcase
 
 from common import github, issues
@@ -43,7 +45,7 @@ def checks_pass(checks, config):
 
 
 def latest_check_runs(token, repo, sha):
-    checks = {}
+    groups = defaultdict(list)
     page = 1
     while True:
         data = github(
@@ -54,20 +56,42 @@ def latest_check_runs(token, repo, sha):
         )
         for check in data["check_runs"]:
             provider = (check.get("app") or {}).get("id")
-            # A title edit or rerun can create another suite on the same SHA.
-            # Supersede an older result from the same provider, but retain
-            # failures from other providers with the same check name.
-            key = (
-                (provider, check["name"])
-                if provider is not None and check.get("id")
-                else ("unknown", len(checks))
-            )
-            if key not in checks or check.get("id", 0) > checks[key].get("id", 0):
-                checks[key] = check
+            groups[provider, check["name"]].append(check)
         if len(data["check_runs"]) < 100:
             break
         page += 1
-    return list(checks.values())
+    checks, runs = [], {}
+    for group in groups.values():
+        if len(group) == 1:
+            checks.extend(group)
+            continue
+        workflows = defaultdict(list)
+        for check in group:
+            run = re.fullmatch(
+                re.escape(f"https://github.com/{repo}/actions/runs/") + r"(\d+)/job/\d+",
+                check.get("details_url") or "",
+                re.IGNORECASE,
+            )
+            if not run or (check.get("app") or {}).get("slug") != "github-actions":
+                # A shared provider/name alone never establishes a retry relationship.
+                checks.append(check)
+                continue
+            run_id = int(run[1])
+            if run_id not in runs:
+                runs[run_id] = github(token, "GET", f"/repos/{repo}/actions/runs/{run_id}")
+            metadata = runs[run_id]
+            if not metadata.get("workflow_id") or not metadata.get("event"):
+                checks.append(check)
+                continue
+            workflows[
+                metadata["workflow_id"], metadata["event"], metadata.get("head_branch")
+            ].append((run_id, check))
+        for attempts in workflows.values():
+            latest = max(run_id for run_id, _ in attempts)
+            # Keep all jobs in that run, including matrix jobs with identical names.
+            # GitHub's filter=latest already selects rerun attempts within a suite.
+            checks.extend(check for run_id, check in attempts if run_id == latest)
+    return checks
 
 
 def checks_for(token, repo, sha):

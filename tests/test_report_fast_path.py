@@ -155,7 +155,11 @@ class DirectReportTests(unittest.TestCase):
                     result.presentation = review_report.consolidate(
                         Mock(), result, initial_review=True
                     )
-                pr = {"number": 42, "head": {"sha": "a" * 40}}
+                pr = {
+                    "number": 42,
+                    "base": {"ref": "main", "sha": "c" * 40},
+                    "head": {"sha": "a" * 40},
+                }
                 posted = {
                     "id": 1,
                     "html_url": "https://example.test/review/1",
@@ -251,7 +255,12 @@ class InitialReviewContextTests(unittest.TestCase):
                 artifact.mkdir()
                 checkout = root / "checkout"
                 checkout.mkdir()
-                pr = {"number": 42, "head": {"sha": "a" * 40}, "changed_files": 0}
+                pr = {
+                    "number": 42,
+                    "base": {"ref": "main", "sha": "c" * 40},
+                    "head": {"sha": "a" * 40},
+                    "changed_files": 0,
+                }
 
                 def paginate(token, path):
                     if history is None:

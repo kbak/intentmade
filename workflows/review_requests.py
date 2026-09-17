@@ -1,4 +1,4 @@
-"""Requested and follow-up reviews, scoped by account and per-commit receipts."""
+"""Requested and follow-up reviews, scoped by account and PR comparison."""
 
 import hashlib
 import json
@@ -51,7 +51,7 @@ class ReviewRequests:
         return False
 
     def follows_up(self, pr):
-        """Continue our outstanding changes request on a new commit without a new ping."""
+        """Continue our changes request on a changed comparison without a new ping."""
         if pr.get("state") != "open" or pr.get("draft"):
             return False
         prior = {}
@@ -62,7 +62,7 @@ class ReviewRequests:
                 record.get("status") == "REVIEWED"
                 and record.get("repository", "").casefold() == self.repo.casefold()
                 and record.get("pr") == pr["number"]
-                and record.get("head") != pr["head"]["sha"]
+                and (record.get("head") != pr["head"]["sha"] or record.get("base") != base(pr))
                 and posted.get("state") == "CHANGES_REQUESTED"
                 and posted.get("commit_id") == record.get("head")
                 and posted.get("id")
@@ -101,6 +101,7 @@ class ReviewRequests:
         return any(
             review.get("commit_id") == pr["head"]["sha"]
             and review.get("state") in {"APPROVED", "CHANGES_REQUESTED", "COMMENTED"}
+            and "<!-- factory-review:" not in (review.get("body") or "")
             and (review.get("user") or {}).get("type") == "User"
             and (review.get("user") or {}).get("login", "").casefold()
             != (pr.get("user") or {}).get("login", "").casefold()
@@ -110,17 +111,32 @@ class ReviewRequests:
         )
 
 
-def receipt_path(config, pr):
+def base(pr):
+    value = pr.get("base") or {}
+    if (
+        not isinstance(value.get("ref"), str)
+        or not value["ref"]
+        or not re.fullmatch(r"[0-9a-f]{40,64}", value.get("sha", ""))
+    ):
+        raise ValueError("Review requires a pinned PR base branch and commit")
+    return {"ref": value["ref"], "sha": value["sha"]}
+
+
+def revision(pr):
     sha = pr["head"]["sha"]
     if not re.fullmatch(r"[0-9a-f]{40,64}", sha):
         raise ValueError("Invalid PR commit SHA")
+    return sha + "-" + hashlib.sha256(json.dumps(base(pr), sort_keys=True).encode()).hexdigest()
+
+
+def receipt_path(config, pr):
     return (
         DATA
         / "pr-reviews"
         / identifier(config["project"])
         / hashlib.sha256(config["repository"].casefold().encode()).hexdigest()
         / str(int(pr["number"]))
-        / (sha + ".json")
+        / (revision(pr) + ".json")
     )
 
 
@@ -134,6 +150,7 @@ def snapshot(config, pr):
         "repository": config["repository"].casefold(),
         "pr": pr["number"],
         "head": pr["head"]["sha"],
+        "base": base(pr),
     }
 
 
@@ -144,8 +161,8 @@ def retryable(config, pr, reply):
     return (
         record.get("status") in {"FAILED", "PUBLICATION_FAILED"}
         and record.get("answer_id") != reply["id"]
-        # Older standalone reports did not save a snapshot. Their per-head
-        # failure receipt still has to exist; a reply cannot waive a new head.
+        # Older standalone reports did not save a snapshot. A failure receipt
+        # for this exact comparison must still exist to authorize a retry.
         and reply.get("snapshot") in (None, snapshot(config, pr))
     )
 
@@ -166,6 +183,7 @@ def remember(config, pr, status, **details):
                 "repository": config["repository"],
                 "pr": pr["number"],
                 "head": pr["head"]["sha"],
+                "base": base(pr),
                 "status": status,
                 "run_id": job_id(),
                 **details,

@@ -128,6 +128,7 @@ def selected(config, state):
             "--git-dir",
             state["repository"],
             "diff",
+            "--no-renames",
             "--name-only",
             "-z",
             state["base"],

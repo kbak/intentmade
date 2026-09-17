@@ -18,7 +18,13 @@ from test_specialist_review import evidence, finding, specialist
 from test_traceability_review import assessed, change
 
 CONFIG = {"project": "example", "repository": "org/repo"}
-PR = {"number": 42, "head": {"sha": "a" * 40}, "state": "open", "draft": False}
+PR = {
+    "number": 42,
+    "head": {"sha": "a" * 40},
+    "base": {"ref": "main", "sha": "c" * 40},
+    "state": "open",
+    "draft": False,
+}
 
 
 def present(events):
@@ -152,6 +158,7 @@ class PublicationTests(unittest.TestCase):
                         "repository": CONFIG["repository"],
                         "pr": PR["number"],
                         "head": PR["head"]["sha"],
+                        "base": PR["base"],
                         "status": "REVIEWED",
                     }
                 )
@@ -254,6 +261,20 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(posted["id"], 123)
         self.assertEqual(len(self.posted), 1)
 
+    def test_retargeted_or_advanced_base_cannot_publish_or_reuse_old_review(self):
+        result = present([evidence()])
+        review_publication.publish(CONFIG, PR, result, "secret")
+        original_body = self.posted[0]["body"]
+        for base in ({"ref": "release", "sha": "c" * 40}, {"ref": "main", "sha": "d" * 40}):
+            with self.subTest(base=base):
+                self.pr = {**PR, "base": base}
+                with self.assertRaisesRegex(review_publication.PublicationError, "head or base"):
+                    review_publication.publish(CONFIG, PR, result, "secret")
+                self.assertEqual(len(self.posted), 1)
+                review_publication.publish(CONFIG, self.pr, result, "secret")
+                self.assertNotEqual(self.posted[-1]["body"], original_body)
+                self.posted.pop()
+
     def test_another_authors_marker_is_not_our_receipt_and_dismissal_is_not_approval(self):
         result = present([evidence()])
         review_publication.publish(CONFIG, PR, result, "secret")
@@ -276,7 +297,13 @@ class PublicationRecoveryTests(unittest.TestCase):
             job.mkdir()
             events = [evidence(code=specialist(blocking_findings=[finding()]))]
             result = review.evaluate(events)
-            saved = {"repository": "org/repo", "pr": 42, "head": "a" * 40, "status": "REVIEWED"}
+            saved = {
+                "repository": "org/repo",
+                "pr": 42,
+                "head": "a" * 40,
+                "base": PR["base"],
+                "status": "REVIEWED",
+            }
             originals = {
                 "result.json": json.dumps(saved),
                 "review.json": result.model_dump_json(),
@@ -330,7 +357,13 @@ class PublicationRecoveryTests(unittest.TestCase):
             artifact.mkdir()
             events = [evidence()]
             result = present(events)
-            saved = {"repository": "org/repo", "pr": 42, "head": "a" * 40, "status": "REVIEWED"}
+            saved = {
+                "repository": "org/repo",
+                "pr": 42,
+                "head": "a" * 40,
+                "base": PR["base"],
+                "status": "REVIEWED",
+            }
             (artifact / "result.json").write_text(json.dumps(saved))
             (artifact / "review.json").write_text(result.model_dump_json())
             (artifact / "review.md").write_text(result.report())
@@ -363,6 +396,16 @@ class PublicationRecoveryTests(unittest.TestCase):
                 self.assertEqual(review_requests.read(CONFIG, PR)["github_review"], posted)
                 self.assertEqual(json.loads((artifact / "result.json").read_text()), saved)
             self.assertEqual(review_publication.load_saved(CONFIG, PR, artifact), result)
+            for base in ({"ref": "release", "sha": "c" * 40}, {"ref": "main", "sha": "d" * 40}):
+                with self.assertRaises(review_publication.PublicationError):
+                    review_publication.load_saved(CONFIG, {**PR, "base": base}, artifact)
+            (artifact / "result.json").write_text(
+                json.dumps({k: v for k, v in saved.items() if k != "base"})
+            )
+            self.assertFalse(review_publication.current_protocol(artifact))
+            with self.assertRaisesRegex(review_publication.PublicationError, "fresh Alibaba"):
+                review_publication.load_saved(CONFIG, PR, artifact)
+            (artifact / "result.json").write_text(json.dumps(saved))
             with self.assertRaises(review_publication.PublicationError):
                 review_publication.load_saved({**CONFIG, "repository": "other/repo"}, PR, artifact)
             (artifact / "review.jsonl").write_text("")

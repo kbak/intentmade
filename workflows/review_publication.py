@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import review_requests
 from common import github, issues, lock
 from policy import pr_eligible
 from review import ROLES, ReviewResult, evaluate, validate_assessments, validate_coverage
@@ -15,7 +16,14 @@ class PublicationError(RuntimeError):
 
 
 def current_protocol(artifact):
-    return json.loads((Path(artifact) / "review.json").read_text()).get("review_protocol") == 2
+    artifact = Path(artifact)
+    if json.loads((artifact / "review.json").read_text()).get("review_protocol") != 2:
+        return False
+    try:
+        review_requests.base(json.loads((artifact / "result.json").read_text()))
+    except (OSError, ValueError, TypeError):
+        return False
+    return True
 
 
 def validate_traceability(config, review):
@@ -65,7 +73,7 @@ def publish(config, pr, review, credential):
     repo, number, sha = config["repository"], pr["number"], pr["head"]["sha"]
     event = "REQUEST_CHANGES" if blocked else "APPROVE"
     expected = "CHANGES_REQUESTED" if blocked else "APPROVED"
-    marker = f"<!-- factory-review:v1:{repo}:{number}:{sha} -->"
+    marker = f"<!-- factory-review:v2:{repo}:{number}:{review_requests.revision(pr)} -->"
     body = review.report(repo, sha) + "\n\n" + marker
     # All publication paths share this lock, including recovery after an
     # ambiguous GitHub response. Never retry a POST before looking for its result.
@@ -84,14 +92,16 @@ def publish(config, pr, review, credential):
             ),
             None,
         )
+        fresh = github(credential, "GET", f"/repos/{repo}/pulls/{number}")
+        if review_requests.snapshot(config, fresh) != review_requests.snapshot(config, pr):
+            raise PublicationError("PR changed its head or base; a fresh review is required")
         if posted:
             if posted["state"] != expected:
                 raise PublicationError(
                     "Existing factory review was dismissed or has a different verdict"
                 )
             return {key: posted[key] for key in ("id", "html_url", "state", "commit_id")}
-        fresh = github(credential, "GET", f"/repos/{repo}/pulls/{number}")
-        if fresh["head"]["sha"] != sha or not pr_eligible(credential, fresh, config):
+        if not pr_eligible(credential, fresh, config):
             raise PublicationError(
                 "PR changed or no longer satisfies review CI policy; nothing posted"
             )
@@ -109,7 +119,9 @@ def publish(config, pr, review, credential):
 def load_saved(config, pr, artifact):
     artifact = Path(artifact)
     if not current_protocol(artifact):
-        raise PublicationError("Review protocol changed; a fresh Alibaba review is required")
+        raise PublicationError(
+            "Review protocol or base binding missing; a fresh Alibaba review is required"
+        )
     saved = json.loads((artifact / "result.json").read_text())
     if any(
         saved.get(key) != value
@@ -117,10 +129,11 @@ def load_saved(config, pr, artifact):
             "repository": config["repository"],
             "pr": pr["number"],
             "head": pr["head"]["sha"],
+            "base": review_requests.base(pr),
             "status": "REVIEWED",
         }.items()
     ):
-        raise PublicationError("Saved review does not match this repository, PR and commit")
+        raise PublicationError("Saved review does not match this repository, PR, head and base")
     stored = ReviewResult.model_validate_json((artifact / "review.json").read_text())
     validate_traceability(config, stored)
     review = evaluate(

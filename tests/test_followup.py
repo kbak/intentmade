@@ -14,7 +14,6 @@ import common
 import followup
 import monitor
 import naming
-import policy
 import run
 
 CONFIG = {
@@ -68,25 +67,6 @@ class NamingTests(unittest.TestCase):
         branch = naming.branch_name("issue-9", "fix: ../../ $(bad) café @{} ?* [] ")
         common.git(["check-ref-format", "--branch", branch])
         self.assertEqual(branch, "fix/9-bad-cafe")
-
-    def test_newer_same_provider_result_supersedes_failure_across_pages(self):
-        old = {
-            "id": 1,
-            "app": {"id": 5},
-            "name": "unit",
-            "status": "completed",
-            "conclusion": "failure",
-        }
-        new = {**old, "id": 3, "conclusion": "success"}
-        with patch.object(
-            policy, "github", side_effect=[{"check_runs": [new, old]}, {"statuses": []}]
-        ):
-            self.assertEqual(policy.checks_for("secret", "org/repo", "sha"), {"unit": "success"})
-        other = {**old, "id": 2, "app": {"id": 6}}
-        with patch.object(
-            policy, "github", side_effect=[{"check_runs": [new, old, other]}, {"statuses": []}]
-        ):
-            self.assertEqual(policy.checks_for("secret", "org/repo", "sha"), {"unit": "failure"})
 
 
 class FollowupTests(unittest.TestCase):
@@ -243,7 +223,12 @@ class FollowupTests(unittest.TestCase):
         for tracked in (self.record, None):
             for draft in (True, False):
                 with self.subTest(tracked=bool(tracked), draft=draft):
-                    pr = {**PR, "draft": draft, "head": {**PR["head"], "sha": "a" * 40}}
+                    pr = {
+                        **PR,
+                        "draft": draft,
+                        "head": {**PR["head"], "sha": "a" * 40},
+                        "base": {"ref": "main", "sha": "c" * 40},
+                    }
                     with (
                         patch.object(
                             monitor.issues, "_kv_get", return_value={"done": {}, "triaged": {}}

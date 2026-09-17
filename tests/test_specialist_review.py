@@ -285,7 +285,12 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                 (Path(__file__).parent / "fixtures/traceability-scope.json").read_text()
             )
             config = {"project": "example", "repository": "org/repo", "traceability_scope": scope}
-            pr = {"number": 42, "head": {"sha": "head"}, "changed_files": 2}
+            pr = {
+                "number": 42,
+                "head": {"sha": "head"},
+                "base": {"ref": "main", "sha": "c" * 40},
+                "changed_files": 2,
+            }
             files = [
                 {"filename": "session.py", "patch": "fixture patch"},
                 {"filename": "outside.txt"},
@@ -341,12 +346,32 @@ class ManualSpecialistReviewTests(unittest.TestCase):
             self.assertEqual(retained["traceability_context"]["example"]["scope"], scope)
 
     def test_manual_reviews_save_reports_and_recheck_pr_revision(self):
-        for stale, blocked in ((False, False), (True, False), (False, True)):
+        for stale, blocked in (
+            (None, False),
+            ("head", False),
+            ("base_ref", False),
+            ("base_sha", False),
+            (None, True),
+        ):
             with tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 artifact = root / "artifacts"
                 artifact.mkdir()
                 result = review.evaluate([] if blocked else [evidence()])
+                pr = {
+                    "number": 42,
+                    "head": {"sha": "head"},
+                    "base": {"ref": "main", "sha": "c" * 40},
+                    "changed_files": 0,
+                }
+                changed = {
+                    **pr,
+                    "head": {"sha": "new-head" if stale == "head" else "head"},
+                    "base": {
+                        "ref": "release" if stale == "base_ref" else "main",
+                        "sha": ("d" if stale == "base_sha" else "c") * 40,
+                    },
+                }
 
                 def checkout(*args):
                     source = root / "checkout"
@@ -367,7 +392,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                     patch.object(
                         monitor.reviews,
                         "_get_pr",
-                        return_value={"head": {"sha": "new-head" if stale else "head"}},
+                        return_value=changed,
                     ) as fresh,
                     patch.object(monitor, "pr_eligible", return_value=True),
                     patch.object(monitor.review_requests, "remember") as receipt,
@@ -375,7 +400,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                 ):
                     args = (
                         {"project": "example", "repository": "org/repo"},
-                        {"number": 42, "head": {"sha": "head"}, "changed_files": 0},
+                        pr,
                         "token",
                     )
                     if blocked:
@@ -389,6 +414,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                         saved = json.loads((artifact / "result.json").read_text())
                         self.assertEqual(saved["status"], "STALE" if stale else "REVIEWED")
                         self.assertEqual(saved["verdict"], "PASS")
+                        self.assertEqual(saved["base"], pr["base"])
                         if stale:
                             receipt.assert_called_once_with(args[0], args[1], "STALE")
                             publication.assert_not_called()
