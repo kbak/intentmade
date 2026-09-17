@@ -74,6 +74,7 @@ class ScopeConfigurationTests(unittest.TestCase):
             for name in ("requirements.md", "semantics.md")
         )
         self.assertEqual(context["requirements_guidance"], expected)
+        self.assertNotIn("pip install", context["requirements_guidance"])
         review_context = traceability.review_context({"pilot": {"changed_paths": ["session.py"]}})
         self.assertIn((directory / "semantics.md").read_text(encoding="utf-8"), review_context)
 

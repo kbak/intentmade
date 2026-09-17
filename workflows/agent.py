@@ -39,7 +39,7 @@ def worker_agent(mode, skill=None, mcp_config=None, traceability=False):
     if traceability:
         from openhands_traceability import with_traceability
 
-        context = with_traceability(context)
+        context = with_traceability(context, provisioned=True)
     return ACPAgent(
         acp_command=["codex-acp"],
         acp_server="codex",

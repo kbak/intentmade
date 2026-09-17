@@ -330,20 +330,11 @@ def review_context(selected):
     return (
         "\n\nRequired Alibaba Reviewer traceability assessment (only these repositories and changed paths):\n"
         + json.dumps(visible)
-        + "\nInspect the complete source diff against the supplied approved task and baseline. "
-        "Assess changed promises, Needs/Covers, and test assertions explicitly. Test edits already "
-        "within the task need no additional human confirmation. A change that removes or weakens "
-        "a promise without authorization in the task is a blocking finding, even if tracing/tests "
-        "pass. Do not treat pending traceability review as authorization, or structural links as "
-        "proof that linked assertions executed or are adequate. Use the required assessment for "
-        "traceability gaps; do not invent a code or security defect to make them blocking. "
+        + "\nApply the factory-review skill's traceability assessment to this context. "
+        "Unauthorized promise weakening is blocking even when checks pass; task-authorized "
+        "specification/test edits need no extra approval. "
         "Evidence directories listed above are accessible in this workspace. Null means no "
         "retained checker bundle is available; do not claim to have read one."
-        " Requirement IDs are resolved against OFT imports of the recorded source snapshots. "
-        "Use complete IDs with revisions in requirement_ids: unprefixed IDs refer to the "
-        "candidate; prefix historical citations with base: (for example base:req~timeout~1). "
-        "Only cite a snapshot listed in reference_snapshots. If its index has an error or a "
-        "historical snapshot is unavailable, explain the missing evidence instead of inventing an ID."
         "\n\nThe shared semantic contract is included below. Apply it when interpreting "
         "traceability artifacts and reporting conclusions.\n\n" + semantics
     )

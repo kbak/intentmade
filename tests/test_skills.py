@@ -38,6 +38,7 @@ class FactorySkillTests(unittest.TestCase):
                 [s.name for s in saved.agent_context.skills],
                 ["factory-implementation", "versioned-traceability"],
             )
+            self.assertNotIn("pip install", saved.agent_context.to_acp_prompt_context())
             for identity in (saved_id, None):
                 agent.converse(
                     workspace,

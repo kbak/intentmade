@@ -55,6 +55,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
         self.artifact.mkdir()
         self.attempts = []
         self.contexts = []
+        self.review_prompts = []
         self.request = "Preserve the 30 minute session promise; improve tests."
 
     def invoke(
@@ -101,6 +102,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
             return run.ImplementationResult(status="IMPLEMENTED", summary="Fixture edit")
 
         def review_stage(workspace, prompt, **kwargs):
+            self.review_prompts.append(prompt)
             expected = kwargs.get("traceability", {})
             code = specialist()
             if expected:
@@ -427,6 +429,27 @@ class TraceabilityPipelineTests(unittest.TestCase):
         self.assertIn("AssertionError", self.attempts[1])
         self.assertTrue((self.artifact / "pilot/traceability-0/test-result.json").is_file())
         self.assertTrue((self.artifact / "pilot/traceability-1/test-result.json").is_file())
+
+    def test_successful_test_log_and_report_changes_stay_out_of_review_prompt(self):
+        marker = "SUCCESSFUL_TEST_LOG_DETAIL"
+
+        def edit(root, attempt):
+            tests = root / "tests/test_session.py"
+            tests.write_text(tests.read_text() + f'\nprint("{marker}" * 800)\n')
+
+        result = self.invoke(edit)
+        record = result["repositories"]["pilot"]["traceability"]
+        prompt = self.review_prompts[0]
+        self.assertEqual(result["status"], "PASSED")
+        self.assertEqual(len(self.attempts), 1)
+        self.assertEqual(len(self.review_prompts), 1)
+        self.assertIn(marker, (self.artifact / "pilot/tests-0.log").read_text())
+        self.assertNotIn(marker, prompt)
+        self.assertTrue(record["changes"])
+        self.assertNotIn(json.dumps(record["changes"]), prompt)
+        self.assertIn(record["candidate"]["sha256"], prompt)
+        self.assertIn("review_required", prompt)
+        self.assertIn("tests-0.log", prompt)
 
     def test_agent_and_controller_run_the_same_profile_environment(self):
         self.config["test_profile"] = "traceability"

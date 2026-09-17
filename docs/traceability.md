@@ -14,7 +14,7 @@ For repositories with `traceability_scope`, traceability enters each stage as fo
 | --- | --- |
 | **1. Requirements discussion** | The coordinator calls `configure.py discussion PROJECT`. [`discussion_context()`](../workflows/traceability/__init__.py) supplies the configured scope and the portable skill's requirements and semantics references. The coordinator uses that guidance to discuss existing promises, requirement IDs and acceptance criteria. |
 | **2. Approved handoff** | Once the user approves the specification and requests implementation, the coordinator carries agreed Markdown, IDs, acceptance criteria and intended documentation paths into the task specification. |
-| **3. Implementation and repairs** | [`worker_agent()`](../workflows/agent.py) calls the adapter's `with_traceability()`. This injects the **full development SKILL.md plus its requirements and semantics references**. The worker maintains requirements, implementation, tests and links, and runs checks for feedback. |
+| **3. Implementation and repairs** | [`worker_agent()`](../workflows/agent.py) calls the adapter's `with_traceability(provisioned=True)`. This injects the **full development SKILL.md plus its requirements and semantics references**, omitting standalone installation instructions. The worker maintains requirements, implementation, tests and links, and runs checks for feedback. |
 | **4. Validation and review** | The controller runs the portable checker independently and verifies evidence against the exported commit. Alibaba Reviewer follows the separate [factory-review skill](../workflows/skills/factory-review/SKILL.md) to assess traceability and unauthorized requirement/test weakening. Checks and independent review gate completion and draft PR publication. |
 
 `versioned-traceability` supplies the shared guidance, OFT validation and evidence.
@@ -238,6 +238,13 @@ required tool interactions, review obligations, or approval steps.
 The task result records `check_exit_code`, the matched commit, and the
 independent review verdict/report. Exit 4 means automated checks passed with
 review pending.
+
+Review and repair prompts retain the checker's concise output and collection
+status. Successful raw test logs, the duplicate scope, and change records used
+for human summaries stay in retained artifacts. Failed runs still include their
+test-log tail. Complete logs are staged in the next worker, and reviewers receive
+the full scope and accessible evidence bundle. This reduces prompt content
+without adding agent passes, required tool calls, or changing completion gates.
 
 ## Runtime setup
 

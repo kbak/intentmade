@@ -491,10 +491,26 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                 details = states[project]["traceability"]
                 log = paths["retained"] / "tests.log"
                 if log.is_file():
-                    output = log.read_text(errors="replace")
-                    (artifact / project / f"tests-{attempt}.log").write_text(output)
-                    test_output.append(project + ":\n" + output[-10000:])
-                test_output.append(project + " traceability:\n" + json.dumps(details))
+                    shutil.copyfile(log, artifact / project / f"tests-{attempt}.log")
+                    if results[project] != 0:
+                        output = log.read_text(errors="replace")
+                        test_output.append(project + ":\n" + output[-10000:])
+                # Keep human-report changes and the scope in retained records.
+                # Review receives its scope separately; repairs already have the
+                # approved task, frozen scope and complete staged test logs.
+                feedback = {
+                    key: details[key]
+                    for key in (
+                        "status",
+                        "check_exit_code",
+                        "diagnostics",
+                        "review",
+                        "candidate",
+                        "matched_commit",
+                    )
+                    if key in details
+                }
+                test_output.append(project + " traceability:\n" + json.dumps(feedback))
     return results, test_output
 
 
