@@ -186,6 +186,11 @@ def _review_pr(config, pr, credential):
                 + traceability.review_context(trace_review),
                 title=f"PR review — {repo} #{number}",
                 transcript=artifact / "review.jsonl",
+                # Any discussion may carry prior findings or fix claims. Keep
+                # the editor unless the supplied history is entirely empty.
+                initial_review=not any(
+                    context[key] for key in ("discussion", "reviews", "inline_comments")
+                ),
                 sources={
                     config["project"]: {
                         "source": str(root / "source"),

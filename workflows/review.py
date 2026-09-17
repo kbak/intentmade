@@ -375,6 +375,7 @@ def review_code(
     traceability=None,
     sources=None,
     input_path=None,
+    initial_review=False,
 ):
     events = []
     failure = None
@@ -407,6 +408,7 @@ def review_code(
                 transcript=transcript.with_name(transcript.stem + "-report.jsonl")
                 if transcript
                 else None,
+                initial_review=initial_review,
             )
         except Exception as exc:
             message = f"Report consolidation failed: {type(exc).__name__}: {exc}"

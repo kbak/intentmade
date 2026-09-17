@@ -7,7 +7,7 @@ from typing import Annotated
 from urllib.parse import quote
 
 from agent import converse
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 
 Prose = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1400)]
 
@@ -97,7 +97,21 @@ def draft_report(review):
     return ReviewReport(findings=list(groups.values()), coverage=[])
 
 
-def consolidate(workspace, review, transcript=None):
+def consolidate(workspace, review, transcript=None, *, initial_review=False):
+    if initial_review and len(review.reviews) == 1 and len(sources(review)) <= 1:
+        try:
+            # Validate the copied prose too: draft_report constructs findings
+            # without length checks. Let the editor shorten oversized text.
+            report = ReviewReport.model_validate(
+                {
+                    **draft_report(review).model_dump(),
+                    "coverage": [review.reviews[0].summary],
+                }
+            )
+        except ValidationError:
+            pass
+        else:
+            return validate_report(review, report)
     payload = {
         "findings": {
             source: {"blocking": blocking, **finding.model_dump()}

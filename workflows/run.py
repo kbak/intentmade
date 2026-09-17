@@ -216,8 +216,10 @@ def build_group(configs, task, request, bases, credential="", issue=None, publis
         states = {}
         for config in configs:
             project = config["project"]
+            initial_review = not (DATA / "tasks" / project / (task + ".git")).exists()
             repository, branch = task_repository(config, task, bases[project], credential, request)
             states[project] = {
+                "initial_review": initial_review,
                 "branch": branch,
                 "base": git(
                     ["--git-dir", str(repository), "config", "factory.base"]
@@ -545,6 +547,12 @@ def review_changes(configs, states, request, results, transcript=None, *, artifa
                 + traceability.review_context(trace_review),
                 title="Independent review",
                 transcript=transcript,
+                initial_review=(
+                    attempt == 0
+                    and bool(states)
+                    and all(state.get("initial_review") is True for state in states.values())
+                    and not any(config.get("repair_pr") for config in configs)
+                ),
                 sources={
                     project: {
                         "source": state["source"],

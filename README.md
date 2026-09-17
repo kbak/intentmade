@@ -466,7 +466,15 @@ not count as a completed review.
 
 Published reports combine duplicate findings and include code links pinned to
 the reviewed commit and a validation summary. Original specialist reports and
-the report-editing transcript remain in the artifacts.
+any report-editing transcript remain in the artifacts. Initial reviews with one
+reviewer and zero or one finding render directly from the reviewed fields,
+including the full reviewer summary and traceability assessment, without a
+separate report-editing agent session. The source fields must fit the report
+schema; otherwise the editor shortens them. Repairs, resumed tasks, PRs with
+discussion or review history, and reports with multiple findings keep the editor.
+Legacy publication retries with unknown review history also keep the editor
+when a presentation has not already been saved. Existing provenance validation
+and publication checks apply to both paths.
 
 Completed standalone reviews publish that report with a formal GitHub verdict:
 `PASS` becomes **Approve**, and blocking findings become **Request changes**.
