@@ -143,7 +143,7 @@ class TransferTests(unittest.TestCase):
                 patch.object(run, "converse", converse),
                 patch.object(run, "export_task", export),
             ):
-                with self.assertRaisesRegex(RuntimeError, "Could not retain task branches: first"):
+                with self.assertRaisesRegex(RuntimeError, "Could not retain task evidence: first"):
                     run.implementation_attempt(
                         configs, states, "task", "approved group", artifact, 0
                     )
