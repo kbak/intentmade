@@ -108,3 +108,12 @@ Canvas has no native waiting-for-input automation status. Evidence is in /projec
 task Git branches persist in /workspaces/tasks. Do not edit task stores manually,
 modify immutable evidence, bypass a repository lock, or bypass test/review failure.
 Never expose credentials or pass the parent settings key or GitHub token to workers.
+
+For an authorized finite operator recipe (qualification, measurement, or artifact
+preparation), use `python /opt/factory/configure.py finite REQUEST.json --run`.
+The request declares a name, command argument list, timeout, and explicit payload
+file mapping; see docs/finite-automations.md. This registration supplies the native
+completion wrapper. Do not register a bare generated script as an automation
+entrypoint or copy native reporting logic into each recipe. A completed artifact
+with native RUNNING status requires callback reconciliation, not a rerun. Inspect
+it with `python /opt/factory/configure.py finite-status AUTOMATION_ID RUN_ID`.

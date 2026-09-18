@@ -1,6 +1,7 @@
 """One-shot setup and task submission through native OpenHands APIs."""
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -63,6 +64,56 @@ def files(job):
         for path in (ROOT / "workflows/traceability").rglob("*.py")
     )
     result["job.json"] = json.dumps(job)
+    return result
+
+
+def finite(request_path, run=False):
+    """Register a finite recipe with mandatory native completion reporting."""
+    from finite import validate
+
+    request_path = Path(request_path)
+    request = json.loads(request_path.read_text())
+    timeout = validate(request)
+    if not isinstance(request.get("name"), str) or not request["name"].strip():
+        raise ValueError("Finite automation requires a name")
+    payload = files({})
+    reserved = set(payload) | {"finite-request.json"}
+    declared = request.get("files", {})
+    if not isinstance(declared, dict) or not declared:
+        raise ValueError("Finite automation requires explicit payload files")
+    digests = {}
+    for name, source in declared.items():
+        if name in reserved:
+            raise ValueError("Finite payload cannot replace factory lifecycle code: " + name)
+        data = (request_path.parent / source).read_bytes()
+        payload[name] = data
+        digests[name] = hashlib.sha256(data).hexdigest()
+    payload["finite-request.json"] = json.dumps(
+        {"command": request["command"], "timeout": timeout, "digests": digests}
+    )
+    existing = next((a for a in records() if a["name"] == request["name"]), None)
+    if existing:
+        raise ValueError(
+            "Finite automation name already exists; inspect its runs before creating another"
+        )
+    result = install(
+        {
+            "name": request["name"],
+            "enabled": True,
+            "trigger": {
+                "type": "event",
+                "source": "custom",
+                "on": "factory.finite",
+                "filter": "`false`",
+            },
+            "entrypoint": "python finite.py finite-request.json",
+            "timeout": timeout + 120,
+        },
+        payload,
+    )
+    if run:
+        result = api("POST", "/api/automation/v1/" + result["id"] + "/dispatch")
+        print("Native finite run:", result["id"])
     return result
 
 
@@ -305,6 +356,12 @@ if __name__ == "__main__":
     sub.add_parser("github-login")
     sub.add_parser("projects")
     sub.add_parser("factories")
+    finite_command = sub.add_parser("finite")
+    finite_command.add_argument("request")
+    finite_command.add_argument("--run", action="store_true")
+    finite_status = sub.add_parser("finite-status")
+    finite_status.add_argument("automation_id")
+    finite_status.add_argument("run_id")
     sub.add_parser("discussion").add_argument("project")
     review_command = sub.add_parser("review")
     review_command.add_argument("project")
@@ -330,6 +387,12 @@ if __name__ == "__main__":
         print(json.dumps(projects(), indent=2))
     elif args.action == "factories":
         print(json.dumps(factories(), indent=2))
+    elif args.action == "finite":
+        finite(args.request, args.run)
+    elif args.action == "finite-status":
+        from finite import inspect_status
+
+        print(json.dumps(inspect_status(args.automation_id, args.run_id), indent=2))
     elif args.action == "discussion":
         print(json.dumps(discussion(args.project), indent=2))
     elif args.action == "configure":
