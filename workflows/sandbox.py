@@ -11,16 +11,50 @@ import measurements
 import provenance
 from common import ROOT, api
 from openhands.agent_server.persistence import FileSecretsStore
+from openhands.agent_server.persistence.store import _file_lock
 from openhands.sdk.utils.cipher import Cipher
 from openhands.workspace import DockerWorkspace
 from openhands.workspace.docker.workspace import find_available_tcp_port
+from pydantic import SecretStr
+
+
+def load_credential(parent):
+    if callable(getattr(parent, "load_versioned_secret", None)):
+        return parent.load_versioned_secret("CODEX_AUTH_JSON")
+    value = parent.get_secret("CODEX_AUTH_JSON")
+    if not value:
+        raise RuntimeError("Native Codex login is unavailable")
+    return value, None
 
 
 def sync_credential(parent, version, previous, refreshed):
     if refreshed == previous:
         return
     try:
-        parent.replace_versioned_secret("CODEX_AUTH_JSON", version, refreshed)
+        if callable(getattr(parent, "replace_versioned_secret", None)):
+            parent.replace_versioned_secret("CODEX_AUTH_JSON", version, refreshed)
+        else:
+            # Agent Server 1.27.1 in Canvas 1.20 has native locking/encryption,
+            # but no versioned methods. Compare the original value under that
+            # same lock before saving a refresh; preserve all unrelated secrets.
+            with _file_lock(parent._lock_path):
+                current = parent.load()
+                if current is None:
+                    raise RuntimeError(
+                        "Native credential store could not be loaded; refusing overwrite"
+                    )
+                binding = current.custom_secrets.get("CODEX_AUTH_JSON")
+                if (
+                    binding is None
+                    or binding.secret is None
+                    or binding.secret.get_secret_value() != previous
+                ):
+                    raise ValueError("credential_version_conflict")
+                updated = dict(current.custom_secrets)
+                updated["CODEX_AUTH_JSON"] = binding.model_copy(
+                    update={"secret": SecretStr(refreshed)}
+                )
+                parent.save(current.model_copy(update={"custom_secrets": updated}))
     except ValueError as exc:
         if str(exc) != "credential_version_conflict":
             raise
@@ -49,7 +83,7 @@ def worker(root, config):
         os.environ.get("OH_SECRET_KEY") or Path("/run/secrets/encryption-key").read_text().strip()
     )
     parent = FileSecretsStore("/home/openhands/.openhands", Cipher(encryption_key))
-    value, version = parent.load_versioned_secret("CODEX_AUTH_JSON")
+    value, version = load_credential(parent)
     settings = {
         "OH_SESSION_API_KEYS_0": secrets.token_urlsafe(32),
         "OH_CONVERSATION_WORKTREE_ROOT": str(root / "worktrees"),
