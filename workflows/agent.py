@@ -115,6 +115,7 @@ def converse(
     )
     started = time.monotonic()
     usage_before = measurements.usage_snapshot(conversation) if measurements.CURRENT.get() else None
+    usage_event_ids = {e["id"] for e in measurements.usage_evidence(conversation)}
     try:
         workspace.client.patch(
             f"/api/conversations/{conversation.id}", json={"title": title}
@@ -164,7 +165,9 @@ def converse(
                 )
     finally:
         try:
-            measurements.record_agent(conversation, usage_before, started, skill, transcript)
+            measurements.record_agent(
+                conversation, usage_before, started, skill, transcript, usage_event_ids
+            )
         except Exception as exc:
             print(f"Agent metrics unavailable: {type(exc).__name__}", flush=True)
         if event_log is not None:

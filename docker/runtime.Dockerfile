@@ -23,6 +23,9 @@ COPY runtime/patch_agency_agents.py /opt/factory/patch_agency_agents.py
 RUN python /opt/factory/patch_agency_agents.py
 COPY runtime/patch_specialist_review.py /opt/factory/patch_specialist_review.py
 RUN python /opt/factory/patch_specialist_review.py
+COPY runtime/patch_acp_usage.py /opt/factory/patch_acp_usage.py
+COPY runtime/factory-usage.mjs /opt/factory/factory-usage.mjs
+RUN python /opt/factory/patch_acp_usage.py
 COPY runtime/patch_workspace_runtime.py /opt/factory/patch_workspace_runtime.py
 RUN python /opt/factory/patch_workspace_runtime.py
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py

@@ -236,7 +236,28 @@ def usage_snapshot(conversation):
         return None
 
 
-def record_agent(conversation, before, started, skill, transcript):
+def usage_evidence(conversation):
+    """Keep only the adapter's numeric accounting event, not arbitrary tool output."""
+    try:
+        events = [event.model_dump(mode="json") for event in conversation.state.events]
+    except (AttributeError, TypeError):
+        return []
+    unique = {}
+    for event in events:
+        payload = event.get("raw_output")
+        if (
+            event.get("kind") == "ACPToolCallEvent"
+            and event.get("title") == "Factory provider usage"
+            and event.get("status") == "completed"
+            and isinstance(payload, dict)
+            and payload.get("version") == 1
+            and isinstance(payload.get("id"), str)
+        ):
+            unique[payload["id"]] = payload
+    return list(unique.values())
+
+
+def record_agent(conversation, before, started, skill, transcript, before_events=()):
     recorder = CURRENT.get()
     if not recorder:
         return
@@ -268,6 +289,24 @@ def record_agent(conversation, before, started, skill, transcript):
                 "reported_or_estimated_cost": cost_delta,
             }
         )
+    provider = [e for e in usage_evidence(conversation) if e["id"] not in before_events]
+    observed = []
+    for event in provider:
+        delta = event.get("delta") or {}
+        observed.append(
+            {
+                "usage_id": event["id"],
+                "model": None,
+                "tokens": {
+                    "prompt_tokens": delta.get("inputTokens"),
+                    "completion_tokens": delta.get("outputTokens"),
+                    "cache_read_tokens": delta.get("cachedInputTokens"),
+                    "cache_write_tokens": None,
+                    "reasoning_tokens": delta.get("reasoningOutputTokens"),
+                },
+                "reported_or_estimated_cost": None,
+            }
+        )
     recorder.data["agents"].append(
         {
             "conversation_id": str(conversation.id),
@@ -275,7 +314,18 @@ def record_agent(conversation, before, started, skill, transcript):
             "skill": skill,
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "transcript": str(transcript) if transcript else None,
-            "usage": entries if before is not None and after is not None else None,
+            "usage": observed
+            if provider
+            else entries
+            if before is not None and after is not None
+            else None,
+            "sdk_usage": entries if before is not None and after is not None else None,
+            "provider_usage": provider,
+            "usage_semantics": "root_thread_cumulative_delta"
+            if provider
+            else "unverified_adapter_counters",
+            "delegated_usage": None,
+            "billed_cost": None,
         }
     )
     recorder.save()
@@ -335,9 +385,11 @@ def render(data):
                 if all(value is not None for value in counts):
                     values.append(f"{sum(counts):,} {label}")
             lines.append(
-                f"Provider-reported tokens ({measured}/{len(agents)} sessions): "
+                f"Observed provider tokens ({measured}/{len(agents)} sessions): "
                 + (", ".join(values) or "incomplete")
-                + ". Cost is not a billed-spend measurement."
+                + ". Cache reads are included in input; reasoning is included in output. "
+                "Cancelled prompts may be partial. Delegated coverage and billed spend are unknown. "
+                "Records without provider evidence contain unverified adapter counters."
             )
     lines.append(
         "Human effort and later defects: unmeasured unless separately recorded. Usage details and evidence references are in the metrics record."

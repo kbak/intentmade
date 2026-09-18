@@ -197,6 +197,50 @@ class MeasurementTests(unittest.TestCase):
         conversation.close.assert_called_once()
         self.assertEqual(self.record()["agents"][0]["usage"][0]["tokens"]["prompt_tokens"], 10)
 
+    def test_provider_evidence_preserves_unknown_and_excludes_old_or_duplicate_prompts(self):
+        def event(identity, delta):
+            return Mock(
+                model_dump=Mock(
+                    return_value={
+                        "kind": "ACPToolCallEvent",
+                        "title": "Factory provider usage",
+                        "status": "completed",
+                        "raw_output": {"version": 1, "id": identity, "delta": delta},
+                    }
+                )
+            )
+
+        observed = event(
+            "current", {"inputTokens": 500, "cachedInputTokens": 100, "outputTokens": 200}
+        )
+        conversation = SimpleNamespace(
+            id="resumed",
+            conversation_stats=Mock(),
+            state=SimpleNamespace(
+                events=[
+                    event("old", {"outputTokens": 9000}),
+                    observed,
+                    observed,
+                    event("missing", None),
+                ]
+            ),
+        )
+        conversation.conversation_stats.model_dump.return_value = {
+            "usage_to_metrics": {"sdk": {"accumulated_token_usage": {"completion_tokens": 7}}}
+        }
+        with measurements.task(self.root, "task", "feature", {}):
+            measurements.record_agent(
+                conversation, {}, time.monotonic(), "implementation", None, {"old"}
+            )
+        record = self.record()["agents"][0]
+        self.assertEqual(len(record["provider_usage"]), 2)
+        self.assertEqual(record["usage"][0]["tokens"]["completion_tokens"], 200)
+        self.assertEqual(record["sdk_usage"][0]["tokens"]["completion_tokens"], 7)
+        self.assertIsNone(record["usage"][1]["tokens"]["completion_tokens"])
+        self.assertIsNone(record["delegated_usage"])
+        self.assertIsNone(record["billed_cost"])
+        self.assertIn("incomplete", measurements.render(self.record()))
+
     def test_chat_uses_saved_measurement_and_survives_ui_failure(self):
         with measurements.task(self.root, "task", "review", {}):
             measurements.begin_attempt(0, "initial")
