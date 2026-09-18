@@ -16,8 +16,8 @@ def replace_once(source, old, new):
 
 
 def main():
-    if version("openhands-sdk") != "1.48.0":
-        raise RuntimeError("Workspace runtime patch requires OpenHands SDK 1.48.0")
+    if version("openhands-sdk") != "1.49.1":
+        raise RuntimeError("Workspace runtime patch requires OpenHands SDK 1.49.1")
     if json.loads((ADAPTER / "package.json").read_text())["version"] != "1.10.0":
         raise RuntimeError("Workspace runtime patch requires Codex ACP 1.10.0")
     from openhands.workspace.docker import workspace

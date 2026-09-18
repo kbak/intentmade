@@ -1,4 +1,4 @@
-FROM ghcr.io/openhands/agent-canvas:1.19.0@sha256:7297294fab096329a2246f06da14e8e7cc1ec85dec17d1887cc18745cf059086
+FROM ghcr.io/openhands/agent-canvas:1.20.0@sha256:7c3d078f408dbc75233a098b63bb3f3cda475ee5d0024d8b934e148c8f063638
 USER root
 # OCR delegation performs no model calls. Pin its executable and matching skill.
 ADD --checksum=sha256:4d2c4f39a98d3e26ac0b76d5f0af304c661f5dad12937c39b2cba4e8e92adeaf --chmod=755 https://github.com/alibaba/open-code-review/releases/download/v1.12.4/opencodereview-linux-amd64 /usr/local/bin/ocr
