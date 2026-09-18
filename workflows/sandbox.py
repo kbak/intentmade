@@ -1,11 +1,14 @@
 """Native DockerWorkspace with one disposable Docker test daemon per job."""
 
+import json
 import os
 import secrets
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 
+import measurements
+import provenance
 from common import ROOT, api
 from openhands.agent_server.persistence import FileSecretsStore
 from openhands.sdk.utils.cipher import Cipher
@@ -52,6 +55,7 @@ def worker(root, config):
         "OH_CONVERSATION_WORKTREE_ROOT": str(root / "worktrees"),
         "PYTHONDONTWRITEBYTECODE": "1",
         "FACTORY_CODEX_MODEL": profile.get("acp_model") or "",
+        "FACTORY_EXECUTION_MANIFEST": str(root / ".factory-execution.json"),
     }
     old = {key: os.environ.get(key) for key in settings}
     try:
@@ -70,6 +74,25 @@ def worker(root, config):
         ) as workspace:
             workspace.api_key = settings["OH_SESSION_API_KEYS_0"]
             workspace.reset_client()
+            configs = config if isinstance(config, list) else [config]
+            manifest = provenance.capture(
+                workspace,
+                intended={"worker_image": workspace.server_image},
+                source={"job": name},
+            )
+            Path(settings["FACTORY_EXECUTION_MANIFEST"]).write_text(
+                json.dumps(manifest, indent=2) + "\n"
+            )
+            recorder = measurements.CURRENT.get()
+            if recorder:
+                # Store controller observations before the worker can edit its copy.
+                retained = recorder.path.parent / f"execution-environment-{manifest['id']}.json"
+                with retained.open("x") as handle:
+                    json.dump(manifest, handle, indent=2)
+                recorder.data.setdefault("execution_environments", []).append(manifest)
+                recorder.save()
+            for selected in configs:
+                provenance.required(manifest, selected.get("required_environment", {}))
             workspace.client.put(
                 "/api/settings/secrets",
                 json={

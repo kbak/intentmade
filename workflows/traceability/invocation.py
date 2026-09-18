@@ -9,6 +9,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+import provenance
+
 
 def now():
     return datetime.now(UTC).isoformat()
@@ -55,6 +57,9 @@ def begin(root, phase, repo, scope, base):
         "candidate_requested": "worktree",
         "source_path": str(repo),
         "scope_sha256": hashlib.sha256(Path(scope).read_bytes()).hexdigest(),
+        "execution_environment": provenance.boundary(repo, command)
+        if phase == "feedback"
+        else None,
     }
     write(directory / "invocation.json", record)
     return directory, record

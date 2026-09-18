@@ -129,6 +129,13 @@ def check(workspace, state, paths, env):
     paths["out"] = invocation / "evidence"
     started, code, error = time.monotonic(), None, None
     try:
+        # Probe the checker's actual interpreter, not the controller's Python.
+        import provenance
+
+        record["execution_environment"] = provenance.remote_boundary(workspace, state["worktree"])
+        from .invocation import write
+
+        write(invocation / "invocation.json", record)
         result = portable_check(
             workspace,
             repo=state["worktree"],

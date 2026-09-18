@@ -89,7 +89,13 @@ def finite(request_path, run=False):
         payload[name] = data
         digests[name] = hashlib.sha256(data).hexdigest()
     payload["finite-request.json"] = json.dumps(
-        {"command": request["command"], "timeout": timeout, "digests": digests}
+        {
+            "command": request["command"],
+            "timeout": timeout,
+            "digests": digests,
+            "source": request.get("source"),
+            "required_environment": request.get("required_environment", {}),
+        }
     )
     existing = next((a for a in records() if a["name"] == request["name"]), None)
     if existing:

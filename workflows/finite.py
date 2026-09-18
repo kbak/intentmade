@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from uuid import UUID
 
+import provenance
 from common import api
 from reporting import outcome, run_report
 
@@ -72,6 +73,7 @@ def run(request, root=Path("/projects/artifacts")):
         "started_at": now(),
         "execution_status": "RUNNING",
         "acknowledged_at": None,
+        "execution_environment": provenance.boundary(request.get("source"), request.get("command")),
     }
     save(path, record)
     started = time.monotonic()
@@ -79,6 +81,9 @@ def run(request, root=Path("/projects/artifacts")):
         with run_report() as report:
             try:
                 timeout = validate(request)
+                provenance.required(
+                    record["execution_environment"], request.get("required_environment", {})
+                )
                 for name, expected in request.get("digests", {}).items():
                     if hashlib.sha256(Path(name).read_bytes()).hexdigest() != expected:
                         raise ValueError("Finite uploaded input changed: " + name)

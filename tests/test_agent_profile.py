@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, call, patch
@@ -32,6 +33,7 @@ class WorkerProfileTests(unittest.TestCase):
             return {"profile": profile}
 
         with (
+            tempfile.TemporaryDirectory() as temporary,
             patch.dict(os.environ, {"OH_SESSION_API_KEYS_0": "parent-key", "OH_SECRET_KEY": "key"}),
             patch.object(sandbox, "api", side_effect=parent_profile) as api,
             patch.object(sandbox, "Cipher"),
@@ -39,6 +41,7 @@ class WorkerProfileTests(unittest.TestCase):
             patch.object(sandbox.subprocess, "run"),
             patch.object(sandbox, "find_available_tcp_port", return_value=12345),
             patch.object(sandbox, "DockerWorkspace") as docker,
+            patch.object(sandbox.provenance, "capture", return_value={"id": "fixture"}),
             patch.object(agent, "Conversation", return_value=conversation) as create,
             patch.object(agent, "get_agent_final_response", return_value="Done"),
         ):
@@ -46,7 +49,7 @@ class WorkerProfileTests(unittest.TestCase):
             previous_model = os.environ.get("FACTORY_CODEX_MODEL")
             for selected in ("gpt-6-astra/xhigh", "gpt-6-astra/high", None):
                 profile["acp_model"] = selected
-                with sandbox.worker(Path("/workspaces/profile-test"), {}) as worker:
+                with sandbox.worker(Path(temporary), {}) as worker:
                     # A later UI edit must not alter a worker already in progress.
                     profile["acp_model"] = "gpt-5.5/low"
                     resumed = agent.worktree(worker)
@@ -92,6 +95,7 @@ class WorkerProfileTests(unittest.TestCase):
             patch.object(sandbox.subprocess, "run"),
             patch.object(sandbox, "find_available_tcp_port", return_value=12345),
             patch.object(sandbox, "DockerWorkspace") as docker,
+            patch.object(sandbox.provenance, "capture", return_value={"id": "fixture"}),
         ):
             path.return_value.read_text.return_value = "mounted-encryption-key\n"
             docker.return_value.__enter__.return_value = workspace
