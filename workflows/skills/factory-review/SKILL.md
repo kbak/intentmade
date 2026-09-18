@@ -92,6 +92,12 @@ behavior; an arbitrary ID elsewhere in the file is insufficient. Existing
 component, design, or architecture relationships can suffice. Do not demand new
 IDs, document edits, or an annotation on every file, function, or line.
 
+For property tests, inspect the assertion together with its generated domain,
+assumptions, exclusions, search budget and state isolation. A narrowed generator
+can hide a defect even when the assertion remains unchanged. Check that failure
+diagnostics and replay details survive the configured runner; treat sampled
+passes as bounded search evidence, not proofs of the linked requirement.
+
 Use `covered` with relevant requirement IDs and documentation, implementation,
 and verification references. In `requirement_ids`, use complete OFT IDs with
 revisions for the candidate. Prefix historical citations with `base:`; only use

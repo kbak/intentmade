@@ -22,6 +22,18 @@ For repositories with `traceability_scope`, traceability enters each stage as fo
 The factory owns scope selection, authorization, handoffs, repairs and completion
 gates. Its provisioned runtime supplies the selected tool versions to workers.
 
+The portable development context also carries the compact property-testing
+procedure. A task can request properties for selected requirements; workers
+reuse the project's library, author normal tests/generators, and run the existing
+configured command. Only the relevant framework guide is read when needed.
+No new factory stage, classifier, test runner, or service is required. Generators,
+assumptions and search-budget changes are reviewed with assertions, and sampled
+passes are not described as proofs. Runtime images must contain the matching
+updated portable and adapter packages before this guidance is available there
+(`versioned-traceability` 0.4.5 and `openhands-traceability` 0.2.6). The existing
+image pins remain unchanged until those source revisions are published and the
+runtime is rebuilt.
+
 Discussion, implementation, and reviewer contexts include the same portable
 [semantic contract](https://github.com/kbak/versioned-traceability/blob/main/versioned_traceability/skills/versioned-traceability/references/semantics.md).
 It defines coverage, identity, provenance, authorization, and the conclusions
