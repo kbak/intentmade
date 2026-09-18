@@ -4,7 +4,7 @@ import json
 import os
 import time
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import measurements
 from common import session_api_key
@@ -14,6 +14,46 @@ from openhands.sdk.context import Skill
 from openhands.sdk.conversation import get_agent_final_response
 from openhands.sdk.workspace import RemoteWorkspace
 from pydantic import ValidationError
+
+
+class StructuredResponseError(RuntimeError):
+    def __init__(self, details):
+        self.details = details
+        super().__init__(
+            f"{details['stage']} returned invalid {details['schema_name']} after "
+            f"{details['response_attempt']} response attempts; "
+            f"diagnostics: {json.dumps(details['validation_errors'])}; "
+            f"retained response: {details['response_artifact'] or 'see native conversation'}"
+        )
+
+
+def response_failure(exc, text, model, title, attempt, conversation_id, transcript):
+    errors = [
+        {"location": list(e["loc"]), "type": e["type"], "message": e["msg"][:240]}
+        for e in exc.errors(include_input=False, include_context=False, include_url=False)[:8]
+    ]
+    artifact = (
+        transcript.with_name(
+            f"{transcript.stem}.response-{conversation_id}-{attempt + 1}-{uuid4().hex[:12]}.json"
+        )
+        if transcript
+        else None
+    )
+    details = {
+        "kind": "invalid_structured_response",
+        "stage": title,
+        "schema_name": model.__name__,
+        "expected_schema": model.model_json_schema(),
+        "response_attempt": attempt + 1,
+        "validation_errors": errors,
+        "response_artifact": str(artifact) if artifact else None,
+        "conversation_id": str(conversation_id),
+    }
+    if artifact:
+        # Raw model output stays in the retained artifact, never in the error UI.
+        artifact.write_text(json.dumps({**details, "raw_response": text}, indent=2) + "\n")
+    measurements.response_validation(details)
+    return details
 
 
 def canvas():
@@ -95,16 +135,31 @@ def converse(
             if not response_model:
                 return text
             try:
-                return response_model.model_validate_json(text)
-            except ValidationError:
+                result = response_model.model_validate_json(text)
                 if attempt:
-                    raise RuntimeError(
-                        "Reviewer did not return a valid structured verdict"
-                    ) from None
+                    measurements.response_validation(
+                        {
+                            "kind": "structured_response_repaired",
+                            "stage": title,
+                            "schema_name": response_model.__name__,
+                            "response_attempt": attempt + 1,
+                            "conversation_id": str(conversation.id),
+                        }
+                    )
+                return result
+            except ValidationError as exc:
+                details = response_failure(
+                    exc, text, response_model, title, attempt, conversation.id, transcript
+                )
+                if attempt:
+                    raise StructuredResponseError(details) from None
                 # ACP can aggregate progress text with the final response. Ask the
                 # same reviewer to restate its decision; never guess from prose.
                 conversation.send_message(
                     "Restate your final response in the required JSON format. "
+                    "Correct these validation errors: "
+                    + json.dumps(details["validation_errors"])
+                    + ". Preserve your actual decision; never invent a question or approval. "
                     "Do not use tools or add commentary." + schema
                 )
     finally:

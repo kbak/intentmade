@@ -161,6 +161,8 @@ def update(outcome):
     snapshot = {
         key: outcome[key] for key in ("status", "phase", "validation", "tests") if key in outcome
     }
+    if outcome.get("response_failure"):
+        snapshot["response_failure"] = outcome["response_failure"]
     snapshot["repositories"] = {
         project: {
             **{key: state[key] for key in ("base", "commit", "pull_request") if key in state},
@@ -193,6 +195,13 @@ def update(outcome):
     if recorder.attempt_started is not None:
         recorder.data["attempts"][-1]["outcome"] = snapshot
     recorder.save()
+
+
+def response_validation(details):
+    recorder = CURRENT.get()
+    if recorder:
+        recorder.data.setdefault("response_protocol", []).append({"at": now(), **details})
+        recorder.save()
 
 
 def review(result, path):

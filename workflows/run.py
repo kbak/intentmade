@@ -13,7 +13,7 @@ import browser_qa
 import measurements
 import reporting
 import traceability
-from agent import converse, worktree
+from agent import StructuredResponseError, converse, worktree
 from cleanup import job_directory
 from common import DATA, api, evidence, git, github, identifier, issues, job_id, lock, token
 from naming import branch_name, change_title, pull_request_title
@@ -786,6 +786,8 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
             status="NEEDS_INPUT" if isinstance(exc, NeedsInput) else "FAILED",
             error=f"{type(exc).__name__}: {exc}",
         )
+        if isinstance(exc, StructuredResponseError):
+            outcome["response_failure"] = exc.details
         raise
     finally:
         save()
