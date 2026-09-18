@@ -411,7 +411,10 @@ class ReviewResponseTests(unittest.TestCase):
                         )
                         self.assertEqual(result.verdict, "PASS")
                     else:
-                        with self.assertRaisesRegex(RuntimeError, "valid structured verdict"):
+                        with self.assertRaisesRegex(
+                            agent.StructuredResponseError,
+                            "invalid ReviewResult after 2 response attempts",
+                        ):
                             agent.converse(workspace, "Review", response_model=run.ReviewResult)
                 self.assertEqual(conversation.run.call_count, 2)
                 conversation.close.assert_called_once()
