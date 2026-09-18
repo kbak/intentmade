@@ -27,7 +27,10 @@ def discussion_context(configs):
         repository = {"catalog": "/projects/repos/" + config["project"]}
         scope = scope_for(config)
         if scope is not None:
+            from .scope_identity import export
+
             repository["traceability_scope"] = scope
+            repository["scope_identity"] = export(config)[1]
         result["repositories"][config["project"]] = repository
     if any("traceability_scope" in repo for repo in result["repositories"].values()):
         from importlib.resources import files
@@ -52,7 +55,13 @@ def prepare(configs, states, root, artifact, attempt):
         output = artifact / project
         output.mkdir(exist_ok=True)
         trusted = output / "traceability-scope.json"
-        trusted.write_text(json.dumps(scope, indent=2) + "\n")
+        from .scope_identity import export
+
+        data, identity = export(config)
+        trusted.write_bytes(data)
+        (output / f"scope-identity-{attempt}.json").write_text(
+            json.dumps(identity, indent=2) + "\n"
+        )
         worker_root = root / "traceability" / project
         worker_root.mkdir(parents=True)
         worker_scope = worker_root / "scope.json"
@@ -61,6 +70,7 @@ def prepare(configs, states, root, artifact, attempt):
         scratch = worker_root / "scratch"
         scratch.mkdir()
         selected[project] = {
+            "identity": identity,
             "root": root.resolve(),
             "scope": trusted,
             "worker_scope": worker_scope,
@@ -68,7 +78,7 @@ def prepare(configs, states, root, artifact, attempt):
             "scratch": scratch,
             "timeout": scope["tests"]["timeout_seconds"] + 600,
         }
-        states[project]["traceability"] = {"status": "not_run"}
+        states[project]["traceability"] = {"status": "not_run", "scope_identity": identity}
     return selected
 
 
@@ -107,7 +117,15 @@ def instructions(selected, states, environments):
                 state["base"],
             ]
         )
-        sections.append(f"{project}:\n```sh\n{command}\n```")
+        sections.append(
+            f"{project}:\nScope identity: "
+            + json.dumps(paths["identity"])
+            + "\nSource-file and worker-file hashes identify bytes. Canonical-policy hash identifies "
+            "the parsed policy; do not compare it to a file hash. Exact source exports retain all "
+            "formatting. A null source identity means the old task captured only policy values. "
+            "These identities describe the controller-selected scope and do not authorize changing it."
+            + f"\n```sh\n{command}\n```"
+        )
     return "\n\n".join(sections)
 
 
@@ -168,6 +186,7 @@ def collect(state, paths, check_exit_code):
         "status": "error",
         "evidence": str(target / "evidence.json"),
         "check_exit_code": check_exit_code,
+        "scope_identity": paths.get("identity"),
     }
     state["traceability"] = record
     try:
@@ -308,6 +327,9 @@ def prepare_review(configs, states, root):
             cwd=state["source"],
         ).stdout.split("\0")
         context = review_scope(config, [path for path in changed if path])
+        from .scope_identity import export
+
+        context["scope_identity"] = export(config)[1]
         context.update(source=state["source"], base=state["base"], candidate=state["commit"])
         context["requirement_index"] = requirement_index(
             state["source"], context["scope"], state["commit"], state["base"]

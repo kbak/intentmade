@@ -91,11 +91,13 @@ def projects(config_dir=None):
                 )
             if "test_command" in registration:
                 raise ValueError(f"{name}: put the test command only in the traceability scope")
-            from versioned_traceability.config import load_scope
+            from traceability.scope_identity import capture
 
-            # Uploaded workflows capture the validated contents, not a path in
-            # the deployment filesystem. Each task freezes these contents again.
-            config["traceability_scope"] = load_scope(scope_path)
+            # Capture and validate one read; native payloads retain exact source
+            # bytes as well as the parsed policy, independent of later config edits.
+            config["traceability_scope"], config["traceability_scope_source"] = capture(
+                scope_path, reference
+            )
             config.pop("test_command", None)
         elif not config.get("test_command", "").strip():
             raise ValueError(f"{name}: test_command must not be empty")

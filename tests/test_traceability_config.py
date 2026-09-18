@@ -125,3 +125,68 @@ class ScopeConfigurationTests(unittest.TestCase):
                 self.scope.write_text(content)
                 with self.assertRaises(CheckError):
                     common.projects(self.root)
+
+
+@unittest.skipUnless(
+    importlib.util.find_spec("versioned_traceability"), "Optional portable package"
+)
+class ScopeIdentityTests(unittest.TestCase):
+    setUp = ScopeConfigurationTests.setUp
+    register = ScopeConfigurationTests.register
+
+    def test_exact_source_survives_native_payload_and_worker_freezing(self):
+        from traceability.scope_identity import export
+
+        raw = (
+            json.dumps(
+                json.loads(self.scope.read_text()), separators=(",", ":"), ensure_ascii=False
+            ).encode()
+            + b"\r\n"
+        )
+        self.scope.write_bytes(raw)
+        config = json.loads(json.dumps(common.projects(self.root)["pilot"]))
+        self.scope.unlink()  # Execution must not reread mutable deployment config.
+        data, identity = export(config)
+        self.assertEqual(data, raw)
+        self.assertEqual(identity["source_file"]["sha256"], identity["worker_file"]["sha256"])
+        artifact, worker = self.root / "artifacts", self.root / "worker"
+        artifact.mkdir()
+        worker.mkdir()
+        states = {"pilot": {}}
+        selected = traceability.prepare([config], states, worker, artifact, 0)["pilot"]
+        self.assertEqual(selected["scope"].read_bytes(), raw)
+        self.assertEqual(selected["worker_scope"].read_bytes(), raw)
+        self.assertEqual(
+            json.loads((artifact / "pilot/scope-identity-0.json").read_text()), identity
+        )
+        self.assertEqual(states["pilot"]["traceability"]["scope_identity"], identity)
+
+    def test_formatting_changes_byte_identity_but_values_change_policy_identity(self):
+        from traceability.scope_identity import export
+
+        scope = json.loads(self.scope.read_text())
+        first = export(common.projects(self.root)["pilot"])[1]
+        self.scope.write_text(json.dumps(scope, sort_keys=True, separators=(",", ":")))
+        second = export(common.projects(self.root)["pilot"])[1]
+        self.assertNotEqual(first["source_file"], second["source_file"])
+        self.assertEqual(first["canonical_policy"], second["canonical_policy"])
+        scope["tests"]["timeout_seconds"] += 1
+        self.scope.write_text(json.dumps(scope))
+        third = export(common.projects(self.root)["pilot"])[1]
+        self.assertNotEqual(second["canonical_policy"], third["canonical_policy"])
+
+    def test_captured_source_tampering_fails_and_legacy_source_is_unknown(self):
+        from traceability.scope_identity import export
+
+        config = common.projects(self.root)["pilot"]
+        config["traceability_scope"]["tests"]["timeout_seconds"] += 1
+        with self.assertRaisesRegex(ValueError, "controller-selected"):
+            export(config)
+        config = common.projects(self.root)["pilot"]
+        config["traceability_scope_source"]["sha256"] = "f" * 64
+        with self.assertRaisesRegex(ValueError, "identity"):
+            export(config)
+        del config["traceability_scope_source"]
+        _, identity = export(config)
+        self.assertIsNone(identity["source_file"])
+        self.assertEqual(identity["export"], "legacy_value_serialization")
