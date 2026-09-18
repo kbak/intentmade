@@ -1,26 +1,39 @@
 # Traceability checks
 
-Enable traceability for selected factory repositories to check OFT references,
-run tests, and review requirement changes before completing tasks. It uses
-`versioned-traceability` and `openhands-traceability` installed in the runtime.
-Registrations without `traceability_scope` use the usual test and review workflow.
+Enable traceability for selected repositories to check requirement links, run
+tests, and review requirement changes before completing factory tasks.
+Requirements and code/test references use
+[OpenFastTrace (OFT)](https://github.com/itsallcode/openfasttrace) syntax.
+
+A **scope** file selects the files to trace, coverage rules, and test command.
+Each task compares its changes with a **baseline** Git commit and saves results
+for the source it checked. The runtime needs `versioned-traceability` and
+`openhands-traceability`. Repositories without `traceability_scope` keep their
+usual test and review workflow.
 
 ## Workflow at a glance
 
 The user discusses requirements and authorizes work with the Canvas coordinator.
 For repositories with `traceability_scope`, traceability enters each stage as follows:
 
-| Stage | Integration |
+| Stage | What happens |
 | --- | --- |
-| **1. Requirements discussion** | The coordinator calls `configure.py discussion PROJECT`. [`discussion_context()`](../workflows/traceability/__init__.py) supplies the configured scope and the portable skill's requirements and semantics references. The coordinator uses that guidance to discuss existing promises, requirement IDs and acceptance criteria. |
-| **2. Approved handoff** | Once the user approves the specification and requests implementation, the coordinator carries agreed Markdown, IDs, acceptance criteria and intended documentation paths into the task specification. |
-| **3. Implementation and repairs** | [`worker_agent()`](../workflows/agent.py) calls the adapter's `with_traceability(provisioned=True)`. This injects the **full development SKILL.md plus its requirements and semantics references**, omitting standalone installation instructions. The worker maintains requirements, implementation, tests and links, and runs checks for feedback. |
-| **4. Validation and review** | The controller runs the portable checker independently and verifies evidence against the exported commit. Alibaba Reviewer follows the separate [factory-review skill](../workflows/skills/factory-review/SKILL.md) to assess traceability and unauthorized requirement/test weakening. Checks and independent review gate completion and draft PR publication. |
+| **1. Discuss requirements** | The coordinator reads the project's scope and existing requirements, then discusses the requested behavior and acceptance criteria. |
+| **2. Specify the task** | Once implementation is authorized, the task carries the agreed requirements, IDs, acceptance criteria, and intended documentation paths. |
+| **3. Implement and repair** | The worker maintains requirements, code, tests, and their links, and runs checks for feedback. |
+| **4. Validate and review** | The controller independently runs checks and matches the evidence to the exported commit. The reviewer checks behavior and requirement/test changes before completion and draft PR publication. |
 
-`versioned-traceability` supplies the shared guidance, OFT validation and evidence.
-`openhands-traceability` attaches that guidance to agent context and forwards commands.
-The factory owns scope selection, authorization, handoffs, repairs and completion
-gates. Its provisioned runtime supplies the selected tool versions to workers.
+`versioned-traceability` supplies guidance, OFT checks, and saved evidence.
+`openhands-traceability` adds that guidance to agent context and forwards commands.
+The factory selects the scope and manages authorization, repairs, review, and
+completion. Its runtime supplies the tools to workers.
+
+For implementation details, [`discussion_context()`](../workflows/traceability/__init__.py)
+supplies requirements guidance to the coordinator, and
+[`worker_agent()`](../workflows/agent.py) attaches development instructions with
+`with_traceability(provisioned=True)`. This includes the procedure and references
+while omitting tool-installation instructions. Alibaba Reviewer uses the
+[factory-review skill](../workflows/skills/factory-review/SKILL.md).
 
 Workers can follow the portable
 [property-testing workflow](https://github.com/kbak/versioned-traceability/blob/main/docs/property-testing.md)
@@ -31,14 +44,15 @@ This guidance requires `versioned-traceability` 0.4.5+ and
 `openhands-traceability` 0.2.6+ in the runtime image.
 
 Discussion, implementation, and reviewer contexts include the same portable
-[semantic contract](https://github.com/kbak/versioned-traceability/blob/main/versioned_traceability/skills/versioned-traceability/references/semantics.md).
+[concepts and result meanings](https://github.com/kbak/versioned-traceability/blob/main/versioned_traceability/skills/versioned-traceability/references/semantics.md).
 It defines coverage, identity, provenance, authorization, and the conclusions
 supported by execution evidence; the factory does not maintain a separate vocabulary.
 
-For an existing project, [recover and accept a baseline](https://github.com/kbak/versioned-traceability/blob/main/docs/recovery.md)
-before this development loop, then enable `traceability_scope` in the factory
-registration. Installing the skills or recovering a baseline does not enable that
-policy automatically. Ordinary feature work uses the development skill.
+For a project without reviewed requirements and links,
+[document the existing behavior and review the proposal](https://github.com/kbak/versioned-traceability/blob/main/docs/recovery.md)
+first. Commit and validate that starting point, then enable `traceability_scope`
+in the factory registration. Preparing documentation or installing skills does
+not enable the factory's checks automatically.
 
 ## Configuration
 
@@ -240,8 +254,7 @@ connections before collapsible details for covered/mechanical changes. Verificat
 references remain review judgments, not claims that individual tests executed.
 Each portable check also retains `summary.md` in its evidence directory, with
 changed specification IDs, recorded test outcomes, and source/policy identity.
-Both presentations use existing results. They add no agent calls, injected context,
-required tool interactions, review obligations, or approval steps.
+Both summaries are generated from the existing check and review results.
 
 The task result records `check_exit_code`, the matched commit, and the
 independent review verdict/report. Exit 4 means automated checks passed with
@@ -251,14 +264,15 @@ Review and repair prompts retain the checker's concise output and collection
 status. Successful raw test logs, the duplicate scope, and change records used
 for human summaries stay in retained artifacts. Failed runs still include their
 test-log tail. Complete logs are staged in the next worker, and reviewers receive
-the full scope and accessible evidence bundle. This reduces prompt content
-without adding agent passes, required tool calls, or changing completion gates.
+the full scope and accessible evidence bundle. Agents receive the result summary
+first and can read the complete records when needed.
 
 ## Runtime setup
 
 Build the two package wheels and collect their dependencies in an artifact
-directory. The package versions installed by the image are specified in
-[docker/traceability.Dockerfile](../docker/traceability.Dockerfile).
+directory. Use package revisions matching the versions in
+[docker/traceability.Dockerfile](../docker/traceability.Dockerfile); that file pins
+what the runtime image installs.
 
 From each package checkout:
 
