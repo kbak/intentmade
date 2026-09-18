@@ -186,6 +186,7 @@ class InitialReviewContextTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             config = {"project": "app", "repository": "org/repo"}
+            (root / "artifacts").mkdir()
 
             def task_store(*args):
                 path = root / "tasks" / "app" / "task.git"

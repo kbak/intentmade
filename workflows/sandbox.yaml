@@ -6,6 +6,7 @@ services:
     environment: {DOCKER_TLS_CERTDIR: ""}
     volumes:
       - ${JOB_WORKSPACE:?}:${JOB_WORKSPACE:?}
+      - ${JOB_INPUTS:?}:/factory-inputs:ro
       - data:/var/lib/docker
     mem_limit: 10g
     cpus: 6

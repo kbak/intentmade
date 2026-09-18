@@ -7,6 +7,7 @@ import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 
+import input_artifacts
 import measurements
 import provenance
 from common import ROOT, api
@@ -65,6 +66,8 @@ def sync_credential(parent, version, previous, refreshed):
 
 def mounts(root, config):
     volumes = [f"{root}:{root}"]
+    if input_artifacts.CURRENT.get():
+        volumes.append(f"{input_artifacts.directory(root)}:/factory-inputs:ro")
     configs = config if isinstance(config, list) else [config]
     for profile in sorted({c["test_profile"] for c in configs if c.get("test_profile")}):
         volumes.append(f"/profiles/{profile}:/factory-tests/{profile}:ro")
@@ -78,7 +81,7 @@ def worker(root, config):
     profile = api("GET", "/api/agent-profiles/factory-codex")["profile"]
     name = root.name
     compose = ["docker", "compose", "-p", name, "-f", str(ROOT / "workflows/sandbox.yaml")]
-    env = dict(os.environ, JOB_WORKSPACE=str(root))
+    env = dict(os.environ, JOB_WORKSPACE=str(root), JOB_INPUTS=input_artifacts.directory(root))
     encryption_key = (
         os.environ.get("OH_SECRET_KEY") or Path("/run/secrets/encryption-key").read_text().strip()
     )

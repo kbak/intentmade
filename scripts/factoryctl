@@ -149,6 +149,11 @@ elif a.action == "submit":
         p.error(
             "submit requires REPOSITORY_OR_FACTORY SPEC_FILE [--task ID] [--run] [--no-publish]"
         )
+    if "--inputs" in a.args:
+        index = a.args.index("--inputs")
+        if index + 1 >= len(a.args):
+            p.error("--inputs requires a manifest file")
+        a.args[index : index + 2] = ["--inputs-json", Path(a.args[index + 1]).read_text()]
     native("submit", a.args[0], "-", *a.args[2:], input=Path(a.args[1]).read_text(), text=True)
 elif a.action == "review":
     native("review", *a.args)

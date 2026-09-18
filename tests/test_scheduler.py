@@ -261,11 +261,25 @@ class ConfigurationTests(unittest.TestCase):
                 # Discussion supplies context only. An explicit submit carries
                 # the reviewed specification through the existing task bundle.
                 self.configure.submit(
-                    "pair", str(request), task="approved-design", run=True, publish=False
+                    "pair",
+                    str(request),
+                    task="approved-design",
+                    run=True,
+                    publish=False,
+                    inputs=[
+                        {
+                            "name": "baseline.db",
+                            "reference": "release/baseline.db",
+                            "sha256": "a" * 64,
+                            "size": 0,
+                            "producer": "fixture@commit",
+                        }
+                    ],
                 )
                 _, payload, _ = install.call_args.args
                 self.assertEqual(payload["request.md"], request.read_text().strip())
                 job = json.loads(payload["job.json"])
+                self.assertEqual(job["input_artifacts"][0]["name"], "baseline.db")
                 self.assertEqual([c["project"] for c in job["configs"]], ["pilot", "ordinary"])
                 self.assertEqual(
                     job["configs"][0]["traceability_scope"],

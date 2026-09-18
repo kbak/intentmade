@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 import browser_qa
+import input_artifacts
 import measurements
 import reporting
 import traceability
@@ -202,7 +203,16 @@ def build(config, task, request, base, credential="", issue=None, publish_draft=
     )
 
 
-def build_group(configs, task, request, bases, credential="", issue=None, publish_draft=None):
+def build_group(
+    configs,
+    task,
+    request,
+    bases,
+    credential="",
+    issue=None,
+    publish_draft=None,
+    input_artifacts_declared=None,
+):
     """Single-repository and grouped tasks share this pipeline and native workspaces."""
     identifier(task)
     if not configs or len({c["project"] for c in configs}) != len(configs):
@@ -213,11 +223,17 @@ def build_group(configs, task, request, bases, credential="", issue=None, publis
     with ExitStack() as locks:
         for config in sorted(configs, key=lambda c: c["project"]):
             locks.enter_context(lock(config["project"] + ".build"))
+        input_record = locks.enter_context(
+            input_artifacts.prepared(
+                input_artifacts_declared, artifact, task=task, bases=bases, request=request
+            )
+        )
         states = {}
         for config in configs:
             project = config["project"]
             initial_review = not (DATA / "tasks" / project / (task + ".git")).exists()
             repository, branch = task_repository(config, task, bases[project], credential, request)
+            input_artifacts.bind_task(repository, input_record)
             states[project] = {
                 "initial_review": initial_review,
                 "branch": branch,
@@ -382,6 +398,7 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                         prompt
                         + "\n\nTask repositories:\n"
                         + task_context(states)
+                        + input_artifacts.instructions()
                         + traceability.instructions(trace_runs, states, environments)
                         + "\nBase-branch merge results (resolve any conflicts, preserving both sides' intended behavior):\n"
                         + "\n".join(s.get("merge_output", "") for s in states.values())
@@ -553,6 +570,7 @@ def review_changes(configs, states, request, results, transcript=None, *, artifa
                 + json.dumps(results)
                 + "\nSpecification:\n"
                 + request
+                + input_artifacts.instructions()
                 + traceability.review_context(trace_review),
                 title="Independent review",
                 transcript=transcript,
@@ -867,5 +885,6 @@ if __name__ == "__main__":
             bases,
             token() if any(c["repository"] for c in configs) else "",
             publish_draft=job.get("publish_draft"),
+            input_artifacts_declared=job.get("input_artifacts"),
         )
         outcome("COMPLETED", "Task validated; inspect its result for draft PR URLs")

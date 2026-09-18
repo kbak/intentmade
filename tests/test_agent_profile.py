@@ -85,6 +85,7 @@ class WorkerProfileTests(unittest.TestCase):
         workspace = Mock()
         workspace.client.get.return_value.text = "codex-login"
         with (
+            tempfile.TemporaryDirectory() as temporary,
             patch.dict(os.environ, {}, clear=True),
             patch.object(
                 sandbox, "api", return_value={"profile": {"acp_model": "gpt-6-astra/xhigh"}}
@@ -99,7 +100,7 @@ class WorkerProfileTests(unittest.TestCase):
         ):
             path.return_value.read_text.return_value = "mounted-encryption-key\n"
             docker.return_value.__enter__.return_value = workspace
-            with sandbox.worker(Path("/workspaces/filtered-env"), {}):
+            with sandbox.worker(Path(temporary), {}):
                 cipher.assert_called_once_with("mounted-encryption-key")
                 self.assertNotIn("OH_SECRET_KEY", docker.call_args.kwargs["forward_env"])
                 self.assertNotIn("OH_SECRET_KEY", os.environ)

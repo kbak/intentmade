@@ -233,7 +233,10 @@ def discussion(project):
     return discussion_context([configured[member] for member in members])
 
 
-def submit(project, spec, task=None, run=False, publish=None):
+def submit(project, spec, task=None, run=False, publish=None, inputs=None):
+    from input_artifacts import validate
+
+    declared = validate([] if inputs is None else inputs)
     configured = projects()
     members = factories().get(project, [project])
     configs = [configured[member] for member in members]
@@ -257,6 +260,8 @@ def submit(project, spec, task=None, run=False, publish=None):
             ).stdout.strip()
         bases[config["project"]] = base
     job = {"configs": configs, "task": task, "bases": bases, "publish_draft": publish}
+    if declared:
+        job["input_artifacts"] = declared
     bundle = files(job)
     bundle["request.md"] = request
     definition = {
@@ -380,6 +385,9 @@ if __name__ == "__main__":
     command.add_argument("project")
     command.add_argument("spec")
     command.add_argument("--task")
+    command.add_argument(
+        "--inputs-json", help="JSON array of declared controller artifact references"
+    )
     command.add_argument("--run", action="store_true")
     command.add_argument("--no-publish", action="store_true")
     args = parser.parse_args()
@@ -408,4 +416,11 @@ if __name__ == "__main__":
     elif args.action == "retry-issue":
         retry_issue(args.project, args.number, args.answer_file)
     else:
-        submit(args.project, args.spec, args.task, args.run, False if args.no_publish else None)
+        submit(
+            args.project,
+            args.spec,
+            args.task,
+            args.run,
+            False if args.no_publish else None,
+            json.loads(args.inputs_json) if args.inputs_json else None,
+        )
