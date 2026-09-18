@@ -30,6 +30,8 @@ COPY runtime/patch_workspace_runtime.py /opt/factory/patch_workspace_runtime.py
 RUN python /opt/factory/patch_workspace_runtime.py
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py
 RUN python /opt/factory/patch_run_outcomes.py
+COPY runtime/patch_download_filename.py /opt/factory/patch_download_filename.py
+RUN python /opt/factory/patch_download_filename.py
 COPY runtime/reply_hook.py /opt/agent-canvas/tools/factory_reply_hook.py
 RUN python - <<'PY'
 from pathlib import Path
