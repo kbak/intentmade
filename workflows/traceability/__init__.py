@@ -1,4 +1,4 @@
-"""IntentMade policy and lifecycle bindings for the portable OFT workflow.
+"""Factory policy and lifecycle bindings for the portable OFT workflow.
 
 Imports of the optional packages are lazy so repositories without opt-in keep
 their existing runtime, context, test commands, and completion gates.
@@ -8,6 +8,7 @@ import json
 import shlex
 import shutil
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -82,6 +83,8 @@ def instructions(selected, states, environments):
         "If the handoff conflicts with the frozen scope or existing promises without "
         "authorizing that change, use the existing NEEDS_INPUT process.\n\n"
         "Traceability checks: run the following command for feedback after edits. "
+        "Finish candidate documents and reports before checking; do not change inputs during validation. "
+        "Use this wrapper for every feedback invocation so rejected bundles are retained. "
         "Each run creates fresh evidence outside the repository. The controller repeats "
         "the check before completion."
     ]
@@ -93,24 +96,18 @@ def instructions(selected, states, environments):
             + [
                 "python",
                 "-m",
-                "versioned_traceability",
-                "check",
+                "traceability.invocation",
+                "--root",
+                str(paths["scratch"].parent),
                 "--repo",
                 state["worktree"],
                 "--scope",
                 str(paths["worker_scope"]),
                 "--base",
                 state["base"],
-                "--candidate",
-                "worktree",
             ]
         )
-        temporary = shlex.quote(str(paths["scratch"].parent / "agent-check-XXXXXX"))
-        sections.append(
-            f"{project}:\n```sh\n"
-            f"VT_FEEDBACK=$(mktemp -d {temporary}) &&\n"
-            f'{command} --out "$VT_FEEDBACK/evidence"\n```'
-        )
+        sections.append(f"{project}:\n```sh\n{command}\n```")
     return "\n\n".join(sections)
 
 
@@ -120,17 +117,35 @@ def check(workspace, state, paths, env):
     # Allocate only when the controller invokes the check, after implementation.
     # The checker itself requires a nonexistent output directory. Agent feedback
     # and previous invocations must never supply this invocation's bundle.
-    invocation = Path(tempfile.mkdtemp(prefix="controller-check-", dir=paths["scratch"].parent))
-    paths["out"] = invocation / "evidence"
-    return portable_check(
-        workspace,
-        repo=state["worktree"],
-        scope=paths["worker_scope"],
-        base=state["base"],
-        out=paths["out"],
-        env=env,
-        timeout=paths["timeout"],
+    from .invocation import begin, finish
+
+    invocation, record = begin(
+        paths["scratch"].parent,
+        "controller",
+        state["worktree"],
+        paths["worker_scope"],
+        state["base"],
     )
+    paths["out"] = invocation / "evidence"
+    started, code, error = time.monotonic(), None, None
+    try:
+        result = portable_check(
+            workspace,
+            repo=state["worktree"],
+            scope=paths["worker_scope"],
+            base=state["base"],
+            out=paths["out"],
+            env=env,
+            timeout=paths["timeout"],
+        )
+        code = result.exit_code
+        (invocation / "checker.log").write_text(result.stdout + result.stderr)
+        return result
+    except BaseException as exc:
+        error = type(exc).__name__
+        raise
+    finally:
+        finish(invocation, record, started, code, error)
 
 
 def collect(state, paths, check_exit_code):

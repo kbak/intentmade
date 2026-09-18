@@ -486,8 +486,17 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                     (repo_artifact / "changes.patch").write_text(patch)
                 except Exception as exc:
                     retention_errors.append(f"{project}: {exc}")
+            # Preserve every check, including feedback before a malformed response.
+            # A retention error escapes job_directory so its only copy survives.
+            from traceability.retention import retain
+
+            for project, paths in trace_runs.items():
+                try:
+                    retain(paths, attempt)
+                except Exception as exc:
+                    retention_errors.append(f"{project} check retention: {exc}")
             if retention_errors:
-                raise RuntimeError("Could not retain task branches: " + "; ".join(retention_errors))
+                raise RuntimeError("Could not retain task evidence: " + "; ".join(retention_errors))
             for project, paths in trace_runs.items():
                 results[project] = traceability.collect(
                     states[project], paths, results.get(project)

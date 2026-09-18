@@ -65,6 +65,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
         export=None,
         feedback=False,
         assessment=None,
+        implementation_error=None,
     ):
         @contextmanager
         def worker(root, configs):
@@ -99,6 +100,8 @@ class TraceabilityPipelineTests(unittest.TestCase):
                         for p in bundles
                     )
                 )
+            if implementation_error:
+                raise implementation_error
             return run.ImplementationResult(status="IMPLEMENTED", summary="Fixture edit")
 
         def review_stage(workspace, prompt, **kwargs):
@@ -429,6 +432,13 @@ class TraceabilityPipelineTests(unittest.TestCase):
         self.assertIn("AssertionError", self.attempts[1])
         self.assertTrue((self.artifact / "pilot/traceability-0/test-result.json").is_file())
         self.assertTrue((self.artifact / "pilot/traceability-1/test-result.json").is_file())
+        statuses = []
+        for attempt in (0, 1):
+            index = json.loads(
+                (self.artifact / f"pilot/traceability-invocations-{attempt}/index.json").read_text()
+            )
+            statuses.append(index["invocations"][0]["bundle"]["status"])
+        self.assertEqual(statuses, ["rejected", "passed"])
 
     def test_successful_test_log_and_report_changes_stay_out_of_review_prompt(self):
         marker = "SUCCESSFUL_TEST_LOG_DETAIL"
@@ -464,6 +474,39 @@ class TraceabilityPipelineTests(unittest.TestCase):
         self.assertEqual(frozen, self.config["traceability_scope"])
         record = result["repositories"]["pilot"]["traceability"]
         self.assertEqual(record["check_exit_code"], 0)
+        index = json.loads(
+            (self.artifact / "pilot/traceability-invocations-0/index.json").read_text()
+        )
+        self.assertEqual(index["feedback_iterations"], 2)
+        self.assertEqual(index["controller_checks"], 1)
+        self.assertEqual(len({i["id"] for i in index["invocations"]}), 3)
+        self.assertIsNone(index["logical_qualification_cases"])
+        self.assertFalse(list(self.root.glob("job-*")))
+        for invocation in index["invocations"]:
+            self.assertIn("evidence/evidence.json", invocation["artifacts"])
+            self.assertTrue(invocation["completed_at"])
+
+    def test_feedback_survives_a_malformed_response_before_controller_check(self):
+        with self.assertRaisesRegex(RuntimeError, "malformed response"):
+            self.invoke(feedback=True, implementation_error=RuntimeError("malformed response"))
+        index = json.loads(
+            (self.artifact / "pilot/traceability-invocations-0/index.json").read_text()
+        )
+        self.assertEqual(index["feedback_iterations"], 2)
+        self.assertEqual(index["controller_checks"], 0)
+        self.assertTrue(all(i["bundle"]["status"] == "passed" for i in index["invocations"]))
+
+    def test_interrupted_retention_preserves_the_only_workspace_copy(self):
+        from traceability import retention
+
+        with patch.object(retention, "copy_file", side_effect=OSError("interrupted write")):
+            with self.assertRaisesRegex(RuntimeError, "Could not retain task evidence"):
+                self.invoke(feedback=True)
+        recovery = Path((self.artifact / "recovery-workspace.txt").read_text())
+        self.assertTrue(recovery.is_dir())
+        self.assertEqual(
+            len(list(recovery.glob("traceability/pilot/agent-check-*/evidence/evidence.json"))), 2
+        )
 
     def test_candidate_cannot_weaken_the_frozen_floor(self):
         def edit(root, attempt):
