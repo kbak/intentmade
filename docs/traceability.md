@@ -323,3 +323,7 @@ Before enabling a project, validate its baseline and test setup in a disposable
 worker. Run one bounded task with `publish_draft: false`, then inspect the
 requirement/test diff, review, repair behavior, and retained evidence.
 Repository CI and merge rules remain outside this integration.
+
+## Source and revision impact reports
+
+The pinned runtime now includes portable `vt impact --evidence PATH` reporting (core 0.4.6, adapter 0.2.8). Check evidence and `vt explain` distinguish full source identity from tracing and selected semantic-review inputs. Impact reports separate declaration text, exact-edge revisions and conservative implementation/test source categories. Review still assesses the complete candidate and continued assertion coverage; a revision update is not semantic approval.
