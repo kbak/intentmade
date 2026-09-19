@@ -127,6 +127,46 @@ def verify_frozen(record):
         copy_verified(root, item["name"], item)
 
 
+def freeze(selected, sources):
+    record = {"inputs": selected, "manifest_sha256": digest(encoded(selected))}
+    cache = DATA / "input-artifacts"
+    cache.mkdir(parents=True, exist_ok=True)
+    destination = cache / record["manifest_sha256"]
+    with tempfile.TemporaryDirectory(dir=cache, prefix=".stage-") as temp:
+        staged = Path(temp) / "inputs"
+        staged.mkdir()
+        for item in selected:
+            root, relative = sources[item["name"]]
+            copy_verified(root, relative, item, staged / item["name"])
+        (staged / "manifest.json").write_bytes(encoded(selected))
+        if not destination.exists():
+            try:
+                staged.rename(destination)
+            except OSError:
+                if not destination.is_dir():
+                    raise
+        record["directory"] = str(destination)
+    verify_frozen(record)
+    return record
+
+
+@contextmanager
+def additional(declared, source_root, receipt):
+    """Controller-derived repair evidence joins only this worker's input set."""
+    previous = CURRENT.get()
+    original = previous["inputs"] if previous else []
+    selected = validate([*original, *declared])
+    sources = {i["name"]: (source_root, i["reference"]) for i in declared}
+    sources.update({i["name"]: (Path(previous["directory"]), i["name"]) for i in original})
+    record = freeze(selected, sources)
+    receipt.write_bytes(encoded(record))
+    token = CURRENT.set(record)
+    try:
+        yield record
+    finally:
+        CURRENT.reset(token)
+
+
 @contextmanager
 def prepared(declared, artifact, *, task, bases, request):
     record = {
@@ -142,23 +182,9 @@ def prepared(declared, artifact, *, task, bases, request):
         record["inputs"] = selected
         record["manifest_sha256"] = digest(encoded(selected))
         if selected:
-            cache = DATA / "input-artifacts"
-            cache.mkdir(parents=True, exist_ok=True)
-            destination = cache / record["manifest_sha256"]
-            with tempfile.TemporaryDirectory(dir=cache, prefix=".stage-") as temp:
-                staged = Path(temp) / "inputs"
-                staged.mkdir()
-                for item in selected:
-                    copy_verified(SOURCE_ROOT, item["reference"], item, staged / item["name"])
-                (staged / "manifest.json").write_bytes(encoded(selected))
-                if not destination.exists():
-                    try:
-                        staged.rename(destination)
-                    except OSError:
-                        if not destination.is_dir():
-                            raise
-                record["directory"] = str(destination)
-            verify_frozen(record)
+            record.update(
+                freeze(selected, {i["name"]: (SOURCE_ROOT, i["reference"]) for i in selected})
+            )
         record["status"] = "verified"
     except Exception as exc:
         record.update(status="rejected", error=f"{type(exc).__name__}: {exc}")

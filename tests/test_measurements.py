@@ -41,6 +41,7 @@ class MeasurementTests(unittest.TestCase):
 
         with (
             patch.object(run, "implementation_attempt", side_effect=implement),
+            patch.object(run.repair_context, "retain"),
             patch.object(
                 run,
                 "review_changes",
@@ -71,6 +72,7 @@ class MeasurementTests(unittest.TestCase):
                 "implementation_attempt",
                 side_effect=[({"app": 0}, []), reporting.NeedsInput("Need a fixture")],
             ),
+            patch.object(run.repair_context, "retain"),
             patch.object(run, "review_changes", return_value=review),
         ):
             with self.assertRaises(reporting.NeedsInput):
@@ -97,6 +99,7 @@ class MeasurementTests(unittest.TestCase):
         }
         with (
             patch.object(run, "implementation_attempt", return_value=({"app": 0}, [])),
+            patch.object(run.repair_context, "retain"),
             patch.object(
                 run,
                 "review_changes",

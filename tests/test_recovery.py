@@ -60,6 +60,7 @@ class RecoveryTests(unittest.TestCase):
                         ({"example": 0}, ["all passed"]),
                     ],
                 ) as implement,
+                patch.object(run.repair_context, "retain"),  # This fixture has no real task store.
                 patch.object(run, "review_changes", side_effect=reviews) as review,
                 patch.object(run, "publish", return_value="https://example.test/pr") as publish,
             ):

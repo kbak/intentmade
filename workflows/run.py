@@ -12,6 +12,7 @@ from typing import Literal
 import browser_qa
 import input_artifacts
 import measurements
+import repair_context
 import reporting
 import traceability
 from agent import StructuredResponseError, converse, worktree
@@ -334,9 +335,17 @@ def stage_test_evidence(configs, artifact, attempt, root):
 
 def implementation_attempt(configs, states, task, prompt, artifact, attempt):
     results, test_output = {}, []
-    with job_directory(DATA, artifact) as root:
+    contract_path = artifact / "approved-request.md"
+    contract = contract_path.read_text() if contract_path.exists() else prompt
+    with (
+        repair_context.staged(configs, states, task, contract, artifact, attempt) as (
+            continuation,
+            decision,
+        ),
+        job_directory(DATA, artifact) as root,
+    ):
         prepare_sources(root, states)
-        if attempt:
+        if attempt and continuation is None:
             prompt += stage_test_evidence(configs, artifact, attempt - 1, root)
         trace_runs = traceability.prepare(configs, states, root, artifact, attempt)
         active = root / "active"
@@ -344,6 +353,8 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
         exports = {}
         try:
             with worker(root, configs) as workspace:
+                repair_context.note_runtime()
+                prompt = repair_context.prompt(continuation, decision, prompt)
                 try:
                     for project, state in states.items():
                         workspace.working_dir = state["source"]
@@ -657,6 +668,7 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
 
 
 def _execute_build(configs, task, request, credential, issue, publish_draft, artifact, states):
+    repair_context.initialize(artifact, request)
     for state in states.values():
         state["commit_message"] = change_title(request)
     outcome = {
@@ -706,6 +718,9 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
                     + json.dumps(results)
                     + "\nTest output:\n"
                     + "\n".join(test_output)[-30000:]
+                )
+                repair_context.retain(
+                    configs, states, task, request, artifact, attempt, "TESTS_FAILED", details
                 )
                 if attempt == min(c["repair_attempts"] for c in configs):
                     raise RuntimeError(
@@ -772,6 +787,9 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
                 )
                 save()
                 measurements.end_attempt(outcome["validation"])
+                repair_context.retain(
+                    configs, states, task, request, artifact, attempt, "PASSED", ""
+                )
                 break
             repair_reason = "review" if browser_passed else "browser_qa"
             save()
@@ -787,6 +805,16 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
                 + "\n".join(test_output)[-30000:]
                 + "\nBrowser QA failures (fix only observed in-scope defects):\n"
                 + json.dumps(outcome["browser_qa"])
+            )
+            repair_context.retain(
+                configs,
+                states,
+                task,
+                request,
+                artifact,
+                attempt,
+                "CHANGES_REQUESTED",
+                prompt.removeprefix(request),
             )
         else:
             raise RuntimeError(
@@ -815,6 +843,19 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
         )
         if isinstance(exc, StructuredResponseError):
             outcome["response_failure"] = exc.details
+        try:
+            repair_context.retain(
+                configs,
+                states,
+                task,
+                request,
+                artifact,
+                outcome.get("attempt", 0),
+                outcome["status"],
+                outcome["error"],
+            )
+        except Exception as retention_error:
+            outcome["continuation_error"] = type(retention_error).__name__
         raise
     finally:
         save()

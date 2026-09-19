@@ -153,6 +153,7 @@ class BrowserQATests(unittest.TestCase):
                         run, "implementation_attempt", return_value=({"example": test_code}, [])
                     ),
                     patch.object(run, "browser_checks", return_value={"example": qa}),
+                    patch.object(run.repair_context, "retain"),
                     patch.object(
                         run,
                         "review_changes",
@@ -386,6 +387,7 @@ class BrowserQATests(unittest.TestCase):
                         "browser_checks",
                         side_effect=[failing, {"example": {"status": "PASS", "summary": "Fixed"}}],
                     ),
+                    patch.object(run.repair_context, "retain"),
                     patch.object(
                         run,
                         "review_changes",

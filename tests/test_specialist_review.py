@@ -238,6 +238,7 @@ class SpecialistRepairTests(unittest.TestCase):
                 ]
                 with (
                     patch.object(run, "implementation_attempt", side_effect=attempts) as implement,
+                    patch.object(run.repair_context, "retain"),
                     patch.object(run, "review_changes", return_value=result),
                     patch.object(run, "publish", return_value="https://example.test/pr") as publish,
                 ):

@@ -634,7 +634,9 @@ class PipelineTests(unittest.TestCase):
                             invoke()
                     else:
                         self.assertEqual(invoke()["status"], "PASSED")
-                        # Reuse the same bare branches with a fresh workspace and full history.
+                        # A new native run retains new immutable evidence, reusing the bare branches.
+                        artifact = root / "next-run-artifact"
+                        artifact.mkdir()
                         self.assertEqual(invoke()["status"], "PASSED")
                     if test_exit or verdict != "PASS":
                         published.assert_not_called()
