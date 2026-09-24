@@ -249,8 +249,15 @@ requires_openai_auth = false
             ReviewReport.model_validate_json(get_agent_final_response(conversation.state.events))
             assert not failures, failures
             assert "report" in verified, "Report editor did not execute"
+            # The adapter reports usage as a synthetic ACP tool event even when
+            # the model returns only text. Actual tool calls must remain absent.
             assert not any(
-                event.kind == "ACPToolCallEvent" for event in conversation.state.events
+                event.kind == "ACPToolCallEvent"
+                and not (
+                    event.title == "Factory provider usage"
+                    and event.tool_call_id.startswith("factory-usage:")
+                )
+                for event in conversation.state.events
             ), "Report editor used tools"
             print(
                 "PASS: native skill delivery, Alibaba review role, inherited Astra/xhigh and read-only policy, advisory verdict, and tool-free report editing."

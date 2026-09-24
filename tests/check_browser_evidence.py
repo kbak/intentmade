@@ -32,21 +32,21 @@ async def capture(root, url):
     async with stdio_client(server) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
         navigated = await session.call_tool("browser_navigate", {"url": url})
-        assert not navigated.is_error, navigated
+        assert not navigated.isError, navigated
         snapshot = max(root.glob("page-*.yml"), key=lambda path: path.stat().st_mtime).read_text()
         match = re.search(r'button "Retry" \[ref=([^\]]+)\]', snapshot)
         assert match, navigated
         clicked = await session.call_tool(
             "browser_click", {"target": match[1], "element": "Retry button"}
         )
-        assert not clicked.is_error, clicked
+        assert not clicked.isError, clicked
         snapshot = max(root.glob("page-*.yml"), key=lambda path: path.stat().st_mtime).read_text()
         assert "Recovered" in snapshot, snapshot
         image = await session.call_tool(
             "browser_take_screenshot",
             {"filename": str(root / "recovered.png"), "type": "png", "scale": "css"},
         )
-        assert not image.is_error, image
+        assert not image.isError, image
         assert (root / "recovered.png").is_file(), [
             c.text for c in image.content if c.type == "text"
         ]

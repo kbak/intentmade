@@ -66,14 +66,22 @@ class InstalledReviewPolicyTests(unittest.TestCase):
         client.factory_read_only = True
         for options in ([SimpleNamespace(option_id="allow_once")], []):
             with self.subTest(options=options):
-                result = asyncio.run(client.request_permission(options, "fixture", "write file"))
+                result = asyncio.run(
+                    client.request_permission(
+                        options=options, session_id="fixture", tool_call="write file"
+                    )
+                )
                 self.assertEqual(result.model_dump()["outcome"], {"outcome": "cancelled"})
 
     def test_builder_bridge_keeps_approval_behavior(self):
         client = _OpenHandsACPBridge()
         client.factory_read_only = False
         result = asyncio.run(
-            client.request_permission([SimpleNamespace(option_id="allow_once")], "fixture", "build")
+            client.request_permission(
+                options=[SimpleNamespace(option_id="allow_once")],
+                session_id="fixture",
+                tool_call="build",
+            )
         )
         self.assertEqual(
             result.model_dump(exclude_none=True)["outcome"],

@@ -21,7 +21,12 @@ from pydantic import SecretStr
 
 def load_credential(parent):
     if callable(getattr(parent, "load_versioned_secret", None)):
-        return parent.load_versioned_secret("CODEX_AUTH_JSON")
+        try:
+            return parent.load_versioned_secret("CODEX_AUTH_JSON")
+        except KeyError as exc:
+            if exc.args != ("CODEX_AUTH_JSON",):
+                raise
+            raise RuntimeError("Native Codex login is unavailable") from None
     value = parent.get_secret("CODEX_AUTH_JSON")
     if not value:
         raise RuntimeError("Native Codex login is unavailable")
@@ -56,6 +61,11 @@ def sync_credential(parent, version, previous, refreshed):
                     update={"secret": SecretStr(refreshed)}
                 )
                 parent.save(current.model_copy(update={"custom_secrets": updated}))
+    except KeyError as exc:
+        if exc.args != ("CODEX_AUTH_JSON",):
+            raise
+        # A logout during execution must not restore the worker's old login.
+        print("Native credential store retained a concurrent logout.", flush=True)
     except ValueError as exc:
         if str(exc) != "credential_version_conflict":
             raise
