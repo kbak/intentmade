@@ -7,7 +7,7 @@ Requirements and code/test references use
 
 A **scope** file selects the files to trace, coverage rules, and test command.
 Each task compares its changes with a **baseline** Git commit and saves results
-for the source it checked. The runtime needs `versioned-traceability` and
+for the source it checked. The runtime needs `intentbond` and
 `openhands-traceability`. Repositories without `traceability_scope` keep their
 usual test and review workflow.
 
@@ -23,7 +23,7 @@ For repositories with `traceability_scope`, traceability enters each stage as fo
 | **3. Implement and repair** | The worker maintains requirements, code, tests, and their links, and runs checks for feedback. |
 | **4. Validate and review** | The controller independently runs checks and matches the evidence to the exported commit. The reviewer checks behavior and requirement/test changes before completion and draft PR publication. |
 
-`versioned-traceability` supplies guidance, OFT checks, and saved evidence.
+`intentbond` supplies guidance, OFT checks, and saved evidence.
 `openhands-traceability` adds that guidance to agent context and forwards commands.
 The factory selects the scope and manages authorization, repairs, review, and
 completion. Its runtime supplies the tools to workers.
@@ -36,20 +36,20 @@ while omitting tool-installation instructions. Alibaba Reviewer uses the
 [factory-review skill](../workflows/skills/factory-review/SKILL.md).
 
 Workers can follow the portable
-[property-testing workflow](https://github.com/kbak/versioned-traceability/blob/main/docs/property-testing.md)
+[property-testing workflow](https://github.com/kbak/intent-bond/blob/main/docs/property-testing.md)
 to add or maintain properties for selected requirements using the project's
 test library and configured command. Review generators, assumptions and search
 budgets with assertions; passing searches do not prove the linked requirements.
-This guidance requires `versioned-traceability` 0.4.5+ and
+This guidance requires `intentbond` 0.4.6+ and
 `openhands-traceability` 0.2.6+ in the runtime image.
 
 Discussion, implementation, and reviewer contexts include the same portable
-[concepts and result meanings](https://github.com/kbak/versioned-traceability/blob/main/versioned_traceability/skills/versioned-traceability/references/semantics.md).
+[concepts and result meanings](https://github.com/kbak/intent-bond/blob/main/intentbond/skills/intentbond/references/semantics.md).
 It defines coverage, identity, provenance, authorization, and the conclusions
 supported by execution evidence; the factory does not maintain a separate vocabulary.
 
 For a project without reviewed requirements and links,
-[document the existing behavior and review the proposal](https://github.com/kbak/versioned-traceability/blob/main/docs/recovery.md)
+[document the existing behavior and review the proposal](https://github.com/kbak/intent-bond/blob/main/docs/recovery.md)
 first. Commit and validate that starting point, then enable `traceability_scope`
 in the factory registration. Preparing documentation or installing skills does
 not enable the factory's checks automatically.
@@ -58,7 +58,7 @@ not enable the factory's checks automatically.
 
 A portable scope can live in the project repository or in separate
 configuration. A project-owned scope travels with the project: standalone
-`vt check` reads the root `scope.json` from the baseline commit. A separately
+`ib check` reads the root `scope.json` from the baseline commit. A separately
 maintained scope can also be used standalone with `--scope`, provided its test
 dependencies and environment are available.
 
@@ -285,8 +285,8 @@ and provision its OFT JAR:
 
 ```sh
 python -m pip download --only-binary=:all: --dest /path/to/wheels \
-  /path/to/wheels/versioned_traceability-*.whl
-vt install-oft --destination /path/to/wheels
+  /path/to/wheels/intentbond-*.whl
+ib install-oft --destination /path/to/wheels
 ```
 
 Use an artifact directory containing one wheel per package. The OFT installer
@@ -326,4 +326,4 @@ Repository CI and merge rules remain outside this integration.
 
 ## Source and revision impact reports
 
-The pinned runtime now includes portable `vt impact --evidence PATH` reporting (core 0.4.6, adapter 0.2.8). Check evidence and `vt explain` distinguish full source identity from tracing and selected semantic-review inputs. Impact reports separate declaration text, exact-edge revisions and conservative implementation/test source categories. Review still assesses the complete candidate and continued assertion coverage; a revision update is not semantic approval.
+The pinned runtime now includes portable `ib impact --evidence PATH` reporting (core 0.4.6, adapter 0.2.8). Check evidence and `ib explain` distinguish full source identity from tracing and selected semantic-review inputs. Impact reports separate declaration text, exact-edge revisions and conservative implementation/test source categories. Review still assesses the complete candidate and continued assertion coverage; a revision update is not semantic approval.

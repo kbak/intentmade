@@ -30,7 +30,7 @@ def begin(root, phase, repo, scope, base):
     command = [
         "python",
         "-m",
-        "versioned_traceability",
+        "intentbond",
         "check",
         "--repo",
         str(repo),

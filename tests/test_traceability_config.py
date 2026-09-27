@@ -34,26 +34,20 @@ class ScopeConfigurationTests(unittest.TestCase):
 
     def test_absent_scope_keeps_ordinary_workflow_without_optional_packages(self):
         self.register()
-        with patch.dict(
-            sys.modules, {"versioned_traceability": None, "openhands_traceability": None}
-        ):
+        with patch.dict(sys.modules, {"intentbond": None, "openhands_traceability": None}):
             config = common.projects(self.root)["pilot"]
         self.assertNotIn("traceability_scope", config)
         self.assertEqual(config["test_command"], "make test")
 
     def test_discussion_without_traceability_needs_no_optional_packages(self):
         self.register()
-        with patch.dict(
-            sys.modules, {"versioned_traceability": None, "openhands_traceability": None}
-        ):
+        with patch.dict(sys.modules, {"intentbond": None, "openhands_traceability": None}):
             context = traceability.discussion_context(list(common.projects(self.root).values()))
         self.assertEqual(context, {"repositories": {"pilot": {"catalog": "/projects/repos/pilot"}}})
-        with patch.dict(sys.modules, {"versioned_traceability": None}):
+        with patch.dict(sys.modules, {"intentbond": None}):
             self.assertEqual(traceability.review_context({}), "")
 
-    @unittest.skipUnless(
-        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
-    )
+    @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
     def test_mixed_discussion_loads_authoring_semantics_and_selected_scopes(self):
         from importlib.resources import files
 
@@ -66,9 +60,7 @@ class ScopeConfigurationTests(unittest.TestCase):
         self.assertEqual(
             context["repositories"]["ordinary"], {"catalog": "/projects/repos/ordinary"}
         )
-        directory = files("versioned_traceability").joinpath(
-            "skills/versioned-traceability/references"
-        )
+        directory = files("intentbond").joinpath("skills/intentbond/references")
         expected = "\n\n".join(
             (directory / name).read_text(encoding="utf-8")
             for name in ("requirements.md", "semantics.md")
@@ -100,9 +92,7 @@ class ScopeConfigurationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "only in the traceability scope"):
             common.projects(self.root)
 
-    @unittest.skipUnless(
-        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
-    )
+    @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
     def test_scope_contents_are_resolved_from_config_and_own_the_test_command(self):
         # The process cwd is unrelated to the deployment directory.
         config = common.projects(self.root)["pilot"]
@@ -111,11 +101,9 @@ class ScopeConfigurationTests(unittest.TestCase):
         self.scope.unlink()
         self.assertEqual(config["traceability_scope"]["name"], "session-checks")
 
-    @unittest.skipUnless(
-        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
-    )
+    @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
     def test_deleted_or_invalid_scope_is_a_configuration_error(self):
-        from versioned_traceability.common import CheckError
+        from intentbond.common import CheckError
 
         self.scope.unlink()
         with self.assertRaises((CheckError, OSError)):
@@ -127,9 +115,7 @@ class ScopeConfigurationTests(unittest.TestCase):
                     common.projects(self.root)
 
 
-@unittest.skipUnless(
-    importlib.util.find_spec("versioned_traceability"), "Optional portable package"
-)
+@unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
 class ScopeIdentityTests(unittest.TestCase):
     setUp = ScopeConfigurationTests.setUp
     register = ScopeConfigurationTests.register

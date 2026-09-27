@@ -152,11 +152,9 @@ class ConfigurationTests(unittest.TestCase):
                         "PATCH", "/api/automation/v1/original-replies", json={"enabled": False}
                     )
 
-    @unittest.skipUnless(
-        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
-    )
+    @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
     def test_reconfigure_uploads_changed_scope_to_existing_automations(self):
-        from versioned_traceability.common import CheckError
+        from intentbond.common import CheckError
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -216,11 +214,9 @@ class ConfigurationTests(unittest.TestCase):
                 api.assert_not_called()
                 install.assert_not_called()
 
-    @unittest.skipUnless(
-        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
-    )
+    @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
     def test_discussion_and_approved_handoff_use_the_same_repository_selection(self):
-        from versioned_traceability.common import CheckError
+        from intentbond.common import CheckError
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

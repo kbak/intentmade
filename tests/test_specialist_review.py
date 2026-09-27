@@ -272,9 +272,7 @@ class SpecialistRepairTests(unittest.TestCase):
 
 
 class ManualSpecialistReviewTests(unittest.TestCase):
-    @unittest.skipUnless(
-        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
-    )
+    @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
     def test_opted_in_pr_review_receives_scope_and_accessible_patch_context(self):
         from test_traceability_review import assessed, change
 

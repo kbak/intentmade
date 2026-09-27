@@ -22,8 +22,7 @@ from test_traceability_review import assessed, change
 
 
 @unittest.skipUnless(
-    importlib.util.find_spec("versioned_traceability")
-    and importlib.util.find_spec("openhands_traceability"),
+    importlib.util.find_spec("intentbond") and importlib.util.find_spec("openhands_traceability"),
     "Optional traceability packages require the pilot test image",
 )
 class TraceabilityPipelineTests(unittest.TestCase):

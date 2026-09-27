@@ -20,7 +20,7 @@ PACKAGES = (
     "openhands-workspace",
     "openhands-agent-server",
     "openhands-automation",
-    "versioned-traceability",
+    "intentbond",
     "openhands-traceability",
 )
 
@@ -47,7 +47,9 @@ def runtime():
         except (OSError, ValueError, KeyError):
             tools[name] = None
     jar = Path(
-        os.environ.get("VT_OFT_JAR", "/opt/factory/traceability-tools/openfasttrace-4.9.0.jar")
+        os.environ.get(
+            "INTENTBOND_OFT_JAR", "/opt/factory/traceability-tools/openfasttrace-4.9.0.jar"
+        )
     )
     tools["oft_jar_sha256"] = sha256(jar) if jar.is_file() else None
     for name, location in {

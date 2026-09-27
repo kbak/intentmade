@@ -37,7 +37,7 @@ class FactorySkillTests(unittest.TestCase):
             saved = ACPAgent.model_validate(workspace.client.post.call_args.kwargs["json"]["agent"])
             self.assertEqual(
                 [s.name for s in saved.agent_context.skills],
-                ["factory-implementation", "versioned-traceability"],
+                ["factory-implementation", "intentbond"],
             )
             self.assertNotIn("pip install", saved.agent_context.to_acp_prompt_context())
             for identity in (saved_id, None):

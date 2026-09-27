@@ -15,7 +15,7 @@ from pathlib import Path
 def scope_for(config):
     if "traceability_scope" not in config:
         return None
-    from versioned_traceability.config import validate_scope
+    from intentbond.config import validate_scope
 
     return validate_scope(config["traceability_scope"])
 
@@ -35,7 +35,7 @@ def discussion_context(configs):
     if any("traceability_scope" in repo for repo in result["repositories"].values()):
         from importlib.resources import files
 
-        directory = files("versioned_traceability") / "skills/versioned-traceability/references"
+        directory = files("intentbond") / "skills/intentbond/references"
         result["requirements_guidance"] = "\n\n".join(
             (directory / name).read_text(encoding="utf-8")
             for name in ("requirements.md", "semantics.md")
@@ -176,9 +176,9 @@ def check(workspace, state, paths, env):
 def collect(state, paths, check_exit_code):
     """Retain after worker teardown, then match against a fresh trusted Git clone."""
     from common import git
-    from versioned_traceability.common import read_json
-    from versioned_traceability.evidence import EXIT_CODES, read_statement
-    from versioned_traceability.runner import verify
+    from intentbond.common import read_json
+    from intentbond.evidence import EXIT_CODES, read_statement
+    from intentbond.runner import verify
 
     target = paths["retained"]
     target.mkdir()
@@ -262,7 +262,7 @@ def review_scope(config, changed_paths):
     scope = scope_for(config)
     if scope is None:
         return None
-    from versioned_traceability.common import within
+    from intentbond.common import within
 
     return {
         "scope": scope,
@@ -272,9 +272,9 @@ def review_scope(config, changed_paths):
 
 def requirement_index(source, scope, candidate, base=None, *, archive=False):
     """Resolve review citations through OFT before an agent sees the source."""
-    from versioned_traceability.common import CheckError, within
-    from versioned_traceability.oft import default_jar, export_items, validate_jar
-    from versioned_traceability.snapshot import archive_snapshot, snapshot
+    from intentbond.common import CheckError, within
+    from intentbond.oft import default_jar, export_items, validate_jar
+    from intentbond.snapshot import archive_snapshot, snapshot
 
     versions = {"candidate": candidate}
     if base is not None:
@@ -355,8 +355,8 @@ def review_context(selected):
     from importlib.resources import files
 
     semantics = (
-        files("versioned_traceability")
-        .joinpath("skills/versioned-traceability/references/semantics.md")
+        files("intentbond")
+        .joinpath("skills/intentbond/references/semantics.md")
         .read_text(encoding="utf-8")
     )
     # Keep full ID inventories in controller validation and saved review records,

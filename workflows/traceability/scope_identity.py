@@ -10,8 +10,8 @@ def sha(data):
 
 
 def capture(path, reference):
-    from versioned_traceability.common import CheckError, parse_json
-    from versioned_traceability.config import validate_scope
+    from intentbond.common import CheckError, parse_json
+    from intentbond.config import validate_scope
 
     try:
         data = path.read_bytes()
@@ -27,8 +27,8 @@ def capture(path, reference):
 
 
 def export(config):
-    from versioned_traceability.common import canonical, parse_json
-    from versioned_traceability.config import validate_scope
+    from intentbond.common import canonical, parse_json
+    from intentbond.config import validate_scope
 
     scope = validate_scope(config["traceability_scope"])
     source = config.get("traceability_scope_source")

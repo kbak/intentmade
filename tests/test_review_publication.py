@@ -116,9 +116,7 @@ class PublicationTests(unittest.TestCase):
         self.assertIn("**Changes requested**", self.posted[0]["body"])
         self.assertEqual(self.calls[-1][2]["body"]["event"], "REQUEST_CHANGES")
 
-    @unittest.skipUnless(
-        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
-    )
+    @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
     def test_traceability_gap_requests_changes_without_a_code_or_security_finding(self):
         scope = json.loads((Path(__file__).parent / "fixtures/traceability-scope.json").read_text())
         expected = {
@@ -178,9 +176,7 @@ class PublicationTests(unittest.TestCase):
             with self.assertRaisesRegex(review_publication.PublicationError, "source index"):
                 review_publication.load_saved(config, PR, artifact)
 
-    @unittest.skipUnless(
-        importlib.util.find_spec("versioned_traceability"), "Optional portable package"
-    )
+    @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
     def test_legacy_review_cannot_approve_when_a_scope_is_now_required(self):
         scope = json.loads((Path(__file__).parent / "fixtures/traceability-scope.json").read_text())
         with self.assertRaisesRegex(review_publication.PublicationError, "fresh review"):
