@@ -80,4 +80,4 @@ IntentBond, Git, Java, and the project's test dependencies.
 The recovery example uses the existing ACP login and retains originals and
 results under Git metadata unless `--out` is supplied. These records stay local;
 retain complete bundles for shared review. Review and commit accepted requirements
-using the [IntentBond recovery guide](https://github.com/kbak/intent-bond/blob/main/docs/recovery.md).
+using the [IntentBond recovery guide](https://github.com/kbak/intentbond/blob/main/docs/recovery.md).

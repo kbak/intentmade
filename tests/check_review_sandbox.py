@@ -61,7 +61,7 @@ subprocess.run(
         "seccomp=" + str(Path(__file__).resolve().parents[1] / "runtime/codex-seccomp.json"),
         "--entrypoint",
         "python",
-        os.environ.get("FACTORY_IMAGE", "openhands-factory:dev"),
+        os.environ.get("FACTORY_IMAGE", "intentmade:dev"),
         "-c",
         PROBE,
     ],

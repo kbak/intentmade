@@ -116,7 +116,7 @@ if a.action == "init":
     print("Initialized. Start the services, then run factoryctl codex-login.")
 elif a.action == "up":
     image = CANVAS["image"]
-    if image == "openhands-factory:dev":
+    if image == "intentmade:dev":
         run("docker", "compose", "build", "canvas")
     else:
         # A supplied image may contain optional runtime dependencies. Never

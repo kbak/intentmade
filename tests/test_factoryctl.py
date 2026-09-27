@@ -50,13 +50,13 @@ class StartupTests(unittest.TestCase):
         self.assertIn("--no-build", self.commands[-1])
 
     def test_default_image_is_built_and_transferred(self):
-        self.start("openhands-factory:dev")
+        self.start("intentmade:dev")
         self.assertEqual(self.commands[0], ("docker", "compose", "build", "canvas"))
 
     def test_supplied_runtime_is_preserved_and_transferred(self):
-        self.start("openhands-factory:traceability")
+        self.start("intentmade:traceability")
         self.assertEqual(
-            self.commands[0], ("docker", "image", "inspect", "openhands-factory:traceability")
+            self.commands[0], ("docker", "image", "inspect", "intentmade:traceability")
         )
         self.assertFalse(any("build" in c for c in self.commands))
 

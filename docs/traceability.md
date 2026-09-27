@@ -37,18 +37,18 @@ while omitting tool-installation instructions. Alibaba Reviewer uses the
 [factory-review skill](../workflows/skills/factory-review/SKILL.md).
 
 Workers can follow the portable
-[property-testing workflow](https://github.com/kbak/intent-bond/blob/main/docs/property-testing.md)
+[property-testing workflow](https://github.com/kbak/intentbond/blob/main/docs/property-testing.md)
 to add or maintain properties for selected requirements using the project's
 test library and configured command. Review generators, assumptions and search
 budgets with assertions; passing searches do not prove the linked requirements.
 
 Discussion, implementation, and reviewer contexts include the same portable
-[concepts and result meanings](https://github.com/kbak/intent-bond/blob/main/intentbond/skills/intentbond/references/semantics.md).
+[concepts and result meanings](https://github.com/kbak/intentbond/blob/main/intentbond/skills/intentbond/references/semantics.md).
 It defines coverage, identity, provenance, authorization, and the conclusions
 supported by execution evidence; the factory does not maintain a separate vocabulary.
 
 For a project without reviewed requirements and links,
-[document the existing behavior and review the proposal](https://github.com/kbak/intent-bond/blob/main/docs/recovery.md)
+[document the existing behavior and review the proposal](https://github.com/kbak/intentbond/blob/main/docs/recovery.md)
 first. Commit and validate that starting point, then enable `traceability_scope`
 in the factory registration. Preparing documentation or installing skills does
 not enable the factory's checks automatically.
@@ -290,17 +290,17 @@ Use an artifact directory containing one wheel per package. The OFT installer
 verifies the JAR checksum. From the factory checkout:
 
 ```sh
-docker build -f docker/runtime.Dockerfile -t openhands-factory:traceability-base .
+docker build -f docker/runtime.Dockerfile -t intentmade:traceability-base .
 docker build -f docker/traceability.Dockerfile \
-  --build-arg BASE_IMAGE=openhands-factory:traceability-base \
+  --build-arg BASE_IMAGE=intentmade:traceability-base \
   --build-context traceability_wheels=/path/to/wheels \
-  -t openhands-factory:traceability-test .
+  -t intentmade:traceability-test .
 ```
 
-Set `FACTORY_IMAGE=openhands-factory:traceability-test` in the test deployment's
+Set `FACTORY_IMAGE=intentmade:traceability-test` in the test deployment's
 shell or `.env`, then use `./scripts/factoryctl up`. Startup requires that custom
 image to exist locally, preserves it, and transfers it to the worker daemon.
-The default `openhands-factory:dev` image is built automatically. Rebuild custom
+The default `intentmade:dev` image is built automatically. Rebuild custom
 images explicitly before startup after changing runtime code or dependencies,
 then refresh uploaded workflows with `./scripts/factoryctl configure`.
 

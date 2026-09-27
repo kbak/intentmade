@@ -1,4 +1,4 @@
-# Local OpenHands factory
+# IntentMade coordinator
 
 Use this native Canvas conversation to discuss ideas, tradeoffs, specifications,
 and results. Discussion alone never authorizes implementation. A user can stay

@@ -11,13 +11,13 @@ uv sync --locked
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 
-docker build -f docker/runtime.Dockerfile -t openhands-factory:dev .
+docker build -f docker/runtime.Dockerfile -t intentmade:dev .
 docker run --rm --network none --entrypoint python \
   -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
   -v "$PWD/tests:/tests:ro" -v "$PWD/examples/config:/opt/factory/config:ro" \
   -v "$PWD/examples:/examples:ro" \
   -v "$PWD/scripts:/scripts:ro" -v "$PWD/tests/profiles:/factory-tests:ro" \
-  openhands-factory:dev -m unittest discover -s /tests -p 'test_*.py' -v
+  intentmade:dev -m unittest discover -s /tests -p 'test_*.py' -v
 ```
 
 Coverage includes scheduling and deduplication, task authorization, Git
@@ -28,7 +28,7 @@ separation, read-only review permissions, and hostile Git configuration.
 ## Traceability checks
 
 Build the [traceability image](../docs/traceability.md#runtime-setup), then run
-the regression command above with `openhands-factory:traceability-test`. The
+the regression command above with `intentmade:traceability-test`. The
 suite requires IntentBond and its OFT JAR to run the opt-in cases. The
 ordinary image skips those cases.
 
@@ -70,7 +70,7 @@ module so the runtime patches are used.
 docker run --rm --network none --entrypoint python \
   -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
   -v "$PWD/tests:/tests:ro" \
-  openhands-factory:dev /tests/check_specialist_review.py
+  intentmade:dev /tests/check_specialist_review.py
 ```
 
 This probe uses a local scripted model endpoint to check Codex/ACP instruction
@@ -103,7 +103,7 @@ networks, and volumes.
 docker run --rm --network none --entrypoint python \
   -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
   -e LITELLM_LOCAL_MODEL_COST_MAP=True -v "$PWD/tests:/tests:ro" \
-  openhands-factory:dev /tests/check_browser_evidence.py
+  intentmade:dev /tests/check_browser_evidence.py
 ```
 
 This uses Chromium, a local HTML fixture, and an isolated Agent Server to check
@@ -119,7 +119,7 @@ The fixtures use `main` and `trunk` branches with Docker tests. Their
 configuration disables scheduling and publication. In a dedicated shell:
 
 ```bash
-export COMPOSE_PROJECT_NAME=openhands-factory-test
+export COMPOSE_PROJECT_NAME=intentmade-test
 export CANVAS_PORT=8001
 export FACTORY_DATA_DIR="$PWD/.factory/test-instance"
 export FACTORY_CONFIG_DIR="$PWD/tests/config"

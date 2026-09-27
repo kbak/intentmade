@@ -33,7 +33,7 @@ def install(definition, files, existing=None):
 
     upload = api(
         "POST",
-        "/api/automation/v1/uploads?name=openhands-factory",
+        "/api/automation/v1/uploads?name=intentmade",
         content=build_tarball(files),
         headers={"Content-Type": "application/gzip"},
     )

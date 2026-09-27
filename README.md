@@ -1,9 +1,10 @@
-# OpenHands factory
+# IntentMade
 
-A local software factory for Linux and Docker. Discuss ideas and approve
-specifications in OpenHands Agent Canvas, then run implementation, tests and an
-independent agent review in disposable containers. Passing changes are published
-as draft pull requests. Scheduled agents triage GitHub issues and review PRs.
+A software factory powered by OpenHands. Runs locally on Linux with Docker.
+Discuss ideas and approve specifications in OpenHands Agent Canvas, then run
+implementation, tests and an independent agent review in disposable containers.
+Passing changes are published as draft pull requests. Scheduled agents triage
+GitHub issues and review PRs.
 
 The agent uses Codex through OpenHands ACP with your subscription login. Canvas
 provides chat, schedules, run history and logs. Each task gets a branch and Git
@@ -18,7 +19,7 @@ Choose directories for configuration, test profiles and runtime data. They do
 not need a separate Git repository. For example:
 
 ```text
-openhands-factory/       # Tooling, generic examples and tests
+intentmade/              # Tooling, generic examples and tests
 my-factory/              # Operator-chosen directory
   config/               # Repository registrations, groups and scheduling policy
   profiles/             # Optional application test adapters
@@ -551,4 +552,4 @@ resources; a host crash can require manual cleanup.
 See [tests/README.md](tests/README.md) for lint, regression and live smoke
 checks. Runtime dependencies are pinned in `docker/runtime.Dockerfile` and
 `upstream.lock.json`; run the checks when changing workflows or those pins.
-Local builds use the `openhands-factory:dev` image tag.
+Local builds use the `intentmade:dev` image tag.

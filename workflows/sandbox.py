@@ -113,7 +113,7 @@ def worker(root, config):
         os.environ.update(settings)
         port = find_available_tcp_port()
         with DockerWorkspace(
-            server_image=os.environ.get("FACTORY_IMAGE", "openhands-factory:dev"),
+            server_image=os.environ.get("FACTORY_IMAGE", "intentmade:dev"),
             host_port=port,
             host=f"http://sandboxes:{port}",
             working_dir=str(root / "source"),

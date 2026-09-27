@@ -1,14 +1,14 @@
-name: openhands-factory
+name: intentmade
 services:
   canvas:
-    image: ${FACTORY_IMAGE:-openhands-factory:dev}
+    image: ${FACTORY_IMAGE:-intentmade:dev}
     build:
       context: .
       dockerfile: docker/runtime.Dockerfile
     restart: unless-stopped
     ports: ["127.0.0.1:${CANVAS_PORT:-8000}:8000"]
     environment:
-      FACTORY_IMAGE: ${FACTORY_IMAGE:-openhands-factory:dev}
+      FACTORY_IMAGE: ${FACTORY_IMAGE:-intentmade:dev}
       AGENT_SERVER_URL: http://127.0.0.1:8000
       DO_NOT_TRACK: "1"
       OH_PERSISTENCE_DIR: /home/openhands/.openhands

@@ -46,7 +46,7 @@ def remove_job(root):
                 f"type=bind,src={root},dst=/cleanup",
                 "--entrypoint",
                 "python",
-                os.environ.get("FACTORY_IMAGE", "openhands-factory:dev"),
+                os.environ.get("FACTORY_IMAGE", "intentmade:dev"),
                 "-c",
                 CLEAN,
             ],

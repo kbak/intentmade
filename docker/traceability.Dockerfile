@@ -1,5 +1,5 @@
 # Optional pilot runtime. Build the ordinary factory image from this checkout first.
-ARG BASE_IMAGE=openhands-factory:dev
+ARG BASE_IMAGE=intentmade:dev
 FROM ${BASE_IMAGE}
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends openjdk-21-jre-headless && rm -rf /var/lib/apt/lists/*
