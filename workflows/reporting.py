@@ -158,7 +158,7 @@ class TaskReport:
                 ACTIVE["conversation_id"] = current
         write_report(config, task, self.record)
 
-    def update(self, status, message, *, metrics=None, **details):
+    def update(self, status, message, *, metrics=None, wake_assistant=True, **details):
         metrics = metrics or details.get("result", {}).get("metrics")
         if metrics:
             details["metrics"] = str(metrics)
@@ -180,7 +180,7 @@ class TaskReport:
             post(
                 self.record["conversation_id"],
                 f"**{status}**\n\n{message}",
-                run=status == "NEEDS_INPUT",
+                run=status == "NEEDS_INPUT" and wake_assistant,
             )
         except Exception as exc:
             print(f"Canvas report update unavailable: {type(exc).__name__}", flush=True)

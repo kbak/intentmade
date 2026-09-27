@@ -28,6 +28,10 @@ COPY runtime/factory-usage.mjs /opt/factory/factory-usage.mjs
 RUN python /opt/factory/patch_acp_usage.py
 COPY runtime/patch_workspace_runtime.py /opt/factory/patch_workspace_runtime.py
 RUN python /opt/factory/patch_workspace_runtime.py
+COPY runtime/patch_agent_startup.py /opt/factory/patch_agent_startup.py
+RUN python /opt/factory/patch_agent_startup.py
+# Both Canvas and disposable workers must load the patched Python packages.
+COPY --chmod=755 runtime/agent-server /usr/local/bin/openhands-agent-server
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py
 RUN python /opt/factory/patch_run_outcomes.py
 COPY runtime/patch_download_filename.py /opt/factory/patch_download_filename.py

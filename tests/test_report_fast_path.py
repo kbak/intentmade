@@ -17,6 +17,22 @@ from test_traceability_review import EXPECTED, assessed, change
 
 
 class DirectReportTests(unittest.TestCase):
+    def test_report_editor_login_failure_keeps_reconnect_action_and_review_evidence(self):
+        failure = {"code": "ACPAuthRequired", "detail": "Reconnect Codex"}
+
+        def reviewer(workspace, prompt, **kwargs):
+            kwargs["event_log"].append(evidence())
+
+        with (
+            patch.object(review, "prepare", return_value={}),
+            patch.object(review, "converse", side_effect=reviewer),
+            patch.object(review, "consolidate", side_effect=review.AgentStartupError(failure)),
+        ):
+            result = review.review_code(Mock(), "Review with discussion", initial_review=False)
+        self.assertEqual(result.verdict, "BLOCKED")
+        self.assertEqual(result.startup_failure, failure)
+        self.assertTrue(result.reviews)
+
     def test_initial_reviews_preserve_findings_coverage_and_traceability_without_editor(self):
         summary = (
             "Source inspected. Integration tests were not run; external behavior is unverified."

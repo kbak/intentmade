@@ -1,0 +1,3 @@
+#!/bin/sh
+# Run the installed, patched SDK instead of the separately bundled executable.
+exec python -m openhands.agent_server "$@"

@@ -59,6 +59,7 @@ p.add_argument(
         "open",
         "logs",
         "configure",
+        "codex-login",
         "submit",
         "review",
         "retry-issue",
@@ -112,7 +113,7 @@ if a.action == "init":
                 "-m",
                 "Disposable test fixture",
             )
-    print("Initialized. Configure Codex login in native Canvas for a fresh instance.")
+    print("Initialized. Start the services, then run factoryctl codex-login.")
 elif a.action == "up":
     image = CANVAS["image"]
     if image == "openhands-factory:dev":
@@ -155,8 +156,8 @@ elif a.action == "submit":
             p.error("--inputs requires a manifest file")
         a.args[index : index + 2] = ["--inputs-json", Path(a.args[index + 1]).read_text()]
     native("submit", a.args[0], "-", *a.args[2:], input=Path(a.args[1]).read_text(), text=True)
-elif a.action == "review":
-    native("review", *a.args)
+elif a.action in {"review", "codex-login"}:
+    native(a.action, *a.args)
 elif a.action == "retry-issue":
     if "--answer-file" in a.args:
         index = a.args.index("--answer-file") + 1

@@ -365,6 +365,7 @@ if __name__ == "__main__":
     sub = parser.add_subparsers(dest="action", required=True)
     sub.add_parser("configure").add_argument("--paused", action="store_true")
     sub.add_parser("github-login")
+    sub.add_parser("codex-login")
     sub.add_parser("projects")
     sub.add_parser("factories")
     finite_command = sub.add_parser("finite")
@@ -397,6 +398,10 @@ if __name__ == "__main__":
             "/api/settings/secrets",
             json={"name": "GITHUB_PERSONAL_ACCESS_TOKEN", "value": sys.stdin.read().strip()},
         )
+    elif args.action == "codex-login":
+        from codex_login import login
+
+        login()
     elif args.action == "projects":
         print(json.dumps(projects(), indent=2))
     elif args.action == "factories":

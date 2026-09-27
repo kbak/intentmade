@@ -27,6 +27,7 @@ class FactorySkillTests(unittest.TestCase):
         }
         conversation = Mock()
         conversation.state.execution_status.value = "finished"
+        conversation.state.events = []
         with (
             patch.dict(os.environ, FACTORY_CODEX_MODEL="test/high"),
             patch.object(agent, "Conversation", return_value=conversation) as create,
@@ -85,6 +86,7 @@ class FactorySkillTests(unittest.TestCase):
         }
         conversation = Mock()
         conversation.state.execution_status.value = "finished"
+        conversation.state.events = []
         with (
             patch.dict(os.environ, FACTORY_CODEX_MODEL="test/high"),
             patch.object(agent, "Conversation", return_value=conversation) as create,

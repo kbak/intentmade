@@ -159,7 +159,7 @@ def retryable(config, pr, reply):
         return False
     record = read(config, pr) or {}
     return (
-        record.get("status") in {"FAILED", "PUBLICATION_FAILED"}
+        record.get("status") in {"FAILED", "PUBLICATION_FAILED", "NEEDS_INPUT"}
         and record.get("answer_id") != reply["id"]
         # Older standalone reports did not save a snapshot. A failure receipt
         # for this exact comparison must still exist to authorize a retry.

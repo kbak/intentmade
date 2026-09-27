@@ -94,11 +94,14 @@ def review_pr(config, pr, credential):
     except BaseException as exc:
         if report:
             report.update(
-                "PUBLICATION_FAILED"
+                "NEEDS_INPUT"
+                if isinstance(exc, NeedsInput)
+                else "PUBLICATION_FAILED"
                 if isinstance(exc, review_publication.PublicationError)
                 else "FAILED",
                 str(exc),
                 metrics=metrics,
+                wake_assistant=not isinstance(exc, NeedsInput),
             )
         raise
 
@@ -207,6 +210,13 @@ def _review_pr(config, pr, credential):
         (artifact / "review.json").write_text(review.model_dump_json(indent=2))
         measurements.review(review, artifact / "review.json")
         if review.verdict == "BLOCKED":
+            if (review.startup_failure or {}).get("code") == "ACPAuthRequired":
+                raise NeedsInput(
+                    "Run `factoryctl codex-login` on the factory host to reconnect Codex, "
+                    "then reply `resume: retry` here or run "
+                    f"`factoryctl review {config['project']} {number}`. "
+                    "The review has not completed and no verdict was published."
+                )
             raise RuntimeError("Independent review infrastructure blocked: " + review.summary)
         fresh = reviews._get_pr(credential, repo, number)
         current = review_requests.snapshot(config, fresh) == review_requests.snapshot(
@@ -686,6 +696,12 @@ def poll(config, credential, replies_only=False):
                     path.unlink()
             state["count"] -= 1
             print("Repository is busy; task deferred to next poll.", flush=True)
+        except NeedsInput as exc:
+            state["done"][key] = "needs-input:" + job_id()
+            if kind == "review":
+                review_requests.remember(config, item, "NEEDS_INPUT")
+            waiting += 1
+            print(str(exc), flush=True)
         except Exception as exc:
             state["done"][key] = "failed:" + job_id()
             if kind == "review" and not isinstance(exc, review_publication.PublicationError):
@@ -782,3 +798,7 @@ if __name__ == "__main__":
         except BlockingIOError:
             print("Previous repository scan is still running.", flush=True)
             outcome("SKIPPED", "Repository is busy; no work started")
+        except NeedsInput as exc:
+            if job.get("review_pr"):
+                review_requests.remember(config, pr, "NEEDS_INPUT")
+            outcome("SKIPPED", str(exc))

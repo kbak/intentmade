@@ -4,9 +4,11 @@ import json
 import os
 import secrets
 import subprocess
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+import diagnostics
 import input_artifacts
 import measurements
 import provenance
@@ -103,6 +105,7 @@ def worker(root, config):
         "PYTHONDONTWRITEBYTECODE": "1",
         "FACTORY_CODEX_MODEL": profile.get("acp_model") or "",
         "FACTORY_EXECUTION_MANIFEST": str(root / ".factory-execution.json"),
+        "FACTORY_HEADLESS": "1",
     }
     old = {key: os.environ.get(key) for key in settings}
     try:
@@ -150,9 +153,30 @@ def worker(root, config):
             try:
                 yield workspace
             finally:
-                refreshed = workspace.client.get("/api/settings/secrets/CODEX_AUTH_JSON")
-                refreshed.raise_for_status()
-                sync_credential(parent, version, value, refreshed.text)
+                primary_failure = sys.exc_info()[0] is not None
+                credentials = [value, settings["OH_SESSION_API_KEYS_0"]]
+                try:
+                    refreshed = workspace.client.get("/api/settings/secrets/CODEX_AUTH_JSON")
+                    refreshed.raise_for_status()
+                    credentials.append(refreshed.text)
+                    sync_credential(parent, version, value, refreshed.text)
+                except Exception as exc:
+                    if not primary_failure:
+                        raise
+                    print(f"Credential cleanup failed: {type(exc).__name__}", flush=True)
+                finally:
+                    if recorder:
+                        try:
+                            path = diagnostics.retain_worker(
+                                workspace, recorder.path.parent, credentials
+                            )
+                            if path:
+                                recorder.data.setdefault("worker_logs", []).append(str(path))
+                                recorder.save()
+                        except Exception as exc:
+                            print(
+                                f"Worker diagnostics unavailable: {type(exc).__name__}", flush=True
+                            )
     finally:
         for key, value in old.items():
             if value is None:

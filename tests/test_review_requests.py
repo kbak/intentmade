@@ -308,6 +308,25 @@ class RequestedReviewSchedulerTests(unittest.TestCase):
         monitor.poll(CONFIG, "secret")
         self.review.assert_called_once()
 
+    def test_rejected_login_waits_for_explicit_retry_without_repeated_scans(self):
+        self.review.side_effect = monitor.NeedsInput("Reconnect Codex")
+        monitor.poll(CONFIG, "secret")
+        self.assertEqual(review_requests.read(CONFIG, PR)["status"], "NEEDS_INPUT")
+        self.state["done"] = {}
+        monitor.poll(CONFIG, "secret")
+        self.review.assert_called_once()
+        reply = {
+            "id": "reconnected",
+            "answer": "retry",
+            "snapshot": review_requests.snapshot(CONFIG, PR),
+        }
+        self.review.side_effect = None
+        with patch.object(monitor, "resume_reply", return_value=reply):
+            monitor.poll(CONFIG, "secret", replies_only=True)
+            monitor.poll(CONFIG, "secret", replies_only=True)
+        self.assertEqual(self.review.call_count, 2)
+        self.assertEqual(review_requests.read(CONFIG, PR)["status"], "REVIEWED")
+
     def test_reply_only_scan_and_published_pr_do_not_start_review(self):
         monitor.poll(CONFIG, "secret", replies_only=True)
         with (

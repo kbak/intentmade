@@ -48,6 +48,13 @@ the gate and handoff, not an actual agent's ability to detect semantic gaps.
 
 ## Review protocol probe
 
+After changing the runtime launcher or authentication handling, run
+`/tests/check_agent_startup.py` with the same offline container command below.
+It launches the actual worker server and verifies remote authentication errors
+and a single startup-timeout retry using a scripted ACP endpoint. It requires
+no model credentials. The server executable must launch the installed Python
+module so the runtime patches are used.
+
 ```bash
 docker run --rm --network none --entrypoint python \
   -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
@@ -111,10 +118,10 @@ export FACTORY_PROFILES_DIR="$PWD/tests/profiles"
 ./scripts/factoryctl up
 ```
 
-Complete Codex onboarding in [the test Canvas](http://localhost:8001/canvas),
-then submit the fixture specification:
+Connect the test factory's Codex account, then submit the fixture specification:
 
 ```bash
+./scripts/factoryctl codex-login
 ./scripts/factoryctl submit factory-smoke ./tests/fixtures/smoke-spec.md --run
 ```
 

@@ -50,16 +50,21 @@ Authenticate `gh`, then initialize the deployment and start the services:
 ./scripts/factoryctl up
 ```
 
-Open [Agent Canvas](http://localhost:8000/canvas), complete Codex onboarding,
-then install the configured automations:
+Connect the factory's Codex account, then install the configured automations:
 
 ```bash
+./scripts/factoryctl codex-login
 ./scripts/factoryctl configure
 ```
 
 `configure` imports your GitHub credential into native secret storage and
 applies the configured schedules. It creates an approval label only if one is
 configured.
+
+`codex-login` shows a device code and saves the completed login directly to
+Canvas's encrypted `CODEX_AUTH_JSON` secret. Its temporary CLI directory is
+removed afterward. The **Settings → LLM → ChatGPT subscription** card connects
+OpenHands' own LLM backend; it does not connect the factory's Codex ACP workers.
 
 Choose the factory model in **Settings → Agent → factory-codex**. Use the native
 custom model field and enter `gpt-6-astra/xhigh` for extra-high reasoning. The
@@ -466,6 +471,14 @@ require a fresh review before publication. Failed or
 interrupted automatic attempts are reported and held for an explicit `factoryctl
 review` retry, avoiding repeated agent runs on every poll. A stale result does
 not count as a completed review.
+
+A rejected Codex login puts the review in `NEEDS_INPUT` with reconnect
+instructions. Run `factoryctl codex-login`, complete the device sign-in, then
+reply `resume: retry` on the report or rerun `factoryctl review`. No GitHub
+verdict is published until the review completes. A typed startup timeout gets
+one retry before the agent has performed work; other failures require an
+explicit retry. Startup details and bounded, redacted worker logs are retained
+in the run artifacts before the disposable worker is removed.
 
 Published reports combine duplicate findings and include code links pinned to
 the reviewed commit and a validation summary. Original specialist reports and

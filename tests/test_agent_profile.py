@@ -26,6 +26,7 @@ class WorkerProfileTests(unittest.TestCase):
             "workspace": {"working_dir": "/workspaces/profile-test/worktrees/task"},
         }
         conversation = Mock()
+        conversation.state.events = []
         conversation.state.execution_status.value = "finished"
 
         def parent_profile(*args):

@@ -4,7 +4,7 @@ import json
 import shutil
 from typing import Annotated, Literal
 
-from agent import converse
+from agent import AgentStartupError, converse
 from ocr_review import prepare
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 from review_report import (
@@ -120,6 +120,7 @@ class ReviewResult(BaseModel):
     presentation: ReviewReport | None = None
     traceability_context: dict[str, dict] = Field(default_factory=dict)
     review_inputs: dict[str, dict] = Field(default_factory=dict)
+    startup_failure: dict | None = None
 
     def report(self, repository=None, sha=None):
         return render(self, repository, sha)
@@ -379,6 +380,7 @@ def review_code(
 ):
     events = []
     failure = None
+    startup_failure = None
     review_inputs = {}
     try:
         review_inputs = prepare(workspace, sources, input_path)
@@ -395,7 +397,10 @@ def review_code(
         )
     except Exception as exc:
         failure = f"Review coordinator failed: {type(exc).__name__}: {exc}"
+        if isinstance(exc, AgentStartupError):
+            startup_failure = exc.details
     result = evaluate(events, traceability, review_inputs)
+    result.startup_failure = startup_failure
     if failure:
         result.verdict = "BLOCKED"
         result.infrastructure_errors.append(failure)
@@ -412,6 +417,8 @@ def review_code(
             )
         except Exception as exc:
             message = f"Report consolidation failed: {type(exc).__name__}: {exc}"
+            if isinstance(exc, AgentStartupError):
+                result.startup_failure = exc.details
             result.verdict = "BLOCKED"
             result.infrastructure_errors.append(message)
             result.summary += " " + message

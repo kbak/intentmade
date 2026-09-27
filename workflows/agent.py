@@ -16,6 +16,69 @@ from openhands.sdk.workspace import RemoteWorkspace
 from pydantic import ValidationError
 
 
+class AgentStartupError(RuntimeError):
+    def __init__(self, details):
+        self.details = details
+        super().__init__(f"{details['code']}: {details['detail']}")
+
+
+def run_with_startup_recovery(conversation, transcript=None):
+    """Retry one proven startup timeout, before any agent turn can do work."""
+    for attempt in range(2):
+        before = {str(event.id) for event in conversation.state.events}
+        try:
+            conversation.run()
+            return
+        except Exception as exc:
+            events = [
+                event.model_dump(mode="json")
+                for event in conversation.state.events
+                if str(event.id) not in before
+            ]
+            errors = [e for e in events if e.get("kind") == "ConversationErrorEvent"]
+            # The native exception carries the current run's error even when
+            # websocket event delivery has not caught up with a quick retry.
+            native_error = getattr(exc, "conversation_error", None)
+            if native_error is not None:
+                errors.append(native_error.model_dump(mode="json"))
+            # Agent Server may append a generic environment error after the
+            # agent's typed initialization error. Preserve the specific cause.
+            errors = [
+                e
+                for e in errors
+                if e.get("code")
+                in {"ACPStartupTimeout", "ACPAuthRequired", "ACPSpawnError", "ACPInitError"}
+            ]
+            if not errors:
+                raise
+            error = errors[-1]
+            code = error["code"]
+            acted = any(
+                e.get("source") == "agent"
+                and e.get("kind") != "ConversationErrorEvent"
+                or e.get("key") == "agent_state"
+                and e.get("value", {}).get("acp_session_id")
+                for e in events
+            )
+            details = {
+                "code": code,
+                "detail": error.get("detail") or "Agent initialization failed",
+                "conversation_id": str(conversation.id),
+                "attempt": attempt + 1,
+                "retrying": code == "ACPStartupTimeout" and not acted and attempt == 0,
+            }
+            if transcript:
+                path = transcript.with_name(f"{transcript.stem}-startup-{conversation.id}.jsonl")
+                with path.open("a") as handle:
+                    handle.write(json.dumps(details) + "\n")
+            if not details["retrying"]:
+                raise AgentStartupError(details) from exc
+            print(
+                "Agent startup timed out before any work; retrying once in 2 seconds.", flush=True
+            )
+            time.sleep(2)
+
+
 class StructuredResponseError(RuntimeError):
     def __init__(self, details):
         self.details = details
@@ -129,7 +192,7 @@ def converse(
         )
         conversation.send_message(prompt + schema)
         for attempt in range(2 if response_model else 1):
-            conversation.run()
+            run_with_startup_recovery(conversation, transcript)
             if conversation.state.execution_status.value != "finished":
                 raise RuntimeError(f"Agent stopped with {conversation.state.execution_status}")
             text = get_agent_final_response(conversation.state.events)
