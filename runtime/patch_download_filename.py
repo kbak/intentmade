@@ -28,8 +28,8 @@ def patch_router(source):
 
 
 def main():
-    if importlib.metadata.version("openhands-automation") != "1.15.0":
-        raise RuntimeError("Download filename integration requires automation 1.15.0")
+    if importlib.metadata.version("openhands-automation") != "1.15.1":
+        raise RuntimeError("Download filename integration requires automation 1.15.1")
     path = Path(importlib.util.find_spec("openhands.automation.router").origin)
     path.write_text(patch_router(path.read_text()))
 
