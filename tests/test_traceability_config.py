@@ -34,14 +34,14 @@ class ScopeConfigurationTests(unittest.TestCase):
 
     def test_absent_scope_keeps_ordinary_workflow_without_optional_packages(self):
         self.register()
-        with patch.dict(sys.modules, {"intentbond": None, "openhands_traceability": None}):
+        with patch.dict(sys.modules, {"intentbond": None}):
             config = common.projects(self.root)["pilot"]
         self.assertNotIn("traceability_scope", config)
         self.assertEqual(config["test_command"], "make test")
 
     def test_discussion_without_traceability_needs_no_optional_packages(self):
         self.register()
-        with patch.dict(sys.modules, {"intentbond": None, "openhands_traceability": None}):
+        with patch.dict(sys.modules, {"intentbond": None}):
             context = traceability.discussion_context(list(common.projects(self.root).values()))
         self.assertEqual(context, {"repositories": {"pilot": {"catalog": "/projects/repos/pilot"}}})
         with patch.dict(sys.modules, {"intentbond": None}):

@@ -21,7 +21,6 @@ PACKAGES = (
     "openhands-agent-server",
     "openhands-automation",
     "intentbond",
-    "openhands-traceability",
 )
 
 

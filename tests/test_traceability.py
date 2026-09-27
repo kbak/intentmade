@@ -22,7 +22,7 @@ from test_traceability_review import assessed, change
 
 
 @unittest.skipUnless(
-    importlib.util.find_spec("intentbond") and importlib.util.find_spec("openhands_traceability"),
+    importlib.util.find_spec("intentbond"),
     "Optional traceability packages require the pilot test image",
 )
 class TraceabilityPipelineTests(unittest.TestCase):
@@ -557,7 +557,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
         self.assertEqual(self.states["pilot"]["traceability"]["status"], "error")
 
     def test_failed_current_invocation_cannot_reuse_a_passing_bundle(self):
-        from openhands_traceability import check as portable_check
+        from traceability.openhands import check as portable_check
 
         original = traceability.check
 

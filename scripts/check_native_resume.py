@@ -12,7 +12,7 @@ from openhands.sdk import Conversation
 from openhands.sdk.agent import ACPAgent
 from openhands.sdk.conversation import get_agent_final_response
 from openhands.sdk.workspace import LocalWorkspace
-from openhands_traceability import with_recovery, with_traceability
+from traceability.openhands import with_recovery, with_traceability
 
 
 def main(recovery=False):

@@ -1,6 +1,6 @@
 """Factory policy and lifecycle bindings for the portable OFT workflow.
 
-Imports of the optional packages are lazy so repositories without opt-in keep
+Imports of IntentBond are lazy so repositories without opt-in keep
 their existing runtime, context, test commands, and completion gates.
 """
 
@@ -130,13 +130,12 @@ def instructions(selected, states, environments):
 
 
 def check(workspace, state, paths, env):
-    from openhands_traceability import check as portable_check
+    from .invocation import begin, finish
+    from .openhands import check as portable_check
 
     # Allocate only when the controller invokes the check, after implementation.
     # The checker itself requires a nonexistent output directory. Agent feedback
     # and previous invocations must never supply this invocation's bundle.
-    from .invocation import begin, finish
-
     invocation, record = begin(
         paths["scratch"].parent,
         "controller",

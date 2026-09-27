@@ -15,6 +15,7 @@ docker build -f docker/runtime.Dockerfile -t openhands-factory:dev .
 docker run --rm --network none --entrypoint python \
   -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
   -v "$PWD/tests:/tests:ro" -v "$PWD/examples/config:/opt/factory/config:ro" \
+  -v "$PWD/examples:/examples:ro" \
   -v "$PWD/scripts:/scripts:ro" -v "$PWD/tests/profiles:/factory-tests:ro" \
   openhands-factory:dev -m unittest discover -s /tests -p 'test_*.py' -v
 ```
@@ -28,7 +29,7 @@ separation, read-only review permissions, and hostile Git configuration.
 
 Build the [traceability image](../docs/traceability.md#runtime-setup), then run
 the regression command above with `openhands-factory:traceability-test`. The
-suite requires its installed packages and OFT JAR to run the opt-in cases. The
+suite requires IntentBond and its OFT JAR to run the opt-in cases. The
 ordinary image skips those cases.
 
 Traceability tests run Git, OFT, and unittest through implementation, repair,
@@ -45,6 +46,16 @@ mechanical changes, mixed scopes, uncertain coverage, report retention, and repa
 A fixture keeps OFT green while a scripted reviewer identifies untraced logout
 behavior, then verifies a fresh assessment after repair. These cases validate
 the gate and handoff, not an actual agent's ability to detect semantic gaps.
+
+The OpenHands helper tests cover serialized context, selected property/formal
+guidance, command quoting, absolute workspace paths, and recovery storage. They
+run in the same regression suite. Pure command-forwarding tests also run without
+IntentBond installed.
+
+For native ACP instruction delivery and conversation resumption, run
+`/scripts/check_native_resume.py` in a fresh disposable traceability container
+using the mounts above. Add `--recovery` to check recovery guidance. It uses a
+local scripted provider and requires no model credentials.
 
 ## Review protocol probe
 

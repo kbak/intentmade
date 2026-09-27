@@ -7,8 +7,8 @@ Requirements and code/test references use
 
 A **scope** file selects the files to trace, coverage rules, and test command.
 Each task compares its changes with a **baseline** Git commit and saves results
-for the source it checked. The runtime needs `intentbond` and
-`openhands-traceability`. Repositories without `traceability_scope` keep their
+for the source it checked. The runtime needs `intentbond` and the OFT JAR.
+Repositories without `traceability_scope` keep their
 usual test and review workflow.
 
 ## Workflow at a glance
@@ -23,10 +23,11 @@ For repositories with `traceability_scope`, traceability enters each stage as fo
 | **3. Implement and repair** | The worker maintains requirements, code, tests, and their links, and runs checks for feedback. |
 | **4. Validate and review** | The controller independently runs checks and matches the evidence to the exported commit. The reviewer checks behavior and requirement/test changes before completion and draft PR publication. |
 
-`intentbond` supplies guidance, OFT checks, and saved evidence.
-`openhands-traceability` adds that guidance to agent context and forwards commands.
-The factory selects the scope and manages authorization, repairs, review, and
-completion. Its runtime supplies the tools to workers.
+`intentbond` supplies guidance, OFT checks, and saved evidence. The factory's
+[OpenHands helpers](traceability-agent-api.md) add that guidance to agent context
+and run commands in the workspace. The factory selects the scope and manages
+authorization, repairs, review, and completion. Its runtime supplies the tools
+to workers.
 
 For implementation details, [`discussion_context()`](../workflows/traceability/__init__.py)
 supplies requirements guidance to the coordinator, and
@@ -40,8 +41,6 @@ Workers can follow the portable
 to add or maintain properties for selected requirements using the project's
 test library and configured command. Review generators, assumptions and search
 budgets with assertions; passing searches do not prove the linked requirements.
-This guidance requires `intentbond` 0.4.6+ and
-`openhands-traceability` 0.2.6+ in the runtime image.
 
 Discussion, implementation, and reviewer contexts include the same portable
 [concepts and result meanings](https://github.com/kbak/intent-bond/blob/main/intentbond/skills/intentbond/references/semantics.md).
@@ -269,12 +268,10 @@ first and can read the complete records when needed.
 
 ## Runtime setup
 
-Build the two package wheels and collect their dependencies in an artifact
-directory. Use package revisions matching the versions in
-[docker/traceability.Dockerfile](../docker/traceability.Dockerfile); that file pins
-what the runtime image installs.
-
-From each package checkout:
+Build the IntentBond wheel and collect its dependencies in an artifact directory.
+Use the version pinned in
+[docker/traceability.Dockerfile](../docker/traceability.Dockerfile).
+From the IntentBond checkout:
 
 ```sh
 uv build --wheel --out-dir /path/to/wheels
@@ -326,4 +323,8 @@ Repository CI and merge rules remain outside this integration.
 
 ## Source and revision impact reports
 
-The pinned runtime now includes portable `ib impact --evidence PATH` reporting (core 0.4.6, adapter 0.2.8). Check evidence and `ib explain` distinguish full source identity from tracing and selected semantic-review inputs. Impact reports separate declaration text, exact-edge revisions and conservative implementation/test source categories. Review still assesses the complete candidate and continued assertion coverage; a revision update is not semantic approval.
+Use `ib impact --evidence PATH` to inspect changes to declarations, links, code,
+and tests. Check evidence and `ib explain` distinguish the complete source from
+the files selected for tracing and semantic review. Review covers the complete
+candidate and continued assertion coverage; a revision update is not semantic
+approval.

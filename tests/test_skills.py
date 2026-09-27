@@ -14,9 +14,7 @@ from openhands.sdk.context import Skill, SkillValidationError
 
 
 class FactorySkillTests(unittest.TestCase):
-    @unittest.skipUnless(
-        importlib.util.find_spec("openhands_traceability"), "Requires the pilot test image"
-    )
+    @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Requires the pilot test image")
     def test_opted_in_context_is_saved_before_worktree_creation_and_on_repair(self):
         workspace = Mock()
         identity = str(uuid4())

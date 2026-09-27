@@ -1,5 +1,6 @@
 """Real source and artifact identities guard bounded repair memory."""
 
+import importlib.util
 import json
 import tempfile
 import unittest
@@ -168,6 +169,7 @@ class RepairContextTests(unittest.TestCase):
             (None, "previous_attempt_not_repairable"),
         )
 
+    @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional IntentBond package")
     def test_real_pipeline_repairs_with_verified_context_and_fresh_review(self):
         from test_traceability import TraceabilityPipelineTests
 

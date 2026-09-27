@@ -142,7 +142,7 @@ def worker_agent(mode, skill=None, mcp_config=None, traceability=False):
     """Use the model captured from factory-codex when this worker started."""
     context = stage_context(skill) if skill else None
     if traceability:
-        from openhands_traceability import with_traceability
+        from traceability.openhands import with_traceability
 
         context = with_traceability(context, provisioned=True)
     return ACPAgent(
