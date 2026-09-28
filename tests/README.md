@@ -24,6 +24,9 @@ Coverage includes scheduling and deduplication, task authorization, Git
 transfer, repair and recovery, review verdicts, publication retries, browser
 evidence, maintainer replies, and skill loading. Tests also check credential
 separation, read-only review permissions, and hostile Git configuration.
+Resource tests exercise JSON configuration, Docker update failure before
+credential delivery, low-disk admission and bounded imports through the installed
+upstream archive extractor, including compressed input and sparse-file sizes.
 
 ## Traceability checks
 
@@ -59,6 +62,15 @@ local scripted provider and requires no model credentials.
 
 ## Review protocol probe
 
+Run `/tests/check_project_config.py` with the offline container command below
+after changing Codex/ACP pins or project-trust handling. It uses the real adapter,
+a local scripted provider, and fresh credential homes: repository MCP startup
+must stay disabled for Git and archive inputs, nested/symlinked/additional roots,
+and load/resume/fork after process restart. Explicit factory MCP servers must
+start even when ignored repository configuration declares the same name.
+The specialist probe also checks that repository MCP/role declarations cannot
+replace the factory reviewer during native delegation.
+
 After changing the runtime launcher or authentication handling, run
 `/tests/check_agent_startup.py` with the same offline container command below.
 It launches the actual worker server and verifies remote authentication errors
@@ -83,6 +95,7 @@ rerun after changing the runtime, Codex/ACP pins, or bundled roles.
 
 ```bash
 python3 tests/check_review_sandbox.py
+python3 tests/check_resource_limits.py
 python3 tests/check_isolation.py
 ```
 
@@ -90,6 +103,10 @@ The sandbox probe checks allowed coordinator edits and denied reviewer writes,
 Git metadata writes, unrelated writes, and network sockets against the actual
 kernel. See [codex-seccomp.md](../runtime/codex-seccomp.md) for the container
 profile.
+
+The resource probe uses a disposable offline container, applies the bridge's
+Docker flags and verifies both Docker's configuration and active Linux cgroup v2
+limits. It also checks the job daemon's rendered Compose process limit.
 
 The isolation probe creates a temporary privileged Docker test daemon and fake
 services. It checks management-socket isolation, blocked parent/cross-job

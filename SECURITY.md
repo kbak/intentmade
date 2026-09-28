@@ -13,6 +13,13 @@ integration tests. The parent keeps the GitHub credential and publishes draft
 PRs only after the configured tests and independent review pass. Merge and
 deployment remain operator actions.
 
+Publishing a draft PR pushes a branch to the target repository and may trigger
+GitHub Actions. Review that repository's workflows, token permissions, secrets,
+runner isolation, and deployment environment approvals before enabling OSS work.
+In particular, keep privileged `pull_request_target` jobs from executing PR code.
+These controls belong to the target repository; factory review does not sandbox
+GitHub-hosted workflows or protect a self-hosted runner after a push.
+
 Standalone requested/manual PR reviews publish one consolidated report from the completed
 Alibaba reviewer and its factory-computed verdict to GitHub. PASS submits APPROVE;
 blocking findings submit REQUEST_CHANGES. Only the parent has GitHub credentials and can submit;
@@ -59,6 +66,14 @@ removes the daily cap; per-poll batching and repository locks still apply.
   network access, and no escalation. The SDK also refuses permission requests
   for these sessions. Building and interactive coordinator modes retain their
   capabilities. Image builds fail if an upstream version or patch target changes.
+  The adapter no longer automatically marks opened source directories trusted.
+  Native Codex project trust gates repository `.codex` startup configuration;
+  disposable workers start with a fresh credential home and no trusted-project
+  entries. Repository files remain available to review. Factory roles in the
+  native home and explicitly supplied MCP servers remain available. Operator
+  home/system configuration is trusted input: explicitly trusting a project
+  there permits its native configuration and is outside the untrusted-source
+  boundary. Do not add such trust to disposable worker homes.
   Codex 0.153.4 uses its namespace sandbox with the legacy Landlock backend
   disabled. Canvas and disposable workers use a custom seccomp profile based on
   Moby's default, permitting `clone`, `unshare`, `mount`, `umount2`, and `pivot_root`
@@ -88,6 +103,13 @@ Failed attempts are recorded outside disposable workers under
 `workspaces/issue-attempts/`. Pruning recent Canvas history does not retry the
 same failed specification/approval. Preserve this directory with task branches
 and the native state volume when backing up or moving a deployment.
+
+Factory-wide `resource_limits` in `config/defaults.json` bound worker resources,
+parent bundle/archive imports and new-job disk admission. Docker enforces worker
+CPU, memory and process limits before credentials or work are supplied; applying
+the limits must succeed. These settings do not create a hard disk quota or prune
+failed jobs. Recover retained work before manual cleanup. See the
+[resource limits](README.md#resource-limits) defaults and storage limitations.
 
 Task stores validate the actual GitHub fetch and push destinations before reuse.
 Changing a registration's repository or base branch requires a new task ID.

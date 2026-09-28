@@ -50,6 +50,17 @@ CLIENT_NEW = (
     '        client.factory_read_only = self.acp_session_mode == "read-only"\n'
     "        self._client = client"
 )
+PROJECT_TRUST_OLD = """    const sessionRoots = [projectPath, ...additionalDirectories];
+"""
+PROJECT_CONFIG_OLD = """    const mergedConfig = {
+      ...mergeGatewayConfig(this.config, this.gatewayConfig),
+      projects: Object.fromEntries(sessionRoots.map((root) => [root, {
+        trust_level: "trusted"
+      }]))
+    };"""
+PROJECT_CONFIG_NEW = """    // Opening source is not an operator decision to trust its startup config.
+    // Keep Codex's native project trust gate, including for child threads.
+    const mergedConfig = mergeGatewayConfig(this.config, this.gatewayConfig);"""
 
 
 def replace_once(source, old, new):
@@ -59,7 +70,17 @@ def replace_once(source, old, new):
 
 
 def patch_adapter(source):
-    return replace_once(source, ADAPTER_OLD, ADAPTER_NEW)
+    source = replace_once(source, ADAPTER_OLD, ADAPTER_NEW)
+    source = replace_once(source, PROJECT_TRUST_OLD, "")
+    source = replace_once(source, PROJECT_CONFIG_OLD, PROJECT_CONFIG_NEW)
+    # Ignored project layers must not suppress a factory-provided MCP server
+    # with the same name. Native thread configuration gives ACP entries priority.
+    return replace_once(
+        source,
+        '  const disabledByEnv = process.env["DISABLE_MCP_CONFIG_FILTERING"] === "true";\n'
+        "  return !disabledByEnv;",
+        "  return false; // Factory MCP configuration is explicit and authoritative.",
+    )
 
 
 def patch_sdk(source):

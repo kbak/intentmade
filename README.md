@@ -238,6 +238,29 @@ For an external test adapter, put its files under `profiles/NAME/` and set
 uses that profile's read-only mount; escape the quotes in JSON. Multiple
 repositories can share a profile. A profile is optional.
 
+### Resource limits
+
+The optional `resource_limits` object in `config/defaults.json` sets limits for
+the whole installation; repository registrations cannot override it. Omitted
+values use the defaults shown in [the example](examples/config/defaults.json).
+Values are positive integers, with sizes in MiB. They take effect for subsequent
+jobs without rebuilding the image; `factoryctl configure` validates the settings.
+
+Docker enforces each agent worker's memory (4096 MiB, with no extra swap), CPU
+(2 cores) and process (512) limits. The pinned OpenHands `DockerWorkspace` does
+not expose resource options, so the factory uses `docker update` before sending
+credentials or running work. A failed update aborts the worker. The job test
+daemon retains its Compose CPU/memory limits and receives a process limit of
+2048. Canvas and the outer daemon retain their limits in [compose.yaml](compose.yaml).
+
+The controller also bounds incoming Git bundles (256 MiB), compressed review
+archives (256 MiB), expanded archives (1024 MiB), and archive members (100000).
+It rejects oversized input and leaves failed work available for recovery. A
+5120 MiB free-disk admission check stops new jobs when storage is low. This check
+is not a filesystem quota: running jobs, Git object expansion, Docker images and
+retained artifacts can still consume disk. A hard disk ceiling requires a quota
+on the deployment's storage; inspect recovery receipts before removing failed work.
+
 ### Browser acceptance evidence
 
 Configure `browser_qa` on repositories that need rendered UI verification:

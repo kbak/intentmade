@@ -2,12 +2,12 @@
 
 import os
 import shlex
-import shutil
 import stat
 import tempfile
 from pathlib import Path
 
 from common import git
+from resource_limits import MIB, copy_bounded, require_disk_space, settings
 
 
 def worker_git(workspace, args, cwd, check=True):
@@ -56,13 +56,19 @@ def import_task(state, bundle):
     """Copy a regular bundle after worker teardown; never import its Git config."""
     # A worker can replace its export with a symlink, FIFO or device. Open without
     # following links or blocking, and consume only a regular file.
+    require_disk_space(tempfile.gettempdir())
     fd = os.open(bundle, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, "rb") as source, tempfile.TemporaryDirectory() as temp:
         if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
             raise RuntimeError("Worker export is not a regular bundle")
         trusted_bundle = Path(temp) / "task.bundle"
         with trusted_bundle.open("wb") as target:
-            shutil.copyfileobj(source, target)
+            copy_bounded(
+                source,
+                target,
+                settings()["max_bundle_mb"] * MIB,
+                "Worker bundle",
+            )
         branch = "refs/heads/" + state["branch"]
         heads = git(["bundle", "list-heads", str(trusted_bundle)]).stdout.splitlines()
         if len(heads) != 1 or heads[0].split()[1:] != [branch]:

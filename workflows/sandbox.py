@@ -17,6 +17,8 @@ from openhands.agent_server.persistence import FileSecretsStore
 from openhands.sdk.utils.cipher import Cipher
 from openhands.workspace import DockerWorkspace
 from openhands.workspace.docker.workspace import find_available_tcp_port
+from resource_limits import require_disk_space, worker_docker_flags
+from resource_limits import settings as resource_settings
 
 
 def load_credential(parent):
@@ -61,9 +63,15 @@ def worker(root, config):
     # Resolve against Canvas before replacing its API key with the worker's.
     # Only the model/effort crosses this boundary; permissions remain per role.
     profile = api("GET", "/api/agent-profiles/factory-codex")["profile"]
+    require_disk_space(root)
     name = root.name
     compose = ["docker", "compose", "-p", name, "-f", str(ROOT / "workflows/sandbox.yaml")]
-    env = dict(os.environ, JOB_WORKSPACE=str(root), JOB_INPUTS=input_artifacts.directory(root))
+    env = dict(
+        os.environ,
+        JOB_WORKSPACE=str(root),
+        JOB_INPUTS=input_artifacts.directory(root),
+        JOB_TEST_DAEMON_PIDS=str(resource_settings()["test_daemon_pids"]),
+    )
     encryption_key = (
         os.environ.get("OH_SECRET_KEY") or Path("/run/secrets/encryption-key").read_text().strip()
     )
@@ -92,6 +100,15 @@ def worker(root, config):
             forward_env=list(settings),
             volumes=mounts(root, config),
         ) as workspace:
+            # This SDK has no resource kwargs. Use Docker's native update before
+            # provisioning credentials, running probes, or exposing the worker.
+            # Failure exits the workspace context and stops the new container.
+            subprocess.run(
+                ["docker", "update", *worker_docker_flags(), workspace._container_id],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
             workspace.api_key = settings["OH_SESSION_API_KEYS_0"]
             workspace.reset_client()
             configs = config if isinstance(config, list) else [config]

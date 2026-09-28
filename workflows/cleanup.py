@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from common import DATA
+from resource_limits import require_disk_space
 
 # Run after all job processes have stopped. dir_fd operations do not follow
 # worker-created links outside the only mounted directory.
@@ -59,6 +60,7 @@ def remove_job(root):
 
 @contextmanager
 def job_directory(data=None, artifact=None):
+    require_disk_space(data or DATA)
     root = Path(tempfile.mkdtemp(dir=data or DATA, prefix="job-"))
     try:
         yield root

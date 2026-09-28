@@ -15,7 +15,8 @@ DATA = Path(os.environ.get("FACTORY_DATA", "/workspaces"))
 
 
 def load_upstream(name):
-    spec = importlib.util.spec_from_file_location(name, ROOT / "upstream" / (name + ".py"))
+    filename = "reviews_bounded.py" if name == "reviews" else name + ".py"
+    spec = importlib.util.spec_from_file_location(name, ROOT / "upstream" / filename)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -38,10 +39,15 @@ def identifier(value, max_length=80):
 def projects(config_dir=None):
     directory = Path(config_dir) if config_dir is not None else ROOT / "config"
     defaults = json.loads((directory / "defaults.json").read_text())
+    from resource_limits import validate
+
+    validate(defaults.pop("resource_limits", {}))
     result = {}
     for file in sorted((directory / "repositories").glob("*.json")):
         name = identifier(file.stem)
         registration = json.loads(file.read_text())
+        if "resource_limits" in registration:
+            raise ValueError("Set factory-wide resource_limits in defaults.json")
         config = {**defaults, **registration, "project": name}
         if config.get("test_profile"):
             identifier(config["test_profile"])

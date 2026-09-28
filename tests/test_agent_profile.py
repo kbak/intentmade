@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,7 @@ class WorkerProfileTests(unittest.TestCase):
         store = Mock()
         store.load_versioned_secret.return_value = ("worker-login", 1)
         workspace = Mock()
+        workspace._container_id = "fixture-container"
         workspace.client.get.return_value.text = "worker-login"
         conversation_id = str(uuid4())
         workspace.client.post.return_value.json.return_value = {
@@ -39,7 +41,7 @@ class WorkerProfileTests(unittest.TestCase):
             patch.object(sandbox, "api", side_effect=parent_profile) as api,
             patch.object(sandbox, "Cipher"),
             patch.object(sandbox, "FileSecretsStore", return_value=store),
-            patch.object(sandbox.subprocess, "run"),
+            patch.object(sandbox.subprocess, "run") as docker_command,
             patch.object(sandbox, "find_available_tcp_port", return_value=12345),
             patch.object(sandbox, "DockerWorkspace") as docker,
             patch.object(sandbox.provenance, "capture", return_value={"id": "fixture"}),
@@ -51,6 +53,24 @@ class WorkerProfileTests(unittest.TestCase):
             for selected in ("gpt-6-astra/xhigh", "gpt-6-astra/high", None):
                 profile["acp_model"] = selected
                 with sandbox.worker(Path(temporary), {}) as worker:
+                    docker_command.assert_called_with(
+                        [
+                            "docker",
+                            "update",
+                            "--memory",
+                            "4096m",
+                            "--memory-swap",
+                            "4096m",
+                            "--cpus",
+                            "2",
+                            "--pids-limit",
+                            "512",
+                            "fixture-container",
+                        ],
+                        check=True,
+                        capture_output=True,
+                        timeout=30,
+                    )
                     # A later UI edit must not alter a worker already in progress.
                     profile["acp_model"] = "gpt-5.5/low"
                     resumed = agent.worktree(worker)
@@ -69,6 +89,33 @@ class WorkerProfileTests(unittest.TestCase):
             self.assertEqual(
                 api.call_args_list, [call("GET", "/api/agent-profiles/factory-codex")] * 3
             )
+
+    def test_resource_update_failure_stops_worker_before_credential_delivery(self):
+        workspace = Mock()
+        workspace._container_id = "fixture-container"
+        store = Mock()
+        store.load_versioned_secret.return_value = ("login", 1)
+
+        def execute(command, **kwargs):
+            if command[:2] == ["docker", "update"]:
+                raise subprocess.CalledProcessError(1, command)
+
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.dict(os.environ, {"OH_SECRET_KEY": "fixture"}),
+            patch.object(sandbox, "api", return_value={"profile": {}}),
+            patch.object(sandbox, "FileSecretsStore", return_value=store),
+            patch.object(sandbox, "DockerWorkspace") as docker,
+            patch.object(sandbox, "find_available_tcp_port", return_value=12345),
+            patch.object(sandbox.subprocess, "run", side_effect=execute) as commands,
+        ):
+            docker.return_value.__enter__.return_value = workspace
+            with self.assertRaises(subprocess.CalledProcessError):
+                with sandbox.worker(Path(temporary), {}):
+                    self.fail("Worker exposed before resource configuration succeeded")
+            workspace.client.put.assert_not_called()
+            docker.return_value.__exit__.assert_called_once()
+            self.assertIn("down", commands.call_args.args[0])
 
     def test_missing_profile_does_not_silently_start_with_another_model(self):
         with (

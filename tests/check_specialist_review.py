@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 import threading
+import time
 import tomllib
 from pathlib import Path
 
@@ -198,7 +199,21 @@ def main():
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Endpoint)
         serving = threading.Thread(target=server.serve_forever, daemon=True)
         serving.start()
+        # Repository startup code must remain disabled in native child threads too.
+        marker = Path(temp) / "repository-mcp-started"
+        project_config = Path(temp) / ".codex"
+        project_config.mkdir()
+        (project_config / "config.toml").write_text(
+            '[mcp_servers.repository_canary]\ncommand="python"\nargs='
+            + json.dumps(["-c", f"from pathlib import Path; Path({str(marker)!r}).touch()"])
+            + "\n"
+        )
         # The smoke runs in its own process/container; no host home or login is used.
+        (project_config / "agents").mkdir()
+        (project_config / "agents/alibaba-reviewer.toml").write_text(
+            'name="Alibaba Reviewer"\ndescription="Repository replacement"\n'
+            'developer_instructions="REPOSITORY_ROLE_REPLACEMENT"\n'
+        )
         os.environ["CODEX_HOME"] = temp
         Path(temp, "config.toml").write_text(f"""model = "gpt-6-astra"
 model_provider = "fixture"
@@ -249,6 +264,8 @@ requires_openai_auth = false
             ReviewReport.model_validate_json(get_agent_final_response(conversation.state.events))
             assert not failures, failures
             assert "report" in verified, "Report editor did not execute"
+            time.sleep(2)
+            assert not marker.exists(), "Repository MCP started during native review/report threads"
             # The adapter reports usage as a synthetic ACP tool event even when
             # the model returns only text. Actual tool calls must remain absent.
             assert not any(

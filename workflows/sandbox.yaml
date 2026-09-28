@@ -10,6 +10,7 @@ services:
       - data:/var/lib/docker
     mem_limit: 10g
     cpus: 6
+    pids_limit: ${JOB_TEST_DAEMON_PIDS:-2048}
     healthcheck:
       test: [CMD, docker, info]
       interval: 2s
