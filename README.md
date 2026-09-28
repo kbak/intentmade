@@ -175,6 +175,10 @@ access. The source revision and checksum are pinned in
 [docker/runtime.Dockerfile](docker/runtime.Dockerfile). Rebuild after updating
 the pin; new sessions receive the updated roles.
 
+The `codex-acp` launcher preloads these roles through Node's native `--import`
+option. Existing profiles and saved conversations keep the same launch command;
+no profile migration is needed.
+
 Automated workers use Codex/ACP. Choosing another provider for a Canvas chat
 does not change the provider or role definitions used by those workers.
 

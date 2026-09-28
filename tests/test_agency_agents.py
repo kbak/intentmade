@@ -23,12 +23,7 @@ class AgencyAgentsTests(unittest.TestCase):
             )
 
     def test_acp_launch_seeds_isolated_home_and_preserves_existing_files(self):
-        # Exercise the real patched launcher without starting a model turn.
-        script = """
-import { pathToFileURL } from 'node:url';
-process.argv = ['node', 'codex-acp', '--help'];
-await import(pathToFileURL('/acp-node/lib/node_modules/@agentclientprotocol/codex-acp/dist/index.js'));
-"""
+        # Both worker and saved Canvas commands use this launcher; no model turn.
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp)
             roles = home / "agents"
@@ -40,9 +35,9 @@ await import(pathToFileURL('/acp-node/lib/node_modules/@agentclientprotocol/code
             auth = home / "auth.json"
             auth.write_text(json.dumps({"test": "preserve credential file"}))
             before = auth.read_bytes()
-            for _ in range(2):
+            for command in ("codex-acp", "/acp-node/bin/codex-acp"):
                 result = subprocess.run(
-                    ["/acp-node/bin/node", "--input-type=module", "-e", script],
+                    [command, "--help"],
                     env={**os.environ, "CODEX_HOME": temp},
                     input="",
                     capture_output=True,

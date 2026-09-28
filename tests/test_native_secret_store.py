@@ -52,7 +52,7 @@ class NativeSecretStoreTests(unittest.TestCase):
                 sandbox.sync_credential(store, version, old, "refresh")
             self.assertEqual(path.read_text(), "{invalid")
 
-    def test_versioned_native_api_is_preferred_when_present(self):
+    def test_credentials_use_native_versioned_api(self):
         store = Mock()
         store.load_versioned_secret.return_value = ("old", 7)
         self.assertEqual(sandbox.load_credential(store), ("old", 7))

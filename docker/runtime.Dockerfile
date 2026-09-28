@@ -19,8 +19,8 @@ RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global \
 RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global @playwright/mcp@0.0.80
 COPY runtime/patch_review_policy.py /opt/factory/patch_review_policy.py
 RUN python /opt/factory/patch_review_policy.py
-COPY runtime/patch_agency_agents.py /opt/factory/patch_agency_agents.py
-RUN python /opt/factory/patch_agency_agents.py
+COPY --chmod=755 runtime/codex-acp /opt/factory/codex-acp
+RUN ln -sf /opt/factory/codex-acp /acp-node/bin/codex-acp
 COPY runtime/patch_specialist_review.py /opt/factory/patch_specialist_review.py
 RUN python /opt/factory/patch_specialist_review.py
 COPY runtime/patch_acp_usage.py /opt/factory/patch_acp_usage.py

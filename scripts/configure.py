@@ -20,11 +20,9 @@ def records():
     result = []
     while True:
         data = api("GET", "/api/automation/v1", params={"limit": 100, "offset": len(result)})
-        if isinstance(data, list):
-            return result + data
-        page = data.get("items", data.get("automations", []))
+        page = data["automations"]
         result.extend(page)
-        if not page or (len(result) >= data["total"] if "total" in data else len(page) < 100):
+        if not page or len(result) >= data["total"]:
             return result
 
 
