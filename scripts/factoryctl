@@ -124,9 +124,22 @@ elif a.action == "up":
         run("docker", "image", "inspect", image, stdout=subprocess.DEVNULL)
     # Cache the matching worker image before Canvas can dispatch a scheduled job.
     run("docker", "compose", "up", "-d", "--wait", "--wait-timeout", "300", "sandboxes")
-    with subprocess.Popen(
-        ["docker", "save", image, "docker:29.4.1-dind"], stdout=subprocess.PIPE
-    ) as source:
+    # save/load loses registry digests in the nested daemon's classic image store.
+    # Let Docker resolve and verify the pinned daemon image natively on a cache miss.
+    daemon_image = DEPLOYMENT["services"]["sandboxes"]["image"]
+    nested = ("docker", "compose", "exec", "-T", "sandboxes", "docker")
+    try:
+        run(
+            *nested,
+            "image",
+            "inspect",
+            daemon_image,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        run(*nested, "pull", daemon_image)
+    with subprocess.Popen(["docker", "save", image], stdout=subprocess.PIPE) as source:
         run("docker", "compose", "exec", "-T", "sandboxes", "docker", "load", stdin=source.stdout)
         if source.wait():
             raise RuntimeError("Could not transfer sandbox images")

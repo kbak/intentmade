@@ -12,11 +12,17 @@ RUN mkdir -p /opt/factory/reviewers/alibaba /opt/factory/reviewers/cloudflare &&
 COPY runtime/install_reviewers.py /opt/factory/install_reviewers.py
 COPY runtime/ocr-rule.json /opt/factory/reviewers/rule.json
 RUN python /opt/factory/install_reviewers.py && chmod -R a+rX /opt/factory/reviewers
-# Pin the Codex/ACP versions used by the factory integrations.
-RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global \
-    @agentclientprotocol/codex-acp@1.10.0 @openai/codex@0.153.4
-# Browser tools are forwarded through native ACP MCP configuration for QA workers.
-RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm install --global @playwright/mcp@0.0.80
+# Lock the complete tool tree and verify registry integrity without lifecycle scripts.
+COPY runtime/node/package.json runtime/node/package-lock.json /opt/factory/node/
+RUN PATH="/acp-node/bin:$PATH" /acp-node/bin/npm ci --prefix /opt/factory/node \
+      --ignore-scripts --no-audit --no-fund && \
+    mkdir -p /acp-node/lib/node_modules/@agentclientprotocol /acp-node/lib/node_modules/@openai /acp-node/lib/node_modules/@playwright && \
+    rm -rf /acp-node/lib/node_modules/@agentclientprotocol/codex-acp /acp-node/lib/node_modules/@openai/codex /acp-node/lib/node_modules/@playwright/mcp && \
+    ln -s /opt/factory/node/node_modules/@agentclientprotocol/codex-acp /acp-node/lib/node_modules/@agentclientprotocol/codex-acp && \
+    ln -s /opt/factory/node/node_modules/@openai/codex /acp-node/lib/node_modules/@openai/codex && \
+    ln -s /opt/factory/node/node_modules/@playwright/mcp /acp-node/lib/node_modules/@playwright/mcp && \
+    ln -sf /opt/factory/node/node_modules/.bin/codex /acp-node/bin/codex && \
+    PATH="/acp-node/bin:$PATH" /acp-node/bin/codex --version
 COPY runtime/patch_review_policy.py /opt/factory/patch_review_policy.py
 RUN python /opt/factory/patch_review_policy.py
 COPY --chmod=755 runtime/codex-acp /opt/factory/codex-acp

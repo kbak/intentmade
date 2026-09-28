@@ -1,6 +1,6 @@
 """Exercise network policy in a disposable DinD instance with no deployment mounts.
 
-Run with a local Docker daemon and the cached docker:29.4.1-dind image. All
+Run with a local Docker daemon and the cached digest-pinned Docker daemon image. All
 containers, networks and volumes created here are uniquely named and removed.
 """
 
@@ -10,7 +10,7 @@ import time
 import uuid
 from pathlib import Path
 
-IMAGE = "docker:29.4.1-dind"
+IMAGE = "docker:29.4.1-dind@sha256:c77e5d7912f9b137cc67051fdc2991d8f5ae22c55ddf532bb836dcb693a04940"
 HTTP = "while true; do printf 'HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\n\\r\\nOK' | nc -l -p 8080; done"
 
 

@@ -71,3 +71,24 @@ Canvas provides phase status, logs, persistent task conversations, and retained
 reports. [Measurements](measurements.md) explain timing, usage, and outcome
 records. [Repair context](repair-context.md) describes what carries into a retry;
 [execution provenance](execution-provenance.md) describes recorded runtime identity.
+
+## Dependency pins
+
+The runtime base image and Docker test daemons use immutable registry digests.
+The nested daemon pulls its pinned image only when that digest is absent from
+its cache; a first startup needs Docker Hub access. Locally built factory images
+still transfer through `docker save`/`load`.
+
+Node tools use [`runtime/node/package-lock.json`](../runtime/node/package-lock.json).
+Builds run `npm ci --ignore-scripts` to verify the complete dependency tree without
+package lifecycle scripts. Saved ACP paths remain compatible with the locked
+installation. Update `package.json` and regenerate the lock with `npm install
+--package-lock-only --ignore-scripts` in `runtime/node`, using the runtime image's
+Node/npm versions. Review the changes and run the native ACP/browser probes.
+
+Update both Compose daemon references together, verifying the digest against
+the official `docker` image. The optional traceability image also checks its
+third-party wheels against [a hash lock](../docker/traceability-requirements.txt).
+OS packages installed through apt retain the distribution's signed update path.
+Pins prevent unreviewed dependency changes; review and test security updates
+before advancing them.

@@ -1,0 +1,9 @@
+{
+  "name": "intentmade-runtime-tools",
+  "private": true,
+  "dependencies": {
+    "@agentclientprotocol/codex-acp": "1.10.0",
+    "@openai/codex": "0.153.4",
+    "@playwright/mcp": "0.0.80"
+  }
+}

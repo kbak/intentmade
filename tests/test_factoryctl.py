@@ -7,9 +7,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+DAEMON_IMAGE = (
+    "docker:29.4.1-dind@sha256:c77e5d7912f9b137cc67051fdc2991d8f5ae22c55ddf532bb836dcb693a04940"
+)
+
 
 class StartupTests(unittest.TestCase):
-    def start(self, image, missing=False, transfer_exit=0):
+    def start(self, image, missing=False, transfer_exit=0, daemon_cached=True, pull_failed=False):
         deployment = {
             "services": {
                 "canvas": {
@@ -22,7 +26,8 @@ class StartupTests(unittest.TestCase):
                         },
                         {"type": "bind", "source": "/tmp/config", "target": "/opt/factory/config"},
                     ],
-                }
+                },
+                "sandboxes": {"image": DAEMON_IMAGE},
             }
         }
         source = Mock()
@@ -36,15 +41,19 @@ class StartupTests(unittest.TestCase):
             self.run = run
             self.popen = popen
             popen.return_value.__enter__.return_value = source
-            if missing:
-                run.side_effect = subprocess.CalledProcessError(
-                    1, ["docker", "image", "inspect", image]
-                )
+
+            def invoke(args, **kwargs):
+                if (
+                    missing
+                    or (not daemon_cached and args[-3:] == ("image", "inspect", DAEMON_IMAGE))
+                    or (pull_failed and args[-2:] == ("pull", DAEMON_IMAGE))
+                ):
+                    raise subprocess.CalledProcessError(1, args)
+
+            run.side_effect = invoke
             runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts/factoryctl"))
         self.commands = [call.args[0] for call in run.call_args_list]
-        popen.assert_called_once_with(
-            ["docker", "save", image, "docker:29.4.1-dind"], stdout=subprocess.PIPE
-        )
+        popen.assert_called_once_with(["docker", "save", image], stdout=subprocess.PIPE)
         load = next(c for c in run.call_args_list if c.args[0][-2:] == ("docker", "load"))
         self.assertIs(load.kwargs["stdin"], source.stdout)
         self.assertIn("--no-build", self.commands[-1])
@@ -69,4 +78,20 @@ class StartupTests(unittest.TestCase):
     def test_failed_transfer_does_not_start_canvas(self):
         with self.assertRaisesRegex(RuntimeError, "transfer"):
             self.start("custom:runtime", transfer_exit=1)
+        self.assertFalse(any("--remove-orphans" in c.args[0] for c in self.run.call_args_list))
+
+    def test_cached_daemon_digest_needs_no_registry_access(self):
+        self.start("custom:runtime")
+        self.assertFalse(any("pull" in c for c in self.commands))
+        self.assertTrue(any(c[-3:] == ("image", "inspect", DAEMON_IMAGE) for c in self.commands))
+
+    def test_missing_daemon_digest_is_pulled_before_starting_canvas(self):
+        self.start("custom:runtime", daemon_cached=False)
+        pull = next(i for i, c in enumerate(self.commands) if c[-2:] == ("pull", DAEMON_IMAGE))
+        self.assertLess(pull, len(self.commands) - 1)
+
+    def test_daemon_pull_failure_prevents_canvas_start_and_image_transfer(self):
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.start("custom:runtime", daemon_cached=False, pull_failed=True)
+        self.popen.assert_not_called()
         self.assertFalse(any("--remove-orphans" in c.args[0] for c in self.run.call_args_list))

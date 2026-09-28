@@ -274,20 +274,23 @@ Use the version pinned in
 From the IntentBond checkout:
 
 ```sh
-uv build --wheel --out-dir /path/to/wheels
+python -m pip install --require-hashes --only-binary=:all: -r requirements/ci.txt
+python -m build --no-isolation --wheel --outdir /path/to/wheels
 ```
 
-With the portable package installed, download the wheel's Python dependencies
-and provision its OFT JAR:
+Download the locked runtime dependencies and provision the checksum-pinned OFT
+JAR from the same checkout:
 
 ```sh
-python -m pip download --only-binary=:all: --dest /path/to/wheels \
-  /path/to/wheels/intentbond-*.whl
-ib install-oft --destination /path/to/wheels
+python -m pip download --require-hashes --only-binary=:all: --dest /path/to/wheels \
+  -r requirements/runtime.txt
+python -m intentbond install-oft --destination /path/to/wheels
 ```
 
-Use an artifact directory containing one wheel per package. The OFT installer
-verifies the JAR checksum. From the factory checkout:
+Use an artifact directory containing one wheel per package. The factory verifies
+third-party wheels against `docker/traceability-requirements.txt`; keep it aligned
+with the selected IntentBond release's `requirements/runtime.txt`. The IntentBond
+wheel is a trusted local build input. From the factory checkout:
 
 ```sh
 docker build -f docker/runtime.Dockerfile -t intentmade:traceability-base .
