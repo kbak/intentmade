@@ -46,8 +46,8 @@ requires native cancellation/reconciliation. An unacknowledged completed receipt
 is diagnostic evidence, not authority to mark an arbitrary task successful.
 Retain original failures and use the native completion API only after checking
 the expected command, source, artifacts and absence of active execution. Never
-repair status by editing native storage or repeating an experiment.
+repair status by editing native storage or repeating the recipe.
 
 Rebuild the factory image and refresh workflows to make this command and its
 instructions available to coordinators. Existing uploaded automations retain
-their original entrypoint; replacing a completed experiment is unnecessary.
+their original entrypoint.

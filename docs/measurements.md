@@ -3,8 +3,8 @@
 Feature builds, issue fixes, PR maintenance builds, and PR reviews retain
 `metrics.json` and `metrics-summary.md` alongside their existing task artifacts.
 The persistent Canvas task chat displays the same summary after completion,
-failure, or a request for input. No new service, database, dependency, or model
-call is needed. Measurement failures do not authorize or block a change.
+failure, or a request for input. Measurement failures do not authorize or block
+a change.
 
 The JSON record identifies the task, native automation run, repositories, and
 checked commits. It keeps every implementation/repair attempt, controller test
@@ -49,11 +49,11 @@ Run these commands from the tooling checkout against the host's artifact paths:
 
 ```sh
 python3 workflows/measurements.py show ../my-factory/.factory/artifacts/RUN-TASK/metrics.json
-python3 workflows/measurements.py report ../my-factory/.factory/artifacts --since 2026-09-16
+python3 workflows/measurements.py report ../my-factory/.factory/artifacts
 ```
 
-The report selects runs by their start date in UTC. Its summed durations are
-work across runs and may overlap in wall time. It does not estimate defects
+Use `--since YYYY-MM-DD` to select runs by their start date in UTC. Summed
+durations are work across runs and may overlap in wall time. The report does not estimate defects
 prevented, escaped-defect rates, or the causal benefit of traceability. No
 historical records are fabricated from old chat text.
 
@@ -86,13 +86,13 @@ from recurring review effort.
 
 Notes append to `observations.jsonl`. They do not rewrite the original verdict,
 evidence, or completion summary. `show` displays them after that assessment.
-Preserve this file with the rest of the artifact directory. The initial version
+Preserve this file with the rest of the artifact directory. The recorder
 does not infer relationships to production incidents, automatically collect
 human effort, or change approval policy.
 
 ## Runtime refresh
 
 The recorder is included in the normal workflow bundle and runtime image.
-Follow the README's runtime rebuild and workflow refresh procedure after active
-jobs finish. Existing runs keep their original workflow and measurements;
-newly submitted/refreshed workflows produce the records described here.
+Follow the [runtime update procedure](operations.md#update-the-runtime-and-workflows)
+after active jobs finish. Existing runs keep their original workflow and
+measurements; newly submitted/refreshed workflows produce these records.

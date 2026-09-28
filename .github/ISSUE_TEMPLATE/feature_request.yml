@@ -1,0 +1,17 @@
+name: Feature request
+description: Propose a concrete improvement.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the current workflow and who is affected.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include alternatives or existing upstream capabilities you considered.
+    validations:
+      required: true

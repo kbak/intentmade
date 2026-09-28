@@ -1,4 +1,16 @@
-# Single-operator factory
+# Security
+
+## Reporting a vulnerability
+
+Use the repository's **Security → Advisories → Report a vulnerability** option
+when available. If private reporting is unavailable, open an issue requesting a
+private contact channel without including vulnerability details. Do not post
+credentials, private logs, or an unpatched exploit in a public issue.
+
+Include the affected revision, a minimal reproducer, the deployment assumptions,
+and practical impact.
+
+## Single-operator factory
 
 This setup assumes one trusted operator on a Linux host with Docker. Canvas is
 bound to localhost by default. For remote access, restrict ingress to the
@@ -66,7 +78,7 @@ removes the daily cap; per-poll batching and repository locks still apply.
   network access, and no escalation. The SDK also refuses permission requests
   for these sessions. Building and interactive coordinator modes retain their
   capabilities. Image builds fail if an upstream version or patch target changes.
-  The adapter no longer automatically marks opened source directories trusted.
+  The adapter does not automatically mark opened source directories trusted.
   Native Codex project trust gates repository `.codex` startup configuration;
   disposable workers start with a fresh credential home and no trusted-project
   entries. Repository files remain available to review. Factory roles in the
@@ -109,11 +121,10 @@ parent bundle/archive imports and new-job disk admission. Docker enforces worker
 CPU, memory and process limits before credentials or work are supplied; applying
 the limits must succeed. These settings do not create a hard disk quota or prune
 failed jobs. Recover retained work before manual cleanup. See the
-[resource limits](README.md#resource-limits) defaults and storage limitations.
+[resource limits](docs/configuration.md#resource-limits) defaults and storage limitations.
 
 Task stores validate the actual GitHub fetch and push destinations before reuse.
 Changing a registration's repository or base branch requires a new task ID.
-Verified existing stores are migrated without discarding retained work.
 
 Configuration enumerates all automation pages before updating or retiring
 schedules. Reconfiguring a disabled or removed repository therefore finds its
@@ -121,10 +132,9 @@ older scheduler even after many build jobs have accumulated.
 
 ## Applying an update
 
-Let active jobs finish before changing the runtime. Then run `./scripts/factoryctl
-up` from this checkout, followed by `./scripts/factoryctl configure`. The image,
-outer daemon policy and uploaded automation code must be updated together.
-Keep volumes and `.factory/`; do not use `down -v`.
+Follow the [update procedure](docs/operations.md#update-the-runtime-and-workflows).
+The image, outer daemon policy, and uploaded automation code must be updated
+together. Keep volumes and `.factory/`; do not use `down -v`.
 
 See [tests/README.md](tests/README.md) for regression checks. The Docker isolation
 smoke uses temporary containers and no production credentials, repositories or

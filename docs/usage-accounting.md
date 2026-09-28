@@ -1,9 +1,8 @@
 # Provider usage accounting
 
-The pinned Codex ACP 1.10.0 bridge used the last model request as the usage for a
-whole prompt. The factory runtime patch now computes the difference between the
-root thread's cumulative counters before and after each ACP prompt. Multiple
-model requests, tool cycles and provider retries represented in those counters
+The factory's Codex ACP adapter reports the difference between the root thread's
+cumulative counters before and after each prompt. Multiple model requests,
+tool cycles and provider retries represented in those counters
 are included once. The SDK receives this delta, not the cumulative session total.
 Normal responses, command responses, typed failures and cancellations share the
 same conversion. Context-window usage updates retain their upstream meaning.
@@ -34,9 +33,9 @@ transports can omit final notifications. A late counter at cleanup is recorded
 separately rather than silently changing an already-returned response. Delegated
 thread accounting is unknown unless independently collected; child notifications
 are not attributed to the parent. Subscription cost and billed cost remain null.
-Do not use these records to assert complete experiment cost.
+Do not treat these records as a complete cost ledger.
 
 The patch verifies the pinned package version and exact integration points, and
 fails the image build if the upstream lifecycle changes. Regression tests run the
 actual adapter conversion and response functions with synthetic counters; they
-make no provider requests and are not pilot consumption measurements.
+make no provider requests.
