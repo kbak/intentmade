@@ -742,7 +742,9 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
                     else {}
                 )
             blocked = [
-                r["summary"] for r in outcome["browser_qa"].values() if r["status"] == "BLOCKED"
+                r["summary"] + ("\n\n" + r["resume_hint"] if r.get("resume_hint") else "")
+                for r in outcome["browser_qa"].values()
+                if r["status"] == "BLOCKED"
             ]
             if blocked:
                 raise NeedsInput("Browser verification could not complete: " + "\n".join(blocked))

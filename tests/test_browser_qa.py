@@ -1,6 +1,7 @@
 """Native MCP serialization, retained image evidence, and mandatory QA verdicts."""
 
 import copy
+import itertools
 import json
 import os
 import tempfile
@@ -85,6 +86,26 @@ class BrowserQATests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 browser_qa.accepted_gaps(["accept-browser-gaps: " + value])
 
+    def test_pause_hint_round_trips_named_acceptance_without_granting_it(self):
+        result = self.gap_result()
+        result["checks"][-1]["name"] = 'Live "Device Trust" verification'
+        before = copy.deepcopy(result)
+        previous = {"Other provider": "Previously accepted"}
+        hint = browser_qa.gap_resume_hint(result, previous)
+        reply = next(
+            line.removeprefix("resume: ")
+            for line in hint.splitlines()
+            if line.startswith("resume: ")
+        )
+        accepted = browser_qa.accepted_gaps([reply])
+        self.assertEqual(accepted["Other provider"], "Previously accepted")
+        self.assertIn('Live "Device Trust" verification', accepted)
+        self.assertEqual(result, before)
+        browser_qa.accept_infrastructure_gaps(result, accepted)
+        self.assertEqual(result["status"], "ACCEPTED_GAPS")
+        self.assertEqual(result["checks"][-1]["status"], "BLOCKED")
+        self.assertEqual(browser_qa.gap_resume_hint(result, accepted), "")
+
     def test_acceptance_preserves_unverified_checks_and_rejects_other_failures(self):
         accepted = {"Live Telegram": "Publish draft with documented gap"}
         for problem in (
@@ -111,6 +132,10 @@ class BrowserQATests(unittest.TestCase):
                 result["checks"] = result["checks"][:1]
             with self.subTest(problem=problem):
                 before = copy.deepcopy(result)
+                self.assertEqual(
+                    bool(browser_qa.gap_resume_hint(result, {})),
+                    problem in {None, "unaccepted"},
+                )
                 browser_qa.accept_infrastructure_gaps(result, accepted)
                 if problem:
                     self.assertEqual(result, before)
@@ -337,9 +362,15 @@ class BrowserQATests(unittest.TestCase):
                     ],
                 }
             )
-            for failure in (None, "source", "startup", "screenshot"):
+            for accepted, failure in itertools.product(
+                (False, True), (None, "source", "startup", "screenshot")
+            ):
                 (checkout / "app.html").write_text("Original")
+                Image.new("RGB", (32, 32), "red").save(captures / "screen.png")
                 config["browser_qa"]["start_command"] = "false" if failure == "startup" else "true"
+                config["accepted_browser_gaps"] = (
+                    {"Live Telegram": "No disposable session"} if accepted else {}
+                )
 
                 def verify_gap(*args, **kwargs):
                     if failure == "source":
@@ -357,7 +388,12 @@ class BrowserQATests(unittest.TestCase):
                         captures,
                         root / str(failure),
                     )
-                self.assertEqual(result["status"], "BLOCKED" if failure else "ACCEPTED_GAPS")
+                self.assertEqual(
+                    result["status"], "BLOCKED" if failure or not accepted else "ACCEPTED_GAPS"
+                )
+                # Even plausible infrastructure checks must not offer a bypass
+                # when startup, evidence retention, or source integrity failed.
+                self.assertEqual("resume_hint" in result, not accepted and failure is None)
 
     def test_qa_failure_uses_existing_repair_loop_and_blocked_qa_never_publishes(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -377,7 +413,14 @@ class BrowserQATests(unittest.TestCase):
                 }
             }
             for status in ("FAIL", "BLOCKED"):
-                failing = {"example": {"status": status, "summary": "Button does not work"}}
+                qa = (
+                    self.gap_result()
+                    if status == "BLOCKED"
+                    else {"status": status, "summary": "Button does not work"}
+                )
+                if status == "BLOCKED":
+                    qa["resume_hint"] = browser_qa.gap_resume_hint(qa, {})
+                failing = {"example": qa}
                 with (
                     patch.object(
                         run, "implementation_attempt", return_value=({"example": 0}, [])
@@ -396,7 +439,9 @@ class BrowserQATests(unittest.TestCase):
                     patch.object(run, "publish", return_value="https://example.test/pr") as publish,
                 ):
                     if status == "BLOCKED":
-                        with self.assertRaises(reporting.NeedsInput):
+                        with self.assertRaisesRegex(
+                            reporting.NeedsInput, "resume: accept-browser-gaps:"
+                        ):
                             run.execute_build(
                                 [config], "task", "Approved spec", "", None, True, root, states
                             )

@@ -77,6 +77,8 @@ def browser_evidence(results):
             text += limitations(result)
         for check in result.get("checks", []):
             text += f"\n\n- {check['name']}: {check['status']} — {check['observed']}"
+        if result.get("resume_hint"):
+            text += "\n\n" + result["resume_hint"]
         try:
             post(ACTIVE["conversation_id"], text)
             for screenshot in result.get("screenshots", []):

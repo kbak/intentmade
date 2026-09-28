@@ -101,7 +101,11 @@ accept-browser-gaps: {"Live Telegram integration": "No disposable session availa
 
 Acceptance belongs only to that issue's unchanged specification and survives
 retries. A later directive replaces it; `{}` revokes it. Ordinary issue text and
-worker claims cannot grant acceptance. Available checks must still pass and
+worker claims cannot grant acceptance. The pause report supplies the exact
+`resume: accept-browser-gaps: {...}` reply when only eligible infrastructure gaps
+remain. Plain `resume: go ahead` and `resume: retry` restart the task without
+recording a new acceptance; an assistant acknowledgement does not change the gate.
+Available checks must still pass and
 screenshots and the unchanged checkout must validate. Startup failures, missing
 evidence, observed defects, failed tests and incomplete independent review still
 block publication. Accepted checks remain `BLOCKED` in the evidence; the parent

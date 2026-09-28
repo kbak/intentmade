@@ -81,8 +81,8 @@ def accepted_gaps(answers):
     return value
 
 
-def accept_infrastructure_gaps(result, accepted):
-    """Called only after startup, evidence retention and source integrity succeed."""
+def infrastructure_gaps(result):
+    """Eligible checks, after startup, evidence retention and source integrity succeed."""
     checks = result.get("checks", [])
     blocked = [c for c in checks if c["status"] == "BLOCKED"]
     if (
@@ -91,15 +91,44 @@ def accept_infrastructure_gaps(result, accepted):
         or not any(c["status"] == "PASS" for c in checks)
         or any(c["status"] == "FAIL" for c in checks)
         or not result.get("screenshots")
-        or any(
-            c.get("blocker_kind") != "infrastructure" or c["name"] not in accepted for c in blocked
-        )
+        or any(c.get("blocker_kind") != "infrastructure" for c in blocked)
     ):
+        return []
+    return blocked
+
+
+def accept_infrastructure_gaps(result, accepted):
+    """Called only after startup, evidence retention and source integrity succeed."""
+    blocked = infrastructure_gaps(result)
+    if not blocked or any(c["name"] not in accepted for c in blocked):
         return
     result.update(
         status="ACCEPTED_GAPS",
         reported_status="BLOCKED",
         accepted_gaps={c["name"]: accepted[c["name"]] for c in blocked},
+    )
+
+
+def gap_resume_hint(result, accepted):
+    blocked = infrastructure_gaps(result)
+    if not blocked:
+        return ""
+    proposed = dict(accepted)
+    for check in blocked:
+        proposed.setdefault(
+            check["name"],
+            "Proceed with this infrastructure check unverified and document the limitation in the draft PR.",
+        )
+    if len(proposed) > 30:
+        return ""
+    return (
+        "To proceed with these named infrastructure checks unverified, send this exact reply "
+        "in the paused issue's report (or supply the directive through retry-issue --answer-file):\n\n"
+        "```text\nresume: accept-browser-gaps: " + json.dumps(proposed) + "\n```\n\n"
+        "A plain `resume: go ahead` or `resume: retry` does not record gap acceptance. "
+        "The report assistant must preserve the directive when explaining how to continue; "
+        "it cannot record acceptance by acknowledging a conversational approval. "
+        "Available checks, retained evidence, source integrity, tests and independent review remain required."
     )
 
 
@@ -249,6 +278,9 @@ def run(workspace, config, state, request, output, destination):
                 "QA modified the source checkout; evidence does not verify the retained commit"
             )
         accept_infrastructure_gaps(result, accepted)
+        hint = gap_resume_hint(result, accepted)
+        if hint:
+            result["resume_hint"] = hint
     except Exception as exc:
         result.update(status="BLOCKED", summary=f"{type(exc).__name__}: {exc}")
         # Do not accidentally treat model-reported, unretained filenames as attachments.

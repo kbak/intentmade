@@ -64,6 +64,15 @@ Ordinary conversation is not a restart command. A read-only
 report assistant may explain results but must not claim to have dispatched work.
 Routine implementation choices do not require further approval. Never silently
 answer a question that materially changes the agreed product behavior.
+When browser QA offers acceptance of named infrastructure gaps, preserve its exact
+`resume: accept-browser-gaps: {"CHECK NAME": "REASON"}` reply. Plain approvals
+such as `resume: go ahead` restart the task without recording acceptance. A
+read-only report assistant cannot translate its own acknowledgement into controller
+state; never claim a deferral is recorded unless `accepted_browser_gaps` or an
+`ACCEPTED_GAPS` result confirms it. An operator with an already authorized deferral
+can record that same decision using `retry-issue --answer-file`; do not request
+the same approval again. Acceptance covers only named unavailable infrastructure,
+keeps checks unverified, and preserves all other test and review gates.
 If an operator explicitly configures an issue label, that label is required and
 unlabeled issues produce proposals only. Scheduled issue work covers only its
 own repository. If work needs other repositories, discuss a grouped specification
