@@ -98,6 +98,21 @@ class StartupRecoveryTests(unittest.TestCase):
 
 
 class WorkerDiagnosticsTests(unittest.TestCase):
+    def test_native_session_capture_is_bounded_redacted_and_preserves_writer_offset(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryFile() as log:
+            log.write(b"x" * 2_000_010 + b"worker-api-key")
+            log.flush()
+            offset = log.tell()
+            path = diagnostics.retain_worker(
+                SimpleNamespace(_factory_log=log), directory, ["worker-api-key"]
+            )
+            self.assertLessEqual(path.stat().st_size, 2_000_000)
+            self.assertNotIn("worker-api-key", path.read_text())
+            self.assertTrue(path.read_text().endswith("[REDACTED]"))
+            self.assertEqual(log.tell(), offset)
+            log.write(b" next event")
+            self.assertEqual(log.tell(), offset + len(b" next event"))
+
     def test_old_refreshed_and_unknown_tokens_are_redacted(self):
         credentials = [
             json.dumps({"tokens": {"access_token": "old-access", "refresh_token": "old-refresh"}}),

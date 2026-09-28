@@ -33,6 +33,11 @@ repositories can share a profile. A profile is optional.
 
 ### Resource limits
 
+An optional installation-wide `worker_runtime` object selects the experimental
+[Docker Sandboxes VM backend](docker-sandboxes.md). Omit it to retain the existing
+DockerWorkspace backend. VM resources belong in its native Kit YAML; repository
+registrations cannot select or override the runtime.
+
 The optional `resource_limits` object in `config/defaults.json` sets limits for
 the whole installation; repository registrations cannot override it. Omitted
 values use the defaults shown in [the example](../examples/config/defaults.json).

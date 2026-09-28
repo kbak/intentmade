@@ -93,6 +93,11 @@ rerun after changing the runtime, Codex/ACP pins, or bundled roles.
 
 ## Sandbox and network probes
 
+The opt-in Docker Sandboxes adapter has an offline native integration probe,
+`check_docker_sandboxes.py`. See [its setup guide](../docs/docker-sandboxes.md)
+for the authenticated local controller, shared paths and Kit requirements.
+It uses fixture credentials and removes its VM; it makes no model calls.
+
 ```bash
 python3 tests/check_review_sandbox.py
 python3 tests/check_resource_limits.py

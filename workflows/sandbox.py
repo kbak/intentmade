@@ -1,4 +1,4 @@
-"""Native DockerWorkspace with one disposable Docker test daemon per job."""
+"""Shared worker credentials and provenance with an operator-selected runtime."""
 
 import json
 import os
@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import diagnostics
+import docker_sandboxes
 import input_artifacts
 import measurements
 import provenance
@@ -65,13 +66,6 @@ def worker(root, config):
     profile = api("GET", "/api/agent-profiles/factory-codex")["profile"]
     require_disk_space(root)
     name = root.name
-    compose = ["docker", "compose", "-p", name, "-f", str(ROOT / "workflows/sandbox.yaml")]
-    env = dict(
-        os.environ,
-        JOB_WORKSPACE=str(root),
-        JOB_INPUTS=input_artifacts.directory(root),
-        JOB_TEST_DAEMON_PIDS=str(resource_settings()["test_daemon_pids"]),
-    )
     encryption_key = (
         os.environ.get("OH_SECRET_KEY") or Path("/run/secrets/encryption-key").read_text().strip()
     )
@@ -87,34 +81,23 @@ def worker(root, config):
     }
     old = {key: os.environ.get(key) for key in settings}
     try:
-        subprocess.run([*compose, "up", "-d", "--wait"], env=env, check=True)
         os.environ.update(settings)
-        port = find_available_tcp_port()
-        with DockerWorkspace(
-            server_image=os.environ.get("FACTORY_IMAGE", "intentmade:dev"),
-            host_port=port,
-            host=f"http://sandboxes:{port}",
-            working_dir=str(root / "source"),
-            network=name + "_default",
-            detach_logs=False,
-            forward_env=list(settings),
-            volumes=mounts(root, config),
-        ) as workspace:
-            # This SDK has no resource kwargs. Use Docker's native update before
-            # provisioning credentials, running probes, or exposing the worker.
-            # Failure exits the workspace context and stops the new container.
-            subprocess.run(
-                ["docker", "update", *worker_docker_flags(), workspace._container_id],
-                check=True,
-                capture_output=True,
-                timeout=30,
-            )
+        options = docker_sandboxes.settings()
+        runtime = (
+            docker_sandboxes.worker(root, mounts(root, config), settings, options)
+            if options["backend"] == "docker-sandboxes"
+            else docker_worker(root, config, settings)
+        )
+        with runtime as workspace:
             workspace.api_key = settings["OH_SESSION_API_KEYS_0"]
             workspace.reset_client()
             configs = config if isinstance(config, list) else [config]
             manifest = provenance.capture(
                 workspace,
-                intended={"worker_image": workspace.server_image},
+                intended={
+                    "worker_image": getattr(workspace, "server_image", None),
+                    "worker_runtime": options,
+                },
                 source={"job": name},
             )
             Path(settings["FACTORY_EXECUTION_MANIFEST"]).write_text(
@@ -170,4 +153,40 @@ def worker(root, config):
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+
+
+@contextmanager
+def docker_worker(root, config, settings):
+    name = root.name
+    compose = ["docker", "compose", "-p", name, "-f", str(ROOT / "workflows/sandbox.yaml")]
+    env = dict(
+        os.environ,
+        JOB_WORKSPACE=str(root),
+        JOB_INPUTS=input_artifacts.directory(root),
+        JOB_TEST_DAEMON_PIDS=str(resource_settings()["test_daemon_pids"]),
+    )
+    try:
+        subprocess.run([*compose, "up", "-d", "--wait"], env=env, check=True)
+        port = find_available_tcp_port()
+        with DockerWorkspace(
+            server_image=os.environ.get("FACTORY_IMAGE", "intentmade:dev"),
+            host_port=port,
+            host=f"http://sandboxes:{port}",
+            working_dir=str(root / "source"),
+            network=name + "_default",
+            detach_logs=False,
+            forward_env=list(settings),
+            volumes=mounts(root, config),
+        ) as workspace:
+            # This SDK has no resource kwargs. Use Docker's native update before
+            # provisioning credentials, running probes, or exposing the worker.
+            # Failure exits the workspace context and stops the new container.
+            subprocess.run(
+                ["docker", "update", *worker_docker_flags(), workspace._container_id],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+            yield workspace
+    finally:
         subprocess.run([*compose, "down", "-v", "--remove-orphans"], env=env, check=True)

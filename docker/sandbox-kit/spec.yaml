@@ -1,0 +1,27 @@
+schemaVersion: "2"
+kind: sandbox
+name: intentmade
+sandbox:
+  image: intentmade:sandbox-kit
+  entrypoint: [/bin/bash]
+  resources:
+    cpu: 2
+    memory: 4g
+security:
+  privileged: true
+volumes:
+  - path: /var/lib/docker
+    size: 10g
+permissions:
+  network:
+    allow:
+      - github.com
+      - api.github.com
+      - codeload.github.com
+      - objects.githubusercontent.com
+      - auth.openai.com
+      - chatgpt.com
+      - api.openai.com
+      - registry-1.docker.io
+      - auth.docker.io
+      - production.cloudflare.docker.com

@@ -1,9 +1,12 @@
 """Retain bounded, redacted worker diagnostics before disposable servers exit."""
 
+import io
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
+from uuid import uuid4
 
 
 def redact(text, secrets):
@@ -35,6 +38,15 @@ def redact(text, secrets):
 
 
 def retain_worker(workspace, directory, secrets=()):
+    session_log = getattr(workspace, "_factory_log", None)
+    if isinstance(session_log, io.IOBase):
+        size = os.fstat(session_log.fileno()).st_size
+        # pread leaves the child process's shared stdout offset untouched.
+        data = os.pread(session_log.fileno(), 2_000_000, max(0, size - 2_000_000))
+        path = Path(directory) / f"worker-sbx-{uuid4().hex[:12]}.log"
+        with path.open("x") as handle:
+            handle.write(redact(data.decode("utf-8", errors="replace"), secrets)[-2_000_000:])
+        return path
     identifier = getattr(workspace, "_container_id", None)
     if not isinstance(identifier, str) or not re.fullmatch(r"[a-f0-9]{12,64}", identifier):
         return None

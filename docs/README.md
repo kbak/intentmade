@@ -28,3 +28,4 @@
 - [Contributing](../CONTRIBUTING.md) — development setup and change guidelines.
 - [Testing](../tests/README.md) — regressions and runtime probes.
 - [Container sandbox](../runtime/codex-seccomp.md) — seccomp configuration and upstream attribution.
+- [Docker Sandboxes](docker-sandboxes.md) — optional native v2 Kit and VM worker adapter.
