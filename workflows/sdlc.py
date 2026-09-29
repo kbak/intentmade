@@ -21,7 +21,7 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-# [impl->req~im-portable-plan~1]
+# [impl->req~im-portable-plan~2]
 def propose(task, bases, documents):
     """Discussion output, never implementation authorization by itself."""
     identifier(task)
@@ -80,7 +80,7 @@ def package_for(repository):
     return validate(json.loads(path.read_text())) if path.exists() else None
 
 
-# [impl->req~im-portable-plan~1]
+# [impl->req~im-portable-plan~2]
 def bind(repository, package):
     """Retain the accepted handoff outside worker-controlled Git metadata."""
     previous = package_for(repository)
@@ -133,7 +133,7 @@ def source_file(repository, revision, path):
     ).stdout
 
 
-# [impl->req~im-portable-plan~1]
+# [impl->req~im-portable-plan~2]
 def stage(states):
     """Write accepted artifacts before entering the worker, without following links."""
     for state in states.values():
@@ -155,6 +155,10 @@ def stage(states):
             prior = source_file(
                 state["repository"], state["branch"], package["directory"] + "/" + name
             )
+            if name == "plan.md" and prior is not None:
+                # Preserve the current plan on repair; the accepted version stays
+                # in the controller package and the original staging commit.
+                continue
             if prior is not None and prior != content.encode():
                 raise ValueError("Accepted task document conflicts with retained source: " + name)
             job_files.write_text(root, path, content)
@@ -184,23 +188,64 @@ def verify(states):
             actual = source_file(
                 state["repository"], state["commit"], package["directory"] + "/" + name
             )
+            if name == "plan.md":
+                if actual is None or not actual.decode("utf-8").strip():
+                    raise ValueError("The current implementation plan is missing or empty")
+                state["plan"] = {
+                    "path": package["directory"] + "/" + name,
+                    "accepted_sha256": package["sha256"][name],
+                    "current_sha256": digest(actual),
+                }
+                continue
             if actual != content.encode():
                 raise ValueError("Implementation changed an accepted task document: " + name)
 
 
 def instructions(states):
     packages = {
-        name: state["work_package"] for name, state in states.items() if state.get("work_package")
+        name: state["work_package"]["directory"]
+        for name, state in states.items()
+        if state.get("work_package")
     }
     if not packages:
         return ""
     return (
-        "\n\nAccepted planning handoffs:\n"
+        "\n\nAccepted planning handoffs (repository-relative directories):\n"
         + json.dumps(packages, indent=2)
         + "\nRead these intent.md, spec.md and plan.md documents before implementation or review. "
-        "Preserve accepted snapshots and their hashes. Update the project's living intent/spec "
-        "and trace links as the plan requires. Record execution deviations in the summary; "
+        "Preserve intent.md, spec.md and accepted.json. Keep plan.md current with the implementation; "
+        "briefly explain changed steps there. Its accepted version is retained separately. "
+        "Update the project's living intent/spec only where this change affects them; "
         "material changes to agreed behavior require NEEDS_INPUT."
+    )
+
+
+def accepted_plan_context(states, root):
+    """Stage only changed plans' accepted versions for the existing reviewer."""
+    references = {}
+    for project, state in states.items():
+        package = package_for(state["repository"])
+        if package is None:
+            continue
+        current = source_file(
+            state["repository"], state["commit"], package["directory"] + "/plan.md"
+        )
+        original = package["documents"]["plan.md"]
+        if current == original.encode():
+            continue
+        directory = root / "accepted-plans"
+        if not directory.exists():
+            job_files.mkdir(root, directory)
+        path = directory / (project + ".md")
+        job_files.write_text(root, path, original)
+        references[project] = str(path)
+    return (
+        (
+            "\nController-retained accepted plans for comparison with current plan.md:\n"
+            + json.dumps(references)
+        )
+        if references
+        else ""
     )
 
 
@@ -240,6 +285,7 @@ def handoff(artifact, outcome):
                 "branch",
                 "summary",
                 "work_package",
+                "plan",
                 "pull_request",
                 "traceability",
             )
@@ -273,7 +319,14 @@ def handoff(artifact, outcome):
                 json.dumps(data["work_package"], indent=2),
                 "```",
             ]
-        else:
+        if data.get("plan"):
+            lines += [
+                "Current plan identity (compare with its accepted version):",
+                "```json",
+                json.dumps(data["plan"], indent=2),
+                "```",
+            ]
+        if not data.get("work_package"):
             lines += [
                 "No separately accepted planning package was supplied; see the approved request and repository task documents."
             ]
@@ -315,7 +368,7 @@ def pr_evidence(artifact, config, repo):
     if state.get("work_package"):
         directory = state["work_package"]["directory"]
         result += (
-            "\nAccepted artifacts: "
+            "\nTask artifacts (accepted intent/spec, current plan, acceptance record): "
             + ", ".join(
                 f"[{name}]({base_url}/blob/{commit}/{directory}/{name})"
                 for name in (*DOCUMENTS, "accepted.json")

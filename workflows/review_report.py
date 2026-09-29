@@ -48,9 +48,12 @@ def digest(review):
         json.dumps(
             [
                 item.model_dump(
-                    exclude={"traceability_assessment"}
-                    if item.traceability_assessment is None
-                    else set()
+                    exclude=(
+                        {"traceability_assessment"}
+                        if item.traceability_assessment is None
+                        else set()
+                    )
+                    | ({"intent_alignment"} if not item.intent_alignment else set())
                 )
                 for item in review.reviews
             ],
@@ -206,10 +209,15 @@ def render(review, repository=None, sha=None):
     blockers = sum(blocking for _, _, blocking, _ in rows)
     advisory = len(rows) - blockers
     gaps = sum(change.status == "missing" for _, change in traceability_items(review))
+    conflicts = sum(
+        item.status == "conflict"
+        for specialist in review.reviews
+        for item in specialist.intent_alignment
+    )
     if review.verdict == "BLOCKED":
         lead = "**Review incomplete** — a complete verdict is not available."
-    elif blockers or gaps:
-        count = blockers + gaps
+    elif blockers or gaps or conflicts:
+        count = blockers + gaps + conflicts
         lead = f"**Changes requested** — {count} {'issue' if count == 1 else 'issues'} to address."
     elif advisory:
         lead = f"**Approved** — {advisory} optional {'improvement' if advisory == 1 else 'improvements'}."
@@ -241,6 +249,11 @@ def render(review, repository=None, sha=None):
             + "\n\n</details>"
         )
     for specialist in review.reviews:
+        # Render directly from the specialist so report editing cannot erase a conflict.
+        for item in specialist.intent_alignment:
+            sections.append(
+                f"**Intent — {item.project}: {item.status}.** {item.summary}\n\nReferences: {', '.join(item.references)}"
+            )
         for assessment in specialist.traceability_assessment or []:
             sections.append(render_traceability(assessment))
     if review.infrastructure_errors:

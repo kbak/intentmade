@@ -11,7 +11,7 @@ this repository and what those checks establish.
 
 ## Feature map
 
-Each short name below is a link to a requirement whose full ID is `req~im-NAME~1`.
+Each short name below is a link to a requirement whose ID is `req~im-NAME~REVISION`.
 The boundary column identifies areas needing more detailed requirements or checks.
 
 | Capability | Requirements | Boundary / remaining work |
@@ -22,7 +22,7 @@ The boundary column identifies areas needing more detailed requirements or check
 | Independent review and maintenance | [review-evidence](#derive-review-verdicts-from-native-evidence-and-complete-coverage), [immutable-pr-comparison](#review-the-captured-base-and-head), [pr-publication](#recheck-review-identity-and-ci-before-posting), [review-retry](#reconcile-uncertain-review-publication), [review-report-integrity](#preserve-findings-through-report-consolidation), [feedback-authority](#accept-maintenance-feedback-only-from-eligible-sources), [feedback-lifecycle](#deduplicate-and-recheck-maintenance-feedback) | Native read-only enforcement, model finding quality and live API behavior are not established by scripted tests. |
 | Browser acceptance | [browser-evidence](#require-browser-checks-screenshots-and-unchanged-source), [browser-gap-acceptance](#make-accepted-browser-gaps-explicit) | Live browser interaction and screenshot delivery probe not selected by the regression command. |
 | Inputs and continuation | [input-bytes](#verify-and-freeze-declared-input-artifacts), [input-restart](#bind-input-declarations-across-task-restarts), [repair-context](#reuse-only-matching-retained-repair-context) | Input size/count combinatorics and bounded continuation record limits need further boundary tests. |
-| Portable workflow | [portable-plan](#retain-an-explicitly-accepted-planning-package), [repository-policy](#capture-verification-policy-from-a-pinned-project-commit), [portable-handoff](#export-source-bound-continuation-and-review-evidence) | Explicit package gates are controller-enforced; request-only delegated planning remains agent guidance. No live model or GitHub qualification. |
+| Portable workflow | [portable-plan](#retain-an-explicitly-accepted-planning-package), [intent-consistency](#check-affected-product-and-task-intent-in-existing-review), [repository-policy](#capture-verification-policy-from-a-pinned-project-commit), [portable-handoff](#export-source-bound-continuation-and-review-evidence) | Explicit package gates are controller-enforced; request-only delegated planning remains agent guidance. No live model or GitHub qualification. |
 | IntentBond integration | [trace-opt-in](#enable-traceability-through-explicit-configuration), [trace-source-gate](#match-controller-evidence-to-exported-source-and-policy), [trace-assessment](#require-semantic-accounting-beyond-a-green-trace-graph), [scope-identity](#distinguish-scope-bytes-from-canonical-policy), [trace-retention](#retain-bounded-invocation-evidence-including-failures) | Deployment activation requires explicit configuration; fixture annotations are excluded through the trusted scope. |
 | Observability and operator automation | [execution-provenance](#keep-observed-environment-identity-distinct-from-intent), [finite-completion](#record-finite-execution-before-acknowledgement), [finite-timeout](#stop-timed-out-finite-recipes), [measurement-outcomes](#preserve-attempts-and-unknown-measurements), [startup-retry](#retry-only-a-typed-pre-work-startup-timeout) | Provider counter conversion, finite registration consistency, full CLI/setup and backup/restore promises remain deferred. |
 | Runtime validation | [runtime-build-inputs](#runtime-test-image-matches-candidate-patch-inputs) | A matching build manifest checks consistency; it does not attest an untrusted image. |
@@ -43,7 +43,7 @@ update the trusted image pin when those inputs change. Load that image into the
 job daemon for factory use; a local ID is not a registry distribution reference.
 
 JUnit records named test-method outcomes, and explicit `oft_id` metadata connects
-120 linked test artifacts to execution observations. The scope requires every
+125 linked test artifacts to execution observations. The scope requires every
 listed artifact to pass and rejects skipped cases. These associations identify
 executed assertions; they do not establish that the assertions adequately verify
 every clause. Approval, structural coverage and runtime evidence remain distinct.
@@ -749,15 +749,18 @@ Implementation: [manifest and verify](../runtime/build_inputs.py), [regression r
 Existing assertions: [test_patch_additions_removals_modes_and_lock_changes_require_rebuild](../tests/test_build_inputs.py).
 
 ### Retain an explicitly accepted planning package
-`req~im-portable-plan~1`
+`req~im-portable-plan~2`
 
 Planning must freeze supplied intent, specification and plan documents with their
 hashes and selected repository base commits without dispatching implementation.
 Explicit submission accepts the package only for its matching task, specification
-and bases. Accepted documents must enter the task source before implementation,
-remain unchanged in the exported candidate, and be supplied to implementation
-and independent review. A retained task must not silently adopt a different
-package. Existing request-only and issue workflows retain their authorization.
+and bases. Documents must enter task source before implementation and be supplied
+to implementation/review. Accepted intent, spec and acceptance metadata remain
+unchanged in the candidate; plan.md may evolve but must remain a nonempty bounded
+UTF-8 regular file. Retain the original plan for comparison by the existing reviewer
+when changed, preserve the current plan on repair, and identify both in handoffs.
+A retained task must not silently adopt a different accepted package. Existing
+request-only and issue workflows retain their authorization and need no package.
 
 Covers:
 - `intent~im-deliver-changes~1`
@@ -773,6 +776,34 @@ Existing assertions: [planning, identity and lifecycle checks](../tests/test_sdl
 
 Evidence limit: scripted agents and real Git exercise package custody and rejection;
 they do not establish plan quality or the quality of delegated request-only planning.
+
+### Check affected product and task intent in existing review
+`req~im-intent-consistency~1`
+
+Each factory build's existing independent review must return exactly one compact
+intent-consistency assessment per selected repository, with references and rationale,
+regardless of OFT enablement. Reported new/worsened conflicts must request changes;
+missing, duplicate or uncertain assessments must leave review incomplete. Preserve
+these judgments in saved/rendered review evidence and pass conflicts to repair.
+Do not add a separate model pass or require task documents for bounded fixes.
+Agent guidance should reuse one current product overview, link local task context
+and update only affected living documents, without scanning task history.
+
+Covers:
+- `intent~im-deliver-changes~1`
+- `intent~im-review-changes~1`
+
+Needs: impl, utest
+
+Documentation: [portable workflow](portable-workflow.md#keep-product-context-small-and-current).
+
+Implementation: [review.py](../workflows/review.py), [run.py](../workflows/run.py),
+[factory review skill](../workflows/skills/factory-review/SKILL.md).
+
+Existing assertions: [intent assessment gates](../tests/test_intent_review.py).
+
+Evidence limit: scripted judgments exercise gating and retention, not model ability
+to detect semantic drift. Controller checks do not prove references are relevant.
 
 ### Capture verification policy from a pinned project commit
 `req~im-repository-policy~1`

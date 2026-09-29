@@ -245,6 +245,7 @@ class InitialReviewContextTests(unittest.TestCase):
                     source.mkdir()
                     states[str(index)] = {
                         "source": str(source),
+                        "repository": str(root / (str(index) + ".git")),
                         "base": "base",
                         "commit": "head",
                         "branch": "task",

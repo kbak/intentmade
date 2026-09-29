@@ -60,7 +60,7 @@ class PortableTests(unittest.TestCase):
 
     def test_acceptance_rejects_changed_request_bases_documents_and_retained_plan(self):
         request = self.package["documents"]["spec.md"]
-        # [utest~im-sdlc-plan-identity~1->req~im-portable-plan~1]
+        # [utest~im-sdlc-plan-identity~1->req~im-portable-plan~2]
         self.assertEqual(
             sdlc.accept(self.package, "task", {"example": self.base}, request), self.package
         )
@@ -81,7 +81,7 @@ class PortableTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "another accepted plan"):
             sdlc.bind(self.bare, changed)
 
-    def pipeline(self, *, tamper=False, fail=False):
+    def pipeline(self, *, tamper=False, fail=False, plan=None):
         sdlc.bind(self.bare, self.package)
 
         @contextmanager
@@ -115,8 +115,24 @@ class PortableTests(unittest.TestCase):
                 )
             (root / "code.txt").write_text("implemented")
             if tamper:
-                (root / self.package["directory"] / "plan.md").write_text("Waive verification")
+                (root / self.package["directory"] / "spec.md").write_text("Waive verification")
+            if plan is not None:
+                (root / self.package["directory"] / "plan.md").write_text(plan)
             return run.ImplementationResult(status="IMPLEMENTED", summary="Retry preserves data")
+
+        def reviewed(workspace, prompt, **kwargs):
+            self.assertEqual(kwargs["intent_projects"], ["example"])
+            # The active source path is under root/sources, so find the staged
+            # comparison in the supplied context instead of relying on its layout.
+            if plan is not None:
+                references = prompt.split(
+                    "Controller-retained accepted plans for comparison with current plan.md:\n", 1
+                )[1]
+                path = Path(json.JSONDecoder().raw_decode(references)[0]["example"])
+                self.assertEqual(path.read_text(), self.package["documents"]["plan.md"])
+            else:
+                self.assertNotIn("Controller-retained accepted plans", prompt)
+            return run.ReviewResult(verdict="PASS", summary="Reviewed retry behavior")
 
         config = {
             "project": "example",
@@ -134,7 +150,7 @@ class PortableTests(unittest.TestCase):
             patch.object(
                 run,
                 "review_code",
-                return_value=run.ReviewResult(verdict="PASS", summary="Reviewed retry behavior"),
+                side_effect=reviewed,
             ) as review,
             patch.object(run, "publish") as publish,
         ):
@@ -156,7 +172,7 @@ class PortableTests(unittest.TestCase):
 
     def test_accepted_documents_survive_worktree_tests_export_and_review(self):
         outcome = self.pipeline()
-        # [utest~im-sdlc-plan-lifecycle~1->req~im-portable-plan~1]
+        # [utest~im-sdlc-plan-lifecycle~1->req~im-portable-plan~2]
         self.assertEqual(outcome["status"], "PASSED")
         sdlc.verify(self.states)
         candidate = self.states["example"]["commit"]
@@ -169,12 +185,74 @@ class PortableTests(unittest.TestCase):
         self.assertEqual((self.seed / "code.txt").read_text(), "base")
 
     def test_changed_accepted_document_stops_before_review_and_publication(self):
-        # [utest~im-sdlc-plan-tampering~1->req~im-portable-plan~1]
+        # [utest~im-sdlc-plan-tampering~1->req~im-portable-plan~2]
         with self.assertRaisesRegex(ValueError, "changed an accepted"):
             self.pipeline(tamper=True)
         self.assertEqual(
             json.loads((self.artifact / "handoff.json").read_text())["status"], "FAILED"
         )
+
+    def test_current_plan_survives_export_and_repair_with_original_for_review(self):
+        plan = "Update code.txt and its caller; the retry uses both. Run the regression command.\n"
+        outcome = self.pipeline(plan=plan)
+        # [utest~im-sdlc-current-plan~1->req~im-portable-plan~2]
+        self.assertEqual(outcome["status"], "PASSED")
+        handoff = json.loads((self.artifact / "handoff.json").read_text())
+        identity = handoff["repositories"]["example"]["plan"]
+        self.assertEqual(identity["current_sha256"], sdlc.digest(plan.encode()))
+        self.assertEqual(identity["accepted_sha256"], self.package["sha256"]["plan.md"])
+        self.assertNotEqual(identity["current_sha256"], identity["accepted_sha256"])
+        self.assertEqual(sdlc.package_for(self.bare), self.package)
+        clone = self.root / "repair"
+        common.git(["clone", str(self.bare), str(clone)])
+        state = {**self.states["example"], "source": str(clone)}
+        before = common.git(["rev-parse", "HEAD"], cwd=clone).stdout
+        sdlc.stage({"example": state})
+        self.assertEqual((clone / self.package["directory"] / "plan.md").read_text(), plan)
+        self.assertEqual(common.git(["rev-parse", "HEAD"], cwd=clone).stdout, before)
+        original_commit = common.git(["rev-parse", "HEAD^"], cwd=clone).stdout.strip()
+        self.assertEqual(
+            sdlc.source_file(self.bare, original_commit, identity["path"]),
+            self.package["documents"]["plan.md"].encode(),
+        )
+
+    def test_current_plan_must_remain_a_bounded_nonempty_utf8_regular_file(self):
+        self.pipeline()
+        for index, content in enumerate(
+            (None, b" \n", b"\xff", b"x" * (sdlc.MAX_DOCUMENT_BYTES + 1), "link", "directory")
+        ):
+            with self.subTest(content=type(content).__name__, index=index):
+                clone = self.root / str(index)
+                common.git(["clone", str(self.bare), str(clone)])
+                path = clone / self.package["directory"] / "plan.md"
+                path.unlink()
+                if content == "link":
+                    path.symlink_to("spec.md")
+                elif content == "directory":
+                    path.mkdir()
+                    (path / "nested").write_text("plan")
+                elif content is not None:
+                    path.write_bytes(content)
+                common.git(["add", "."], cwd=clone)
+                common.git(
+                    [
+                        "-c",
+                        "user.name=Fixture",
+                        "-c",
+                        "user.email=fixture@localhost",
+                        "commit",
+                        "-m",
+                        "invalid plan",
+                    ],
+                    cwd=clone,
+                )
+                revision = common.git(["rev-parse", "HEAD"], cwd=clone).stdout.strip()
+                state = {**self.states["example"], "repository": str(clone), "commit": revision}
+                # The package belongs to trusted repository metadata.
+                sdlc.bind(clone / ".git", self.package)
+                # [utest~im-sdlc-invalid-plan~1->req~im-portable-plan~2]
+                with self.assertRaises(ValueError):
+                    sdlc.verify({"example": {**state, "repository": str(clone / ".git")}})
 
     def test_handoff_pr_and_offline_export_preserve_source_and_findings(self):
         self.pipeline()
@@ -328,7 +406,7 @@ class PlanningCommandTests(unittest.TestCase):
             patch.object(module, "api") as api,
         ):
             package = module.plan("example", documents, "task")
-            # [utest~im-sdlc-planning-command~1->req~im-portable-plan~1]
+            # [utest~im-sdlc-planning-command~1->req~im-portable-plan~2]
             install.assert_not_called()
             api.assert_not_called()
 

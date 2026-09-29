@@ -356,5 +356,20 @@
   ],
   "test_factoryctl.StartupTests.test_plan_and_submit_forward_documents_without_container_path_assumptions": [
     "utest~im-sdlc-cli-handoff~1"
+  ],
+  "test_sdlc.PortableTests.test_current_plan_survives_export_and_repair_with_original_for_review": [
+    "utest~im-sdlc-current-plan~1"
+  ],
+  "test_sdlc.PortableTests.test_current_plan_must_remain_a_bounded_nonempty_utf8_regular_file": [
+    "utest~im-sdlc-invalid-plan~1"
+  ],
+  "test_intent_review.IntentReviewTests.test_exact_repository_assessments_are_required_with_and_without_oft": [
+    "utest~im-intent-review-completeness~1"
+  ],
+  "test_intent_review.IntentReviewTests.test_conflict_survives_pass_label_consolidation_and_saved_evidence": [
+    "utest~im-intent-review-conflict~1"
+  ],
+  "test_intent_review.IntentReviewTests.test_same_reviewer_call_supplies_intent_assessment": [
+    "utest~im-intent-review-existing-pass~1"
   ]
 }

@@ -20,18 +20,27 @@ required context cannot be read, flag the gap before treating a proposal as read
 for handoff. Other repositories keep the ordinary prose specification workflow.
 This command reads discussion context; it does not submit or authorize a task.
 
-Keep discussion artifacts under /projects/requests: intent.md captures the user
-outcome, design rationale, decisions and useful conversation references; spec.md
-defines acceptance criteria, scope and constraints; plan.md identifies affected
-repositories/files, ordered steps, risks, verification commands and requirement
-IDs. Link these documents to one another and to existing project documentation.
-Use existing accepted artifacts when supplied; do not regenerate an accepted
-plan. For traceability repositories, preserve OFT IDs and revisions and identify
-the living intent/spec paths to update. Task snapshots do not replace those
-canonical requirements: avoid duplicating OFT declarations in both places.
+Use one current product overview: reuse the repository's canonical intent document
+(usually docs/intent.md or intent.md), or its existing README product overview.
+Read it once, then follow only affected sections and specification links. Keep it
+short: users, purpose, outcomes, boundaries and key decisions. Update it only when
+approved work changes that direction. Establish a missing overview from explicit
+user context and maintained docs when useful; never invent rationale from code.
+Task context describes the local change and links to that overview, without copying
+it or scanning historical task intents. Preserve OFT IDs/revisions where enabled.
 
-Before implementation, save a JSON object mapping intent.md, spec.md and plan.md
-to their complete text, then freeze the proposed handoff:
+For a bounded fix, the approved issue/request and a few inline planning lines are
+enough. Keep manual requests under /projects/requests and submit with:
+`python /opt/factory/configure.py submit PROJECT /projects/requests/spec.md --run`
+Do not require a new intent/spec/plan folder for each fix. Missing product docs
+alone need not block a repair whose purpose is clear from the request and spec.
+
+Use a separate intent/spec/plan package for substantial work, an explicit handoff,
+or when requested. Intent records the local outcome, decisions and useful
+conversation references; spec defines scope and acceptance criteria; plan names
+affected files, steps, risks and verification. Link canonical requirements instead
+of copying their declarations. Reuse supplied accepted artifacts. Save a JSON
+object mapping intent.md, spec.md and plan.md to their complete text, then freeze it:
 `python /opt/factory/configure.py plan PROJECT /projects/requests/documents.json --output /projects/requests/work-package.json`
 This command captures repository bases and document hashes and stops; it does
 not authorize or dispatch implementation. Present the plan while discussing the
@@ -39,10 +48,11 @@ work. A user's instruction to implement an already discussed concrete plan is
 its acceptance; do not request that approval again. If a new plan raises material
 undecided choices, resolve those first. When authorized, submit the exact package:
 `python /opt/factory/configure.py submit PROJECT /projects/requests/spec.md --work-package /projects/requests/work-package.json --run`
-The factory retains accepted documents at docs/changes/TASK/ in each selected
-repository before implementation. The worker updates living project documents
-as specified, without editing accepted snapshots. Keep proposals/open questions
-distinct from approved work. A changed base or specification requires reviewing
+The factory retains the package at docs/changes/TASK/ before implementation.
+Intent, spec and the acceptance record remain snapshots. Keep plan.md current with
+implementation; the original stays in Git history and the controller package.
+Update affected living product docs together with code. Keep proposals/open questions
+distinct from approved work. A changed base or specification before submission requires reviewing
 and preparing the handoff again, not silently accepting a stale plan.
 Do not request the same approval again. If the user only wants to inspect the job,
 omit --run and let them select Run now in Automate. To continue a task, pass

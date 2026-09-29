@@ -14,8 +14,42 @@ these filenames are a convention, not an interoperability standard.
 | Verification and review | Controller-selected commands and independent review describe the retained candidate commit. Draft PRs include source links, commands and review findings. |
 | Continuation | `handoff.md` and `handoff.json` record status, source identity, accepted document hashes, results, findings and the next action. |
 
-## Prepare and accept a plan
+## Keep product context small and current
 
+Maintain one short product overview: purpose, users, outcomes, boundaries and key
+decisions. Reuse the canonical `docs/intent.md`, root `intent.md`, or an existing
+README overview. Create one from explicit user context and maintained documents
+when useful; do not reconstruct user motives from code. Task intent explains the
+local change and links to the overview and affected specification. Historical task
+snapshots retain their original context; the product overview describes today.
+
+Read the overview once per task, then only affected sections and linked requirements.
+Update it with the implementation when approved work changes product direction.
+Routine fixes usually need no product-intent edit and no new three-file folder.
+Their approved issue/request plus a brief inline plan suffice, for example:
+
+```text
+Context: docs/intent.md#reliable-retries; spec.md#retry-preserves-data
+Change: fix the retry button so it preserves the entered form data.
+Plan: fix the handler; run the existing retry regression and add the failing case.
+```
+
+Existing `submit PROJECT SPEC` jobs and issue automations use this lightweight
+path. The approved request remains authoritative; routine planning is delegated,
+not separately human-reviewed. A clearly specified repair can proceed without a
+product document. Missing context that prevents a product decision uses the
+existing NEEDS_INPUT/reply process.
+
+The existing independent review returns a compact intent-consistency assessment
+for each build repository, including projects without OFT. It compares current
+product context, affected spec, task and plan: concrete new/worsened contradictions
+request changes; uncertainty or a missing assessment leaves review incomplete.
+This adds no review pass or model call. It is a best-effort semantic judgment,
+not a guarantee against drift. OFT links and revisions retain their existing role.
+
+## Prepare and accept an explicit plan
+
+Use a package for substantial work, an explicit handoff, or when requested.
 Discuss the documents with the coordinator or prepare them yourself. A previously
 accepted plan can be supplied directly; no second planning conversation is needed.
 
@@ -55,12 +89,15 @@ docs/changes/retry-validation/
 ```
 
 `accepted.json` records base commits, document hashes and package identity.
-These snapshots stay unchanged throughout implementation and repair. Reusing a
-task with a different package is rejected; use a new task for a revised accepted
-plan. A continuation without the flag recovers the retained package. New work
-updates the project's living intent/specification at the paths named in the plan.
-Record routine execution deviations in the implementation summary; material
-behavior changes still require a maintainer answer.
+The accepted intent, spec and acceptance record stay unchanged. Keep `plan.md`
+current in the same change as implementation, briefly explaining revised steps.
+The original plan stays in the controller package and Git history; review receives
+it for comparison only when the plan changes. Handoffs record both plan hashes.
+Repairs preserve the current plan. Reusing a task with a different accepted package
+is rejected; a continuation without the flag recovers the retained package.
+Update affected living project intent/specification as agreed. Material behavior
+changes still require a maintainer answer; editing a plan cannot authorize them
+or waive verification.
 
 Keep one declaration for each OFT requirement revision in the selected scope.
 Task snapshots should cite canonical requirements and IDs, rather than copy their
@@ -68,14 +105,6 @@ OFT declarations. Preserve IDs for continuing promises and use the project's
 revision policy when a promise changes. Git commits and document hashes identify
 artifact versions; they do not replace requirement IDs/revisions. Link intent →
 requirements → plan steps → implementation/assertions → execution evidence.
-
-Existing `submit PROJECT SPEC` jobs and issue automations remain supported.
-Their approved request is the authority. The implementation skill records intent,
-specification references and a plan before editing code, identifying routine
-planning as delegated by the request. This is agent guidance, not a separately
-enforced human acceptance gate. Use a prepared work package when an explicit,
-controller-checked planning handoff is needed. Open product questions use the
-existing NEEDS_INPUT/reply process; discussion still cannot authorize a build.
 
 ## Keep verification with the project
 

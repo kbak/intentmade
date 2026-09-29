@@ -255,7 +255,10 @@ class AssessmentGateTests(unittest.TestCase):
 
     def test_saved_ordinary_reports_keep_their_original_digest(self):
         reviewed = review.evaluate([evidence()])
-        legacy = [item.model_dump(exclude={"traceability_assessment"}) for item in reviewed.reviews]
+        legacy = [
+            item.model_dump(exclude={"traceability_assessment", "intent_alignment"})
+            for item in reviewed.reviews
+        ]
         digest = hashlib.sha256(json.dumps(legacy, sort_keys=True).encode()).hexdigest()
         presentation = review_report.draft_report(reviewed).model_dump()
         presentation["source_digest"] = digest

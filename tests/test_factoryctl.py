@@ -77,7 +77,7 @@ class ConfigurationTests(unittest.TestCase):
 
 class StartupTests(unittest.TestCase):
     def test_plan_and_submit_forward_documents_without_container_path_assumptions(self):
-        # [utest~im-sdlc-cli-handoff~1->req~im-portable-plan~1]
+        # [utest~im-sdlc-cli-handoff~1->req~im-portable-plan~2]
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             documents = {name: "# " + name + "\n" for name in ("intent.md", "spec.md", "plan.md")}

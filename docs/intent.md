@@ -60,6 +60,11 @@ links, and export continuation/evidence. Add artifacts only when they serve the
 factory: a separate REVIEW.md would duplicate its existing review policy and is
 not part of this workflow.
 
+Keep a short, current product overview so people can understand the software's
+purpose without reading task history. Task context should link to it and describe
+only the local change. Routine fixes need no new document set; existing review
+checks affected intent/spec consistency as part of reviewing the change.
+
 Source: [feature work](workflows.md#feature-work), [declared inputs](input-artifacts.md)
 and [repair context](repair-context.md).
 

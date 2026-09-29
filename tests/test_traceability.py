@@ -130,6 +130,16 @@ class TraceabilityPipelineTests(unittest.TestCase):
                     )
                     code = specialist(traceability_assessment=[assessed(changes)])
 
+            self.assertEqual(kwargs["intent_projects"], ["pilot"])
+            code["intent_alignment"] = [
+                {
+                    "project": "pilot",
+                    "status": "aligned",
+                    "references": ["supplied request", "requirements.md: Session expiration"],
+                    "summary": "Scripted judgment for pipeline tests; semantic gaps are exercised separately.",
+                }
+            ]
+
             def converse(workspace, prompt, **options):
                 inputs = json.loads(Path(kwargs["input_path"]).read_text())["projects"]
                 code["coverage"] = [

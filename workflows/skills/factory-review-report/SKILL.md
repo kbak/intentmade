@@ -21,7 +21,7 @@ advisory findings. Do not add findings or change verdicts, blocking status,
 severity or locations; the factory derives those from the original sources.
 Source IDs are provenance, not prose.
 
-Any required traceability assessment is retained and rendered directly from
+Any required intent or traceability assessment is retained and rendered directly from
 Alibaba Reviewer's result. Do not turn its gaps into code/security findings or
 downgrade its outcome in the coverage summary.
 

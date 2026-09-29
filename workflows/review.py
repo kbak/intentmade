@@ -68,6 +68,17 @@ class FileCoverage(BaseModel):
     evidence: Text
 
 
+class IntentAlignment(BaseModel):
+    """One short judgment per repository, independent of OFT enablement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project: Text
+    status: Literal["aligned", "conflict", "uncertain"]
+    references: list[Text] = Field(min_length=1, max_length=6)
+    summary: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=800)]
+
+
 class SpecialistReview(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -77,6 +88,7 @@ class SpecialistReview(BaseModel):
     non_blocking_findings: list[Finding]
     infrastructure_error: str | None
     coverage: list[FileCoverage] = Field(default_factory=list)
+    intent_alignment: list[IntentAlignment] = Field(default_factory=list)
 
 
 class TraceabilityChange(BaseModel):
@@ -146,10 +158,21 @@ class ReviewResult(BaseModel):
             for project, change in traceability_items(self)
             if change.status == "missing"
         ]
-        return "\n\n".join(filter(None, [ordinary, *gaps])) or "No blocking review findings."
+        alignment = [
+            f"Intent consistency — {item.project}: {item.summary}\nReferences: {', '.join(item.references)}\n"
+            "Reconcile the affected documents and behavior within the approved request; "
+            "use NEEDS_INPUT if a product decision is needed."
+            for review in self.reviews
+            for item in review.intent_alignment
+            if item.status == "conflict"
+        ]
+        return (
+            "\n\n".join(filter(None, [ordinary, *gaps, *alignment]))
+            or "No blocking review findings."
+        )
 
 
-def coordinator_prompt(context, traceability=None):
+def coordinator_prompt(context, traceability=None, intent_projects=()):
     schema = (
         "Alibaba Reviewer final-response JSON schema (includes the required traceability assessment):\n"
         + json.dumps(TraceableSpecialistReview.model_json_schema())
@@ -161,6 +184,13 @@ def coordinator_prompt(context, traceability=None):
         "FACTORY_SPECIALIST_REVIEW_V2\n"
         "Apply the factory-review skill to this change.\n"
         + schema
+        + (
+            "\nReturn one compact intent_alignment judgment for each repository: "
+            + json.dumps(list(intent_projects))
+            + ". Apply the product-intent consistency rules in the factory-review skill."
+            if intent_projects
+            else ""
+        )
         + "\n\nReview context:\n"
         + context
     )
@@ -240,7 +270,7 @@ def validate_coverage(coverage, expected):
 
 # [impl->req~im-review-evidence~1]
 # [impl->req~im-trace-assessment~1]
-def evaluate(events, traceability=None, review_inputs=None):
+def evaluate(events, traceability=None, review_inputs=None, intent_projects=()):
     # ACPToolCallEvent comes from the adapter, not assistant prose or a shell's output.
     evidence = [
         event
@@ -291,6 +321,15 @@ def evaluate(events, traceability=None, review_inputs=None):
                     validate_coverage(review.coverage, review_inputs or {})
                     if isinstance(review, TraceableSpecialistReview):
                         validate_assessments(review.traceability_assessment, traceability)
+                    # [impl->req~im-intent-consistency~1]
+                    if intent_projects:
+                        projects = [item.project for item in review.intent_alignment]
+                        if len(projects) != len(set(projects)) or set(projects) != set(
+                            intent_projects
+                        ):
+                            raise ValueError(
+                                "Intent alignment must cover exactly the requested repositories"
+                            )
                 except (ValidationError, TypeError):
                     required = " with the required traceability assessment" if traceability else ""
                     errors.append(f"{role}: final response is not valid specialist JSON{required}.")
@@ -319,15 +358,26 @@ def evaluate(events, traceability=None, review_inputs=None):
                     if any(c.status == "uncertain" for c in a.changes)
                 ]
                 gaps = any(c.status == "missing" for a in assessments for c in a.changes)
+                intent_uncertain = any(
+                    item.status == "uncertain" for item in review.intent_alignment
+                )
+                intent_conflict = any(item.status == "conflict" for item in review.intent_alignment)
+                if intent_uncertain:
+                    errors.append(f"{role}: product-intent consistency remains uncertain")
                 if uncertain:
                     errors.append(
                         f"{role}: required traceability remains uncertain for {', '.join(uncertain)}"
                     )
-                if review.verdict == "BLOCKED" or review.infrastructure_error or uncertain:
+                if (
+                    review.verdict == "BLOCKED"
+                    or review.infrastructure_error
+                    or uncertain
+                    or intent_uncertain
+                ):
                     errors.append(f"{role}: {review.infrastructure_error or 'review incomplete'}")
                     verdict = "BLOCKED"
                 else:
-                    verdict = "CHANGES_REQUESTED" if blocking or gaps else "PASS"
+                    verdict = "CHANGES_REQUESTED" if blocking or gaps or intent_conflict else "PASS"
                 results.append(
                     RoleReview(
                         **review.model_dump(
@@ -348,10 +398,17 @@ def evaluate(events, traceability=None, review_inputs=None):
         for change in assessment.changes
     )
     advisory = sum(len(review.non_blocking_findings) for review in results)
-    verdict = "BLOCKED" if errors else "CHANGES_REQUESTED" if blockers or gaps else "PASS"
+    conflicts = sum(
+        item.status == "conflict" for review in results for item in review.intent_alignment
+    )
+    verdict = (
+        "BLOCKED" if errors else "CHANGES_REQUESTED" if blockers or gaps or conflicts else "PASS"
+    )
     summary = f"{blockers} blocking finding(s); {advisory} non-blocking finding(s)."
     if traceability:
         summary += f" {gaps} traceability gap(s)."
+    if intent_projects:
+        summary += f" {conflicts} intent conflict(s)."
     if errors:
         summary += " " + " ".join(errors)
     return ReviewResult(
@@ -381,6 +438,7 @@ def review_code(
     sources=None,
     input_path=None,
     initial_review=False,
+    intent_projects=(),
 ):
     events = []
     failure = None
@@ -393,7 +451,7 @@ def review_code(
         context += f"\n\nController-prepared OCR delegation input: {input_path}. Read this file before reviewing."
         converse(
             workspace,
-            coordinator_prompt(context, traceability),
+            coordinator_prompt(context, traceability, intent_projects),
             title=title,
             transcript=transcript,
             event_log=events,
@@ -403,7 +461,7 @@ def review_code(
         failure = f"Review coordinator failed: {type(exc).__name__}: {exc}"
         if isinstance(exc, AgentStartupError):
             startup_failure = exc.details
-    result = evaluate(events, traceability, review_inputs)
+    result = evaluate(events, traceability, review_inputs, intent_projects)
     result.startup_failure = startup_failure
     if failure:
         result.verdict = "BLOCKED"

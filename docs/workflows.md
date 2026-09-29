@@ -5,8 +5,9 @@
 Select a repository under `/projects/repos` in Canvas to browse its read-only
 catalog. Discuss the scope, tradeoffs, and acceptance criteria, then explicitly
 approve the specification and ask to implement it. The coordinator can submit
-the accepted intent/spec/plan package using the [portable workflow](portable-workflow.md).
-For existing request-only workflows, you can still supply an approved file:
+an intent/spec/plan package for substantial work using the [portable workflow](portable-workflow.md).
+For bounded changes, the approved issue/request and brief inline planning suffice.
+You can supply an approved file directly:
 
 ```sh
 ./scripts/factoryctl submit example-app ./approved-spec.md --run

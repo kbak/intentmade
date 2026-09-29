@@ -194,7 +194,12 @@
         "utest~im-sdlc-repository-policy",
         "utest~im-sdlc-export-boundaries",
         "utest~im-sdlc-repair-publication",
-        "utest~im-sdlc-cli-handoff"
+        "utest~im-sdlc-cli-handoff",
+        "utest~im-sdlc-current-plan",
+        "utest~im-sdlc-invalid-plan",
+        "utest~im-intent-review-completeness",
+        "utest~im-intent-review-conflict",
+        "utest~im-intent-review-existing-pass"
       ]
     }
   },

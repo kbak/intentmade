@@ -590,6 +590,7 @@ def review_changes(configs, states, request, results, transcript=None, *, artifa
         if artifact is not None:
             request += stage_test_evidence(configs, artifact, attempt, root)
         trace_review = traceability.prepare_review(configs, review_states, root)
+        request += sdlc.accepted_plan_context(states, root)
         active = root / "active"
         active.mkdir()
         for project, state in review_states.items():
@@ -611,6 +612,7 @@ def review_changes(configs, states, request, results, transcript=None, *, artifa
                 + sdlc.instructions(states)
                 + traceability.review_context(trace_review),
                 title="Independent review",
+                intent_projects=list(states),
                 transcript=transcript,
                 initial_review=(
                     attempt == 0
