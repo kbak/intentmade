@@ -100,12 +100,12 @@ rerun after changing the runtime, Codex/ACP pins, or bundled roles.
 The opt-in Docker Sandboxes adapter has an offline native integration probe,
 `check_docker_sandboxes.py`. See [its setup guide](../docs/docker-sandboxes.md)
 for the authenticated local controller, shared paths and Kit requirements.
+It uses fixture credentials and removes its VM; it makes no model calls.
 
 Run `check_sandbox_network.py` separately on the host to test the selected Kit's
 actual private-IP/private-DNS denials and public access. It creates only its own
 fixture server and VM and changes policy only for that disposable VM. See the
 [network probe instructions](../docs/docker-sandboxes.md#network-policy).
-It uses fixture credentials and removes its VM; it makes no model calls.
 
 ```bash
 python3 tests/check_review_sandbox.py

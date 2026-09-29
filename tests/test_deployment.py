@@ -69,7 +69,9 @@ class DeploymentTests(unittest.TestCase):
         config = common.projects(self.config)["example"]
         self.assertEqual(config["issue_label"], "factory:approved")
         self.assertTrue(deployment.settings()["authorization"]["require_issue_approval"])
-        self.write("repositories/example.json", {"enabled": True, "issue_label": None})
+        self.write(
+            "repositories/example.json", {**registration, "enabled": True, "issue_label": None}
+        )
         with self.assertRaisesRegex(ValueError, "requires issue approval"):
             common.projects(self.config)
 
