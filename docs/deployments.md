@@ -13,15 +13,15 @@ Canvas safe to share between mutually untrusted users.
 
 | Configuration | Responsibility |
 | --- | --- |
-| `config/deployment.json` | Operator: worker runtime, resource bounds, issue-approval requirement |
+| `config/deployment.json` | Operator: worker agent profile, runtime, resource bounds, issue-approval requirement |
 | Native Docker Sandbox Kit and credential bindings | Operator: VM resources, storage, network policy and host-managed worker credentials |
-| Native OpenHands `factory-codex` profile and secrets | Operator: model selection, Canvas login and DockerWorkspace worker credentials |
+| Selected OpenHands agent and LLM profiles | Operator: harness/model selection and credentials (`factory-codex` by default) |
 | `config/defaults.json`, `config/repositories/*.json` | Operator: repository workflow defaults and overrides |
 | Repository contents, issues and comments | Task input; cannot override deployment settings or grant publication authority |
 
 Repository registrations are operator-owned files. They may customize tests,
 approval-label names and schedules, but cannot set `worker_runtime`,
-`resource_limits` or `authorization`. Deployment settings are excluded from
+`resource_limits`, `worker_agent_profile` or `authorization`. Deployment settings are excluded from
 captured repository job configuration and are not mounted into workers.
 
 The runtime adapter creates a worker and returns an OpenHands workspace. Native

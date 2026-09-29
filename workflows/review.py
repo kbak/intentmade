@@ -4,6 +4,7 @@ import json
 import shutil
 from typing import Annotated, Literal
 
+import harness
 from agent import AgentStartupError, converse
 from ocr_review import prepare
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
@@ -181,8 +182,12 @@ def coordinator_prompt(context, traceability=None, intent_projects=()):
         + json.dumps(SpecialistReview.model_json_schema())
     )
     return (
-        "FACTORY_SPECIALIST_REVIEW_V2\n"
-        "Apply the factory-review skill to this change.\n"
+        (
+            "You are the controller-launched Alibaba Reviewer. Review directly; do not delegate.\n"
+            if harness.native()
+            else "FACTORY_SPECIALIST_REVIEW_V2\n"
+        )
+        + "Apply the factory-review skill to this change.\n"
         + schema
         + (
             "\nReturn one compact intent_alignment judgment for each repository: "
@@ -270,7 +275,7 @@ def validate_coverage(coverage, expected):
 
 # [impl->req~im-review-evidence~1]
 # [impl->req~im-trace-assessment~1]
-def evaluate(events, traceability=None, review_inputs=None, intent_projects=()):
+def evaluate(events, traceability=None, review_inputs=None, intent_projects=(), *, execution=None):
     # ACPToolCallEvent comes from the adapter, not assistant prose or a shell's output.
     evidence = [
         event
@@ -280,6 +285,27 @@ def evaluate(events, traceability=None, review_inputs=None, intent_projects=()):
         and isinstance(event.get("raw_input"), dict)
         and event["raw_input"].get("version") == 2
     ]
+    if execution is not None:
+        # Separate controller receipt, never extracted from agent messages.
+        # converse sets completion only after the independent Conversation
+        # finishes with valid structured output.
+        evidence = [
+            {
+                "status": execution.get("status"),
+                "raw_input": {"threadId": execution.get("review_run_id")},
+                "raw_output": {
+                    "agents": [
+                        {
+                            "role": execution.get("role"),
+                            "thread_id": execution.get("conversation_id"),
+                            "parent_thread_id": execution.get("review_run_id"),
+                            "status": execution.get("status"),
+                            "message": execution.get("response"),
+                        }
+                    ]
+                },
+            }
+        ]
     errors, results = [], []
     if not evidence:
         errors.append("Native specialist execution evidence is missing.")
@@ -305,6 +331,7 @@ def evaluate(events, traceability=None, review_inputs=None, intent_projects=()):
                 identity = agent.get("thread_id")
                 if (
                     not identity
+                    or identity == root
                     or identity in seen
                     or not root
                     or agent.get("parent_thread_id") != root
@@ -428,6 +455,7 @@ def evaluate(events, traceability=None, review_inputs=None, intent_projects=()):
     )
 
 
+# [impl->req~im-review-evidence~1]
 def review_code(
     workspace,
     context,
@@ -444,11 +472,16 @@ def review_code(
     failure = None
     startup_failure = None
     review_inputs = {}
+    execution = {} if harness.native() else None
     try:
         review_inputs = prepare(workspace, sources, input_path)
         if transcript:
             shutil.copyfile(input_path, transcript.with_name(transcript.stem + "-ocr-input.json"))
         context += f"\n\nController-prepared OCR delegation input: {input_path}. Read this file before reviewing."
+        if execution is not None:
+            from uuid import uuid4
+
+            review_run_id = str(uuid4())
         converse(
             workspace,
             coordinator_prompt(context, traceability, intent_projects),
@@ -456,12 +489,28 @@ def review_code(
             transcript=transcript,
             event_log=events,
             skill="factory-review",
+            **(
+                {
+                    "response_model": TraceableSpecialistReview
+                    if traceability
+                    else SpecialistReview,
+                    "execution_receipt": execution,
+                }
+                if execution is not None
+                else {}
+            ),
         )
+        if execution is not None:
+            execution.update(review_run_id=review_run_id, role=ROLES[0])
+            if transcript:
+                transcript.with_name(transcript.stem + "-execution.json").write_text(
+                    json.dumps(execution, indent=2) + "\n"
+                )
     except Exception as exc:
         failure = f"Review coordinator failed: {type(exc).__name__}: {exc}"
         if isinstance(exc, AgentStartupError):
             startup_failure = exc.details
-    result = evaluate(events, traceability, review_inputs, intent_projects)
+    result = evaluate(events, traceability, review_inputs, intent_projects, execution=execution)
     result.startup_failure = startup_failure
     if failure:
         result.verdict = "BLOCKED"

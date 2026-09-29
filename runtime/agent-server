@@ -1,3 +1,4 @@
 #!/bin/sh
 # Run the installed, patched SDK instead of the separately bundled executable.
+export AGENT_SERVER_IMPORT_MODULES="${AGENT_SERVER_IMPORT_MODULES:+$AGENT_SERVER_IMPORT_MODULES,}factory_reader"
 exec python -m openhands.agent_server "$@"

@@ -199,7 +199,22 @@
         "utest~im-sdlc-invalid-plan",
         "utest~im-intent-review-completeness",
         "utest~im-intent-review-conflict",
-        "utest~im-intent-review-existing-pass"
+        "utest~im-intent-review-existing-pass",
+        "utest~im-native_harness-NativeHarnessTests-profile_resolution_preserves_model_but_stage_overrides_tools_and_credentials",
+        "utest~im-native_harness-NativeHarnessTests-native_worker_never_opens_codex_store_and_captures_profile_once",
+        "utest~im-native_harness-NativeHarnessTests-native_review_uses_controller_receipt_and_rejects_incomplete_evidence",
+        "utest~im-native_harness-NativeHarnessTests-native_reader_does_not_load_ambient_executors",
+        "utest~im-native_harness-ReaderTests-reader_blocks_escape_special_files_and_write_actions",
+        "utest~im-native_harness-NativeHarnessTests-profile_resolution_preserves_model_but_stage_overrides_tools_and_credentials-2",
+        "utest~im-native_harness-NativeHarnessTests-native_worker_never_opens_codex_store_and_captures_profile_once-2",
+        "utest~im-native_harness-NativeHarnessTests-unsupported_harness_or_runtime_stops_before_worker_creation",
+        "utest~im-native_harness-NativeHarnessTests-receipt_requires_finished_conversation_and_valid_json",
+        "utest~im-native_harness-NativeHarnessTests-report_assistant_uses_selected_native_profile_without_codex",
+        "utest~im-native_harness-ReaderTests-search_supports_single_files_and_bounds_dense_results",
+        "utest~im-native_harness-ReaderTests-git_diff_disables_external_execution_and_checks_revision_inputs",
+        "utest~im-agent_profile-WorkerProfileTests-each_worker_captures_the_saved_model_for_new_and_resumed_conversations",
+        "utest~im-agent_profile-WorkerProfileTests-missing_profile_does_not_silently_start_with_another_model",
+        "utest~im-deployment-DeploymentTests-worker_profile_is_operator_controlled_and_excluded_from_jobs"
       ]
     }
   },

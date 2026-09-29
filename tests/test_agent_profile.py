@@ -16,7 +16,7 @@ from openhands.sdk.agent.acp_agent import _apply_acp_model
 
 class WorkerProfileTests(unittest.TestCase):
     def test_each_worker_captures_the_saved_model_for_new_and_resumed_conversations(self):
-        profile = {"acp_model": "gpt-6-astra/xhigh"}
+        profile = {"agent_kind": "acp", "acp_server": "codex", "acp_model": "gpt-6-astra/xhigh"}
         store = Mock()
         store.load_versioned_secret.return_value = ("worker-login", 1)
         workspace = Mock()
@@ -72,6 +72,7 @@ class WorkerProfileTests(unittest.TestCase):
                         timeout=30,
                     )
                     # A later UI edit must not alter a worker already in progress.
+                    # [utest~im-agent_profile-WorkerProfileTests-each_worker_captures_the_saved_model_for_new_and_resumed_conversations~1->req~im-agent-profile~1]
                     profile["acp_model"] = "gpt-5.5/low"
                     resumed = agent.worktree(worker)
                     body = workspace.client.post.call_args.kwargs["json"]
@@ -103,7 +104,11 @@ class WorkerProfileTests(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as temporary,
             patch.dict(os.environ, {"OH_SECRET_KEY": "fixture"}),
-            patch.object(sandbox, "api", return_value={"profile": {}}),
+            patch.object(
+                sandbox,
+                "api",
+                return_value={"profile": {"agent_kind": "acp", "acp_server": "codex"}},
+            ),
             patch.object(sandbox, "FileSecretsStore", return_value=store),
             patch.object(sandbox, "DockerWorkspace") as docker,
             patch.object(sandbox, "find_available_tcp_port", return_value=12345),
@@ -122,6 +127,7 @@ class WorkerProfileTests(unittest.TestCase):
             patch.object(sandbox, "api", side_effect=RuntimeError("Profile unavailable")),
             patch.object(sandbox.subprocess, "run") as start,
         ):
+            # [utest~im-agent_profile-WorkerProfileTests-missing_profile_does_not_silently_start_with_another_model~1->req~im-agent-profile~1]
             with self.assertRaisesRegex(RuntimeError, "Profile unavailable"):
                 with sandbox.worker(Path("/workspaces/profile-test"), {}):
                     self.fail("Worker should not start")
@@ -138,7 +144,15 @@ class WorkerProfileTests(unittest.TestCase):
             tempfile.TemporaryDirectory() as temporary,
             patch.dict(os.environ, {}, clear=True),
             patch.object(
-                sandbox, "api", return_value={"profile": {"acp_model": "gpt-6-astra/xhigh"}}
+                sandbox,
+                "api",
+                return_value={
+                    "profile": {
+                        "agent_kind": "acp",
+                        "acp_server": "codex",
+                        "acp_model": "gpt-6-astra/xhigh",
+                    }
+                },
             ),
             patch.object(
                 sandbox,

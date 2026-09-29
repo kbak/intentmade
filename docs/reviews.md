@@ -2,10 +2,15 @@
 
 Automatic reviews and `factoryctl review` use one **Alibaba Reviewer**, backed by
 [Open Code Review](https://github.com/alibaba/open-code-review)'s delegation
-procedure. OCR prepares the file inventory and rules; the factory's Codex
-subscription and selected model perform the review. No separate OCR endpoint
+procedure. OCR prepares the file inventory and rules; the selected Codex or native
+OpenHands agent performs the review. No separate OCR endpoint
 or API key is required. Runtime revisions and checksums are pinned in the
 [Dockerfile](../docker/runtime.Dockerfile).
+
+Codex review uses native subagent records. Native OpenHands review uses a separate
+controller-launched conversation and a retained `*-execution.json` receipt of its
+identity, completion and structured result. Both use the same findings and
+coverage gates. See [harness selection and permissions](agents.md).
 
 The reviewer runs in a fresh, read-only worker. Implementation reviews use Git
 ranges. Standalone PR reviews use GitHub's complete changed-file inventory,

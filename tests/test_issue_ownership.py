@@ -58,6 +58,8 @@ class PausedOwnershipTests(unittest.TestCase):
             self.stack.enter_context(patch.object(target, name, value))
 
     def native(self, method, path, **kwargs):
+        if path == "/api/agent-profiles/factory-codex":
+            return {"profile": {"agent_kind": "acp", "acp_server": "codex"}}
         if path.endswith("/events/search"):
             return {"items": copy.deepcopy(self.events)}
         return {"id": "conversation"}

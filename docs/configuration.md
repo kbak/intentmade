@@ -3,10 +3,12 @@
 Factory behavior is configured in JSON. `.env` selects deployment paths, the
 image, port, and Compose instance name; it does not replace repository policy.
 
-`config/deployment.json` contains installation-wide runtime, resource and
+`config/deployment.json` contains installation-wide agent profile, runtime, resource and
 authorization settings. `config/defaults.json` contains workflow defaults that
 repository registrations can override. See [deployment choices](deployments.md)
 for personal use, OSS issue intake and migration from the combined configuration.
+Set `worker_agent_profile` there to select an existing Canvas agent profile;
+see [native OpenHands and Codex configuration](agents.md).
 
 Configure [traceability](traceability.md) to use existing requirements and
 OFT IDs during design discussions, carry agreed requirements into implementation,

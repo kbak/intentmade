@@ -80,7 +80,7 @@ approval, review, credential and source-transfer checks remain shared.
 - Independent review uses a fresh clone in a new worker after implementation
   exits. Triage also runs in a worker, with a copy of the catalog. Neither runs
   repository tools in the credential-bearing Canvas process.
-- Review runs one Alibaba Reviewer under a read-only coordinator, using OCR
+- Codex review runs one Alibaba Reviewer under a read-only coordinator, using OCR
   delegation with the existing subscription. The adapter obtains role identities,
   parent/child relationships, completion and final messages from native Codex
   thread records. The factory validates its report and file coverage and computes a verdict
@@ -92,6 +92,14 @@ approval, review, credential and source-transfer checks remain shared.
   bound to the original evidence by a digest. The editor cannot change the verdict.
   Classification, grouping and review completeness still depend on model
   judgment; these reviews do not replace dedicated security scanning.
+- Native OpenHands review runs a separate controller-launched Alibaba reviewer
+  conversation. The controller records its identity, completed state and validated
+  JSON, then applies the same findings and coverage gates. Its environment tool
+  provides bounded source reads and fixed Git inspection without arbitrary shell,
+  editing, network or delegation. Paths are restricted to controller-selected
+  roots. Ambient plugins are disabled for factory workers and report readers;
+  profiles cannot add tools or MCP servers to review stages. Native LLM profiles
+  use API credentials and currently require DockerWorkspace. See [agents](docs/agents.md).
 - The pinned adapter's read-only mode uses a read-only sandbox, no command
   network access, and no escalation. The SDK also refuses permission requests
   for these sessions. Building and interactive coordinator modes retain their
@@ -115,8 +123,8 @@ approval, review, credential and source-transfer checks remain shared.
   metadata, and denied network sockets; rerun it when upgrading Docker, Codex,
   or the host kernel.
 
-The default DockerWorkspace backend delivers the real Codex credential into
-workers and uses containers, including privileged Docker
+The default DockerWorkspace backend delivers the selected model credential into
+workers (Codex login or the native LLM profile) and uses containers, including privileged Docker
 test daemons, that share the Docker host's Linux kernel. The optional
 [Docker Sandboxes backend](docs/docker-sandboxes.md) places each worker and its
 test daemon in a VM; its native Kit owns VM resource and network policy.

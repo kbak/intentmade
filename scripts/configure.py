@@ -142,12 +142,19 @@ def finite(request_path, run=False):
     return result
 
 
+# [impl->req~im-agent-profile~1]
 def configure(paused=False):
     factories()  # Validate group references before changing native configuration.
+    from urllib.parse import quote
+
+    from harness import profile_name
+
+    selected_profile = profile_name()
+    profile_path = "/api/agent-profiles/" + quote(selected_profile, safe="")
     try:
-        profile = api("GET", "/api/agent-profiles/factory-codex")["profile"]
+        profile = api("GET", profile_path)["profile"]
     except httpx.HTTPStatusError as exc:
-        if exc.response.status_code != 404:
+        if exc.response.status_code != 404 or selected_profile != "factory-codex":
             raise
         api(
             "POST",

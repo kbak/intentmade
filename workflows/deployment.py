@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-FIELDS = {"worker_runtime", "resource_limits", "authorization"}
+FIELDS = {"worker_runtime", "resource_limits", "authorization", "worker_agent_profile"}
 LEGACY_FIELDS = {"worker_runtime", "resource_limits"}
 
 
@@ -18,6 +18,8 @@ def read(path):
     return value
 
 
+# [impl->req~im-agent-profile~1]
+# [impl->req~im-deployment-authority~1]
 def settings(config_dir=None):
     from docker_sandboxes import validate as validate_runtime
     from resource_limits import validate as validate_limits
@@ -33,6 +35,8 @@ def settings(config_dir=None):
         raise ValueError("deployment.json contains unsupported settings")
     if "authorization" in defaults:
         raise ValueError("Set factory-wide authorization in deployment.json")
+    if "worker_agent_profile" in defaults:
+        raise ValueError("Set factory-wide worker_agent_profile in deployment.json")
     # Existing installations keep their settings until the operator moves them.
     # Reject duplicate definitions rather than silently choosing weaker values.
     for name in LEGACY_FIELDS & defaults.keys():
@@ -47,7 +51,11 @@ def settings(config_dir=None):
     required = authorization.get("require_issue_approval", False)
     if not isinstance(required, bool):
         raise ValueError("authorization.require_issue_approval must be a boolean")
+    agent_profile = options.get("worker_agent_profile", "factory-codex")
+    if not isinstance(agent_profile, str) or not agent_profile.strip():
+        raise ValueError("worker_agent_profile must name a saved OpenHands agent profile")
     return {
+        "worker_agent_profile": agent_profile,
         "worker_runtime": validate_runtime(options.get("worker_runtime", {})),
         "resource_limits": validate_limits(options.get("resource_limits", {})),
         "authorization": {"require_issue_approval": required},

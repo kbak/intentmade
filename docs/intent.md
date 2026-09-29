@@ -60,6 +60,10 @@ links, and export continuation/evidence. Add artifacts only when they serve the
 factory: a separate REVIEW.md would duplicate its existing review policy and is
 not part of this workflow.
 
+Operators should also be able to choose Codex or OpenHands' own harness through
+existing OpenHands profiles. Keep workflow authorization, isolated execution,
+independent review and evidence requirements consistent across those choices.
+
 Keep a short, current product overview so people can understand the software's
 purpose without reading task history. Task context should link to it and describe
 only the local change. Routine fixes need no new document set; existing review

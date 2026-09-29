@@ -18,7 +18,17 @@ class WorkerCredentialTests(unittest.TestCase):
         parent.load_versioned_secret.return_value = ("canvas-login", 7)
         with (
             tempfile.TemporaryDirectory() as directory,
-            patch.object(sandbox, "api", return_value={"profile": {"acp_model": "model/low"}}),
+            patch.object(
+                sandbox,
+                "api",
+                return_value={
+                    "profile": {
+                        "agent_kind": "acp",
+                        "acp_server": "codex",
+                        "acp_model": "model/low",
+                    }
+                },
+            ),
             patch.object(sandbox, "require_disk_space"),
             patch.object(sandbox, "FileSecretsStore", return_value=parent) as store,
             patch.object(sandbox, "Cipher") as cipher,

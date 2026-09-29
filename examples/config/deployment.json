@@ -1,4 +1,5 @@
 {
+  "worker_agent_profile": "factory-codex",
   "worker_runtime": {
     "backend": "docker"
   },

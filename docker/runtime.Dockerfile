@@ -36,6 +36,8 @@ COPY runtime/patch_workspace_runtime.py /opt/factory/patch_workspace_runtime.py
 RUN python /opt/factory/patch_workspace_runtime.py
 COPY runtime/patch_agent_startup.py /opt/factory/patch_agent_startup.py
 RUN python /opt/factory/patch_agent_startup.py
+COPY runtime/patch_native_harness.py /opt/factory/patch_native_harness.py
+RUN python /opt/factory/patch_native_harness.py
 # Both Canvas and disposable workers must load the patched Python packages.
 COPY --chmod=755 runtime/agent-server /usr/local/bin/openhands-agent-server
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py

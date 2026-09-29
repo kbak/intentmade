@@ -10,6 +10,7 @@ from pathlib import Path
 
 import diagnostics
 import docker_sandboxes
+import harness
 import input_artifacts
 import job_files
 import measurements
@@ -65,16 +66,25 @@ def mounts(root, config):
 # [impl->req~im-disk-admission~1]
 # [impl->req~im-execution-provenance~1]
 # [impl->req~im-worker-credentials~1]
+# [impl->req~im-agent-profile~1]
 @contextmanager
 def worker(root, config):
     # Resolve against Canvas before replacing its API key with the worker's.
-    # Only the model/effort crosses this boundary; permissions remain per role.
-    profile = api("GET", "/api/agent-profiles/factory-codex")["profile"]
+    # Capture model settings/credentials; permissions remain per stage.
+    from urllib.parse import quote
+
+    name = harness.profile_name()
+    profile = api("GET", "/api/agent-profiles/" + quote(name, safe=""))["profile"]
+    selected = harness.resolve(profile, name, [str(root), "/factory-inputs"])
     require_disk_space(root)
     name = root.name
     options = docker_sandboxes.settings()
+    if selected.native and options["backend"] != "docker":
+        raise ValueError(
+            "Native OpenHands workers require the docker runtime; Docker Sandboxes uses Codex proxy credentials"
+        )
     parent = None
-    if options["backend"] == "docker":
+    if options["backend"] == "docker" and not selected.native:
         encryption_key = (
             os.environ.get("OH_SECRET_KEY")
             or Path("/run/secrets/encryption-key").read_text().strip()
@@ -90,6 +100,7 @@ def worker(root, config):
         "FACTORY_HEADLESS": "1",
     }
     old = {key: os.environ.get(key) for key in settings}
+    selection_token = harness.CURRENT.set(selected)
     try:
         os.environ.update(settings)
         runtime = (
@@ -106,6 +117,7 @@ def worker(root, config):
                 intended={
                     "worker_image": getattr(workspace, "server_image", None),
                     "worker_runtime": options,
+                    "agent_profile": selected.identity,
                 },
                 source={"job": name},
             )
@@ -122,8 +134,8 @@ def worker(root, config):
                     json.dump(manifest, handle, indent=2)
                 recorder.data.setdefault("execution_environments", []).append(manifest)
                 recorder.save()
-            for selected in configs:
-                provenance.required(manifest, selected.get("required_environment", {}))
+            for config_item in configs:
+                provenance.required(manifest, config_item.get("required_environment", {}))
             # Native sbx owns OAuth on the host. Leaving this store empty also
             # prevents OpenHands from automatically binding a real auth.json.
             if parent is not None:
@@ -136,6 +148,8 @@ def worker(root, config):
             finally:
                 primary_failure = sys.exc_info()[0] is not None
                 credentials = [settings["OH_SESSION_API_KEYS_0"]]
+                if selected.native:
+                    credentials.extend(harness.credential_values(selected.settings.llm))
                 try:
                     if parent is not None:
                         credentials.append(value)
@@ -161,6 +175,7 @@ def worker(root, config):
                                 f"Worker diagnostics unavailable: {type(exc).__name__}", flush=True
                             )
     finally:
+        harness.CURRENT.reset(selection_token)
         for key, value in old.items():
             if value is None:
                 os.environ.pop(key, None)

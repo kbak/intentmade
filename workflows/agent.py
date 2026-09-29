@@ -1,17 +1,20 @@
-"""Codex subscription adapter using native OpenHands conversations and secrets."""
+"""Stage-controlled agents using native OpenHands profiles and conversations."""
 
 import json
 import os
 import time
+import tomllib
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import harness
 import measurements
 from common import session_api_key
 from openhands.sdk import AgentContext, Conversation
 from openhands.sdk.agent import ACPAgent
 from openhands.sdk.context import Skill
 from openhands.sdk.conversation import get_agent_final_response
+from openhands.sdk.tool import Tool
 from openhands.sdk.workspace import RemoteWorkspace
 from pydantic import ValidationError
 
@@ -139,13 +142,49 @@ def stage_context(name):
     )
 
 
+# [impl->req~im-agent-profile~1]
+# [impl->req~im-native-read-only~1]
 def worker_agent(mode, skill=None, mcp_config=None, traceability=False):
-    """Use the model captured from factory-codex when this worker started."""
+    """Use the captured profile, with factory-selected stage permissions."""
     context = stage_context(skill) if skill else None
     if traceability:
         from traceability.openhands import with_traceability
 
         context = with_traceability(context, provisioned=True)
+    selected = harness.CURRENT.get()
+    if selected is not None:
+        settings = selected.settings.model_copy(deep=True)
+        settings.agent_context = context
+        settings.mcp_config = mcp_config or {}
+        if selected.native:
+            # Remote event decoding needs the native tool classes registered on
+            # the controller too, not just on the worker executing the tools.
+            import openhands.tools  # noqa: F401
+
+            settings.enable_switch_llm_tool = False
+            settings.enable_classify_and_switch_llm_tool = False
+            settings.verification.critic_enabled = False
+            settings.verification.enable_iterative_refinement = False
+            if mode == "read-only":
+                from factory_reader import FactoryReaderTool
+
+                settings.tools = [
+                    Tool(name=FactoryReaderTool.name, params={"roots": selected.read_roots})
+                ]
+                settings.enable_sub_agents = False
+                settings.mcp_config = {}
+                if skill == "factory-review":
+                    role = tomllib.loads(
+                        Path("/opt/factory/reviewers/agents/alibaba-reviewer.toml").read_text()
+                    )
+                    context.skills.append(
+                        Skill(name="alibaba-reviewer", content=role["developer_instructions"])
+                    )
+            elif mode != "agent-full-access":
+                raise ValueError("Unsupported native factory stage mode")
+        else:
+            settings.acp_session_mode = mode
+        return settings.create_agent()
     return ACPAgent(
         acp_command=["codex-acp"],
         acp_server="codex",
@@ -156,6 +195,8 @@ def worker_agent(mode, skill=None, mcp_config=None, traceability=False):
     )
 
 
+# [impl->req~im-review-evidence~1]
+# [impl->req~im-worker-credentials~1]
 def converse(
     workspace,
     prompt,
@@ -168,13 +209,16 @@ def converse(
     skill=None,
     mcp_config=None,
     traceability=False,
+    execution_receipt=None,
 ):
+    if execution_receipt is not None:
+        execution_receipt.clear()
     conversation = Conversation(
         agent=worker_agent(mode, skill, mcp_config, traceability),
         workspace=workspace,
         delete_on_close=False,
         conversation_id=UUID(conversation_id) if conversation_id else None,
-        secrets=workspace.get_secrets(names=["CODEX_AUTH_JSON"]),
+        secrets={} if harness.native() else workspace.get_secrets(names=["CODEX_AUTH_JSON"]),
         visualizer=None,
     )
     started = time.monotonic()
@@ -198,6 +242,10 @@ def converse(
                 raise RuntimeError(f"Agent stopped with {conversation.state.execution_status}")
             text = get_agent_final_response(conversation.state.events)
             if not response_model:
+                if execution_receipt is not None:
+                    execution_receipt.update(
+                        conversation_id=str(conversation.id), status="completed", response=text
+                    )
                 return text
             try:
                 result = response_model.model_validate_json(text)
@@ -210,6 +258,12 @@ def converse(
                             "response_attempt": attempt + 1,
                             "conversation_id": str(conversation.id),
                         }
+                    )
+                if execution_receipt is not None:
+                    execution_receipt.update(
+                        conversation_id=str(conversation.id),
+                        status="completed",
+                        response=result.model_dump_json(),
                     )
                 return result
             except ValidationError as exc:
@@ -258,7 +312,7 @@ def worktree(workspace, traceability=False):
             # Attaching later does not replace the server's saved agent context.
             "agent": worker_agent(
                 "agent-full-access", "factory-implementation", traceability=traceability
-            ).model_dump(mode="json"),
+            ).model_dump(mode="json", context={"expose_secrets": "plaintext"}),
         },
     )
     response.raise_for_status()

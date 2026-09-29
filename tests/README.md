@@ -135,6 +135,15 @@ local scripted provider and requires no model credentials.
 
 ## Review protocol probe
 
+For native OpenHands, run `/tests/check_native_harness.py` with the offline
+container command below. It uses a local scripted OpenAI-compatible endpoint and
+the real Agent Server to exercise worktree creation, implementation, resumed
+repair, restricted reviewer tools and the controller's execution receipt. It
+requires no account credentials and measures protocol behavior, not model quality.
+`test_native_harness.py` also checks profile/credential selection, unsupported
+runtime rejection, read boundaries and ambient plugin suppression. Rebuild the
+runtime after changes to `patch_native_harness.py` or the agent-server launcher.
+
 Run `/tests/check_project_config.py` with the offline container command below
 after changing Codex/ACP pins or project-trust handling. It uses the real adapter,
 a local scripted provider, and fresh credential homes: repository MCP startup

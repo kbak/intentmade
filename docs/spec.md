@@ -346,7 +346,7 @@ Existing assertions: [test_low_disk_prevents_job_admission_without_deleting_reta
 ### Use the selected backend credential boundary
 `req~im-worker-credentials~1`
 
-DockerWorkspace workers receive the Codex credential and may refresh it through the versioned controller store. Docker Sandboxes workers must not read, upload or synchronize that controller credential; they use host-managed proxy access. GitHub publication credentials remain in the parent workflow.
+Codex DockerWorkspace workers receive the Codex credential and may refresh it through the versioned controller store. Native OpenHands DockerWorkspace workers receive only the selected API-backed LLM configuration, without reading or copying the Codex credential or other Canvas secrets. Docker Sandboxes workers must not read, upload or synchronize that controller credential; they use host-managed Codex proxy access. Unsupported harness/runtime combinations must fail before worker creation. GitHub publication credentials remain in the parent workflow.
 
 Covers:
 - `intent~im-protect-work~1`
@@ -357,14 +357,14 @@ Documentation: [SECURITY.md](../SECURITY.md).
 
 Implementation: [worker](../workflows/sandbox.py), [sync_credential](../workflows/sandbox.py).
 
-Existing assertions: [test_native_success_and_failure_never_read_upload_or_sync_real_login](../tests/test_worker_credentials_backend.py), [test_docker_workspace_retains_native_openhands_login_and_refresh](../tests/test_worker_credentials_backend.py).
+Existing assertions: [test_native_success_and_failure_never_read_upload_or_sync_real_login](../tests/test_worker_credentials_backend.py), [test_docker_workspace_retains_native_openhands_login_and_refresh](../tests/test_worker_credentials_backend.py), [native OpenHands credential separation](../tests/test_native_harness.py).
 
-Evidence limit: Backend control flow is scripted. Live proxy behavior, native VM policy and host credential custody need the separate native probes; these two tests do not establish all credential separation.
+Evidence limit: Backend control flow is scripted. Live proxy behavior, native VM policy and host credential custody need the separate native probes; these tests do not establish all credential separation.
 
 ### Derive review verdicts from native evidence and complete coverage
 `req~im-review-evidence~1`
 
-Independent review must have the expected completed native reviewer execution, valid parent/child identity, valid structured findings and coverage for every selected file. Missing or malformed evidence blocks publication. The controller computes blockers and verdicts rather than accepting a coordinator success claim.
+Independent review must have the expected completed reviewer execution, valid structured findings and coverage for every selected file. Codex supplies native parent/child identity; native OpenHands uses a separate reviewer conversation with identity, completion and results captured by the controller and bound to its review run. Agent prose cannot supply an execution receipt. Missing or malformed evidence blocks publication. The controller computes blockers and verdicts rather than accepting a coordinator success claim.
 
 Covers:
 - `intent~im-review-changes~1`
@@ -373,11 +373,45 @@ Needs: impl, utest
 
 Documentation: [SECURITY.md](../SECURITY.md).
 
-Implementation: [evaluate](../workflows/review.py), [validate_coverage](../workflows/review.py).
+Implementation: [evaluate and validate_coverage](../workflows/review.py), [controller receipt capture](../workflows/agent.py), [review execution](../workflows/review.py).
 
-Existing assertions: [test_incomplete_unverified_or_invalid_reviews_cannot_pass](../tests/test_specialist_review.py), [test_coordinator_cannot_override_native_results](../tests/test_specialist_review.py), [test_missing_duplicate_wrong_and_unavailable_coverage_block](../tests/test_ocr_review.py).
+Existing assertions: [test_incomplete_unverified_or_invalid_reviews_cannot_pass](../tests/test_specialist_review.py), [test_coordinator_cannot_override_native_results](../tests/test_specialist_review.py), [test_missing_duplicate_wrong_and_unavailable_coverage_block](../tests/test_ocr_review.py), [native OpenHands receipt validation](../tests/test_native_harness.py).
 
-Evidence limit: Tests use synthetic native events. Reviewer accuracy and resistance to misleading source text remain unmeasured.
+Evidence limit: Unit tests use synthetic events and controller receipts. The separate [native OpenHands protocol probe](../tests/check_native_harness.py) uses a scripted local provider and is not part of the required JUnit execution links. Reviewer accuracy and resistance to misleading source text remain unmeasured.
+
+### Select the worker harness through an OpenHands profile
+`req~im-agent-profile~1`
+
+Resolve the operator-selected saved agent profile through OpenHands' profile/settings APIs. Support Codex ACP and API-backed native OpenHands on DockerWorkspace, retaining Codex as the default. Capture settings per worker; later profile edits apply to subsequent workers. Retain nonsecret profile identity and model in execution provenance. Workflow stages determine their permissions, skills and MCP servers; profile selection cannot widen review authority. Missing or unsupported profiles must fail without silently selecting another harness.
+
+Covers:
+- `intent~im-deliver-changes~1`
+
+Needs: impl, utest
+
+Documentation: [agents](agents.md).
+
+Implementation: [operator selection](../workflows/deployment.py), [profile activation](../scripts/configure.py), [profile resolution](../workflows/harness.py), [worker capture](../workflows/sandbox.py), [stage construction](../workflows/agent.py), [report selection](../workflows/reporting.py).
+
+Existing assertions: [profile and stage boundaries](../tests/test_native_harness.py), [captured model and missing-profile rejection](../tests/test_agent_profile.py), [operator-only configuration](../tests/test_deployment.py).
+
+### Restrict native OpenHands review tools
+`req~im-native-read-only~1`
+
+Native OpenHands review and report conversations expose only bounded source inspection and non-executing built-in tools. Source inspection cannot edit files, execute arbitrary commands, make network requests or delegate; resolved paths must remain within controller-selected roots, and Git inspection disables external diff/textconv. Ambient plugins must not add tools or hooks to factory workers or report readers. Missing or truncated evidence remains unavailable rather than establishing completed coverage.
+
+Covers:
+- `intent~im-protect-work~1`
+
+Needs: impl, utest
+
+Documentation: [agents](agents.md).
+
+Implementation: [stage permissions](../workflows/agent.py), [report reader selection](../workflows/reporting.py), [reader](../workflows/factory_reader.py), [plugin policy](../runtime/patch_native_harness.py).
+
+Existing assertions: [reader and plugin boundaries](../tests/test_native_harness.py).
+
+Evidence limit: Bounded tools constrain available operations; they do not measure the model's accuracy or whether it truthfully reports inspected coverage. Native provider availability and billing are not established by offline tests.
 
 ### Review the captured base and head
 `req~im-immutable-pr-comparison~1`

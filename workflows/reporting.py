@@ -8,10 +8,10 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 
+import harness
 import httpx
 import measurements
 from common import DATA, api, identifier, session_api_key
-from openhands.sdk.agent import ACPAgent
 
 
 class NeedsInput(RuntimeError):
@@ -119,6 +119,24 @@ def phase(message):
         print(f"Progress update unavailable: {type(exc).__name__}", flush=True)
 
 
+# [impl->req~im-agent-profile~1]
+# [impl->req~im-native-read-only~1]
+def report_agent():
+    name = harness.profile_name()
+    from urllib.parse import quote
+
+    from agent import worker_agent
+
+    selected = harness.resolve(
+        api("GET", "/api/agent-profiles/" + quote(name, safe=""))["profile"], name, ["/projects"]
+    )
+    token = harness.CURRENT.set(selected)
+    try:
+        return worker_agent("read-only")
+    finally:
+        harness.CURRENT.reset(token)
+
+
 class TaskReport:
     def __init__(self, config, task, snapshot=None):
         self.config, self.task = config, task
@@ -133,9 +151,9 @@ class TaskReport:
                 "/api/conversations",
                 json={
                     "workspace": {"working_dir": "/projects"},
-                    "agent": ACPAgent(
-                        acp_command=["codex-acp"], acp_server="codex", acp_session_mode="read-only"
-                    ).model_dump(mode="json"),
+                    "agent": report_agent().model_dump(
+                        mode="json", context={"expose_secrets": "plaintext"}
+                    ),
                 },
             )
             self.record["conversation_id"] = str(created["id"])

@@ -87,6 +87,22 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(resource_limits.settings()["max_bundle_mb"], 16)
         self.assertEqual(resource_limits.settings()["worker_pids"], 512)
 
+    def test_worker_profile_is_operator_controlled_and_excluded_from_jobs(self):
+        # [utest~im-deployment-DeploymentTests-worker_profile_is_operator_controlled_and_excluded_from_jobs~1->req~im-deployment-authority~1]
+        before = common.projects(self.config)
+        self.assertEqual(deployment.settings()["worker_agent_profile"], "factory-codex")
+        self.write("deployment.json", {"worker_agent_profile": "factory-native"})
+        self.assertEqual(deployment.settings()["worker_agent_profile"], "factory-native")
+        self.assertEqual(common.projects(self.config), before)
+        for invalid in (None, "", "  ", 3):
+            self.write("deployment.json", {"worker_agent_profile": invalid})
+            with self.assertRaisesRegex(ValueError, "worker_agent_profile"):
+                deployment.settings()
+        self.write("deployment.json", {})
+        self.write("defaults.json", {**CONFIG, "worker_agent_profile": "factory-native"})
+        with self.assertRaisesRegex(ValueError, "deployment.json"):
+            deployment.settings()
+
     def test_legacy_settings_survive_migration_and_never_enter_jobs(self):
         options = {
             "worker_runtime": {"backend": "docker-sandboxes", "kit": "/operator/kit"},
@@ -109,6 +125,7 @@ class DeploymentTests(unittest.TestCase):
 
     def test_repository_cannot_override_any_deployment_field(self):
         for name, value in (
+            ("worker_agent_profile", "untrusted-profile"),
             ("worker_runtime", {"backend": "docker"}),
             ("resource_limits", {"max_bundle_mb": 999999}),
             ("authorization", {"require_issue_approval": False}),

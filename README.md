@@ -6,8 +6,9 @@ Discuss and approve a specification in Agent Canvas, then let agents implement,
 test, and independently review it in disposable Docker workers. Passing changes
 become draft pull requests.
 
-IntentMade runs locally on Linux. It uses Codex through OpenHands ACP with your
-subscription login; Canvas provides chat, schedules, run history, and logs.
+IntentMade runs locally on Linux. Workers use Codex through OpenHands ACP with
+your subscription login, or native OpenHands with a saved API-backed LLM profile.
+Canvas provides chat, schedules, run history, and logs.
 
 ## How it works
 
@@ -25,7 +26,9 @@ connects requirements, code, and verification throughout the workflow.
 ## Get started
 
 You need Linux, Docker Engine with Compose, Git, Python 3, GitHub CLI (`gh`)
-access to your repositories, and a Codex login.
+access to your repositories, and a Codex login or a native OpenHands LLM profile.
+The quick start below uses Codex; see [native worker setup](docs/agents.md#native-openhands-workers)
+for the alternative.
 
 ```sh
 git clone https://github.com/kbak/intentmade.git
@@ -77,8 +80,8 @@ choices; implementation, repair, review, evidence and publication checks stay
 shared. See [deployment choices](docs/deployments.md).
 
 The current controller assumes one trusted operator. Canvas listens on localhost
-by default; access to it grants factory control. DockerWorkspace workers receive the Codex
-credential; Docker Sandboxes workers use host-managed proxy credentials.
+by default; access to it grants factory control. DockerWorkspace workers receive the selected
+model credential; Docker Sandboxes Codex workers use host-managed proxy credentials.
 GitHub publication credentials stay in the parent workflow. The default containers
 share the host kernel, including privileged Docker test daemons. Docker Sandboxes
 places each worker and its test daemon in a separate VM.
