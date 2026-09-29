@@ -4,13 +4,18 @@ IntentMade uses the same implementation, repair, review, evidence and publicatio
 workflows across deployments. The operator chooses the execution environment and
 minimum authorization requirements separately from repository workflow policy.
 
+This shared core supports personal workflows and maintainer-operated OSS work
+and provides a base for future enterprise integrations. The current controller
+still assumes one trusted operator; stronger worker isolation does not make
+Canvas safe to share between mutually untrusted users.
+
 ## Configuration ownership
 
 | Configuration | Responsibility |
 | --- | --- |
 | `config/deployment.json` | Operator: worker runtime, resource bounds, issue-approval requirement |
-| Native Docker Sandbox Kit | Operator: VM resources, storage and network policy |
-| Native OpenHands `factory-codex` profile and secrets | Operator: model selection and agent credentials |
+| Native Docker Sandbox Kit and credential bindings | Operator: VM resources, storage, network policy and host-managed worker credentials |
+| Native OpenHands `factory-codex` profile and secrets | Operator: model selection, Canvas login and DockerWorkspace worker credentials |
 | `config/defaults.json`, `config/repositories/*.json` | Operator: repository workflow defaults and overrides |
 | Repository contents, issues and comments | Task input; cannot override deployment settings or grant publication authority |
 
@@ -20,9 +25,11 @@ approval-label names and schedules, but cannot set `worker_runtime`,
 captured repository job configuration and are not mounted into workers.
 
 The runtime adapter creates a worker and returns an OpenHands workspace. Native
-OpenHands conversations, profiles and secret storage remain in use. IntentMade
-retains its credential delivery/refresh bridge and all checks that bind approval,
-review and publication to a particular specification or commit.
+OpenHands conversations and profiles remain in use. DockerWorkspace workers use
+OpenHands credential delivery and versioned refresh; Docker Sandboxes workers use
+Docker's host-side proxy with placeholders in the VM. Canvas keeps its separate
+OpenHands login. IntentMade retains the checks that bind approval, review and
+publication to a particular specification or commit.
 
 ## Personal use
 

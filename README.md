@@ -1,6 +1,7 @@
 # IntentMade
 
-A personal software factory powered by [OpenHands](https://github.com/OpenHands/OpenHands).
+A shared software factory core powered by [OpenHands](https://github.com/OpenHands/OpenHands),
+with configurable deployment policies and isolated worker execution.
 Discuss and approve a specification in Agent Canvas, then let agents implement,
 test, and independently review it in disposable Docker workers. Passing changes
 become draft pull requests.
@@ -70,8 +71,13 @@ See [workflows](docs/workflows.md) for scheduling, replies, and PR maintenance.
 
 ## Deployment model
 
-IntentMade assumes one trusted operator. Canvas listens on localhost by default;
-access to it grants factory control. DockerWorkspace workers receive the Codex
+The same factory core supports personal workflows and maintainer-operated OSS
+work. Runtime isolation, credential handling and issue approval are deployment
+choices; implementation, repair, review, evidence and publication checks stay
+shared. See [deployment choices](docs/deployments.md).
+
+The current controller assumes one trusted operator. Canvas listens on localhost
+by default; access to it grants factory control. DockerWorkspace workers receive the Codex
 credential; Docker Sandboxes workers use host-managed proxy credentials.
 GitHub publication credentials stay in the parent workflow. The default containers
 share the host kernel, including privileged Docker test daemons. Docker Sandboxes
@@ -81,6 +87,10 @@ New installations require a maintainer-controlled `factory:approved` label for
 issue work; scheduling starts disabled. Review the target repository's CI permissions before enabling
 publication. Read the [security model](SECURITY.md) and
 [resource limits](docs/configuration.md#resource-limits) before unattended use.
+
+The shared core can underpin future enterprise integrations, but the repository
+does not provide enterprise identity, organization-level authorization or a
+multi-tenant controller boundary.
 
 ## Documentation
 
