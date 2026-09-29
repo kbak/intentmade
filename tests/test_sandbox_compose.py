@@ -39,7 +39,7 @@ ORIGINAL = {
 
 
 class ComposeTests(unittest.TestCase):
-    def render(self, host="192.168.20.1"):
+    def render(self, host="192.0.2.10"):
         return sandbox_compose.render(
             ORIGINAL,
             {"kit": "/operator/kit", "profiles": "/operator/profiles", "publish_host": host},

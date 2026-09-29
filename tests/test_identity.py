@@ -28,7 +28,7 @@ class GitIdentityTests(unittest.TestCase):
                 )
 
             for attempt, (name, email) in enumerate(
-                [("kbak", "290936+kbak@users.noreply.github.com"), ("New Name", "new@example.test")]
+                [("Fixture User", "fixture@example.test"), ("New Name", "new@example.test")]
             ):
                 with self.subTest(attempt=attempt):
                     job = root / str(attempt)
@@ -70,7 +70,7 @@ class GitIdentityTests(unittest.TestCase):
                     )
 
     def test_incomplete_identity_fails_before_preparing_a_worker(self):
-        for preferences in ({}, {"git_user_name": "kbak"}, {"git_user_email": "a@b.test"}):
+        for preferences in ({}, {"git_user_name": "Fixture User"}, {"git_user_email": "a@b.test"}):
             with (
                 self.subTest(preferences=preferences),
                 patch.object(

@@ -61,13 +61,14 @@ Trust the selected hosts and DNS resolution. Add required registries explicitly;
 arbitrary web browsing needs a broader policy and accepts a wider boundary.
 
 Run the network probe on the host, using an otherwise unused fixture hostname
-that resolves only to a local private IPv4 address. For example, with a DNS name
-you control (a public wildcard DNS service resolving encoded IPs also works):
+that resolves only to a local private IPv4 address. Set `HOST_PRIVATE_IP` in your
+shell to that address and replace `sandbox-probe.example.org` with a DNS name you
+control (a public wildcard DNS service resolving encoded IPs also works):
 
 ```bash
 python3 tests/check_sandbox_network.py --command /absolute/path/to/sbx \
   --kit /absolute/path/to/sandbox-kit \
-  --host 192.168.1.10 --private-name sandbox-probe.example.org
+  --host "$HOST_PRIVATE_IP" --private-name sandbox-probe.example.org
 ```
 
 The probe creates a temporary HTTP server on that address and a fresh VM with
@@ -90,14 +91,14 @@ and authorization settings:
     "command": "/usr/local/bin/sbx",
     "kit": "/absolute/host/path/to/sandbox-kit",
     "profiles": "/absolute/host/path/to/test-profiles",
-    "publish_host": "192.168.1.10"
+    "publish_host": "<HOST_PRIVATE_IP>"
   }
 }
 ```
 
 `profiles` is optional when no external test profile is selected. Replace the
-example `publish_host` with a private address of **your host** that is reachable
-from a Docker bridge container. WSL may provide a private host address on `lo`;
+`<HOST_PRIVATE_IP>` placeholder with a private address of **your host** that is
+reachable from a Docker bridge container. WSL may provide a private host address on `lo`;
 verify connectivity on your machine. Loopback works for a host-run controller,
 but `factoryctl up` rejects it for the containerized deployment. The worker API
 retains its per-job session key. Canvas keeps its existing loopback-only UI port
@@ -168,13 +169,14 @@ when pinning a Docker Sandboxes worker.
 ## Acceptance probe
 
 Copy the probes into the prepared controller and use its installed factory
-Python environment. Substitute your configured Kit, CLI and shared paths:
+Python environment. Substitute your configured Kit, CLI and shared paths, and
+set `HOST_PRIVATE_IP` to the address configured as `publish_host`:
 
 ```bash
 docker compose cp tests canvas:/tmp/factory-acceptance-tests
 docker compose exec -T canvas python /tmp/factory-acceptance-tests/check_docker_sandboxes.py \
   --kit /absolute/host/path/to/sandbox-kit \
-  --publish-host 192.168.1.10 \
+  --publish-host "$HOST_PRIVATE_IP" \
   --workspaces /absolute/shared/workspaces --native-probes
 ```
 

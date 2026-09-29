@@ -1,7 +1,26 @@
 .factory/
-.env
 .venv/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+
+# Local configuration and credentials; keep sanitized examples publishable.
+.env
+.env.*
+!.env.example
+!.env.*.example
+.secrets/
+secrets/
+auth.json
+credentials.json
+credentials.yaml
+credentials.yml
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+.netrc
+.pypirc

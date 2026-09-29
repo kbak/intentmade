@@ -39,7 +39,7 @@ class PausedOwnershipTests(unittest.TestCase):
         self.state = None
         self.events = []
         self.mutations = []
-        self.login = "kbak"
+        self.login = "fixture-owner"
         self.build = Mock(side_effect=reporting.NeedsInput("Retry explicitly or automatically?"))
         for target, name, value in (
             (monitor, "DATA", root),
@@ -97,10 +97,10 @@ class PausedOwnershipTests(unittest.TestCase):
 
     def pause(self):
         monitor.poll(CONFIG, "offline-token")
-        self.assertEqual(self.issue["assignees"], [{"login": "kbak"}])
+        self.assertEqual(self.issue["assignees"], [{"login": "fixture-owner"}])
         record = reporting.read_report(CONFIG, "issue-1406")
         self.assertEqual(record["status"], "NEEDS_INPUT")
-        self.assertEqual(record["assignee"], "kbak")
+        self.assertEqual(record["assignee"], "fixture-owner")
         self.assertEqual(self.mutations, ["POST"])
         self.build.reset_mock()
 
@@ -117,7 +117,7 @@ class PausedOwnershipTests(unittest.TestCase):
         self.build.assert_called_once()
         self.assertIn("Explicit Retry button only", self.build.call_args.args[2])
         self.assertEqual(self.mutations, ["POST"])
-        self.assertEqual(self.issue["assignees"], [{"login": "kbak"}])
+        self.assertEqual(self.issue["assignees"], [{"login": "fixture-owner"}])
         monitor.poll(CONFIG, "offline-token")
         self.build.assert_called_once()
 
@@ -170,7 +170,7 @@ class PausedOwnershipTests(unittest.TestCase):
         self.assertEqual(self.mutations, ["POST"])
 
     def test_same_login_without_record_does_not_authorize_implementation(self):
-        self.issue["assignees"] = [{"login": "kbak"}]
+        self.issue["assignees"] = [{"login": "fixture-owner"}]
         resume = {"snapshot": monitor.issue_snapshot(CONFIG, self.issue)[1], "answer": "retry"}
         self.assertIsNone(monitor.implement_issue(CONFIG, self.issue, "offline-token", resume))
         self.build.assert_not_called()
@@ -189,10 +189,13 @@ class PausedOwnershipTests(unittest.TestCase):
         self.pause()
         self.reply()
         for changes, login in (
-            ({"assignees": [{"login": "someone-else"}]}, "kbak"),
-            ({"assignees": [{"login": "kbak"}, {"login": "someone-else"}]}, "kbak"),
-            ({"state": "closed", "assignees": [{"login": "kbak"}]}, "kbak"),
-            ({"state": "open", "assignees": [{"login": "kbak"}]}, "new-token-owner"),
+            ({"assignees": [{"login": "someone-else"}]}, "fixture-owner"),
+            (
+                {"assignees": [{"login": "fixture-owner"}, {"login": "someone-else"}]},
+                "fixture-owner",
+            ),
+            ({"state": "closed", "assignees": [{"login": "fixture-owner"}]}, "fixture-owner"),
+            ({"state": "open", "assignees": [{"login": "fixture-owner"}]}, "new-token-owner"),
         ):
             with self.subTest(changes=changes, login=login):
                 self.issue.update(changes)
@@ -207,11 +210,15 @@ class PausedOwnershipTests(unittest.TestCase):
         for changes in (
             {"state": "closed"},
             {"assignees": [{"login": "someone-else"}]},
-            {"assignees": [{"login": "kbak"}, {"login": "someone-else"}]},
+            {"assignees": [{"login": "fixture-owner"}, {"login": "someone-else"}]},
             {"body": "Changed requirements"},
         ):
             with self.subTest(changes=changes):
-                self.issue = {**copy.deepcopy(ISSUE), "assignees": [{"login": "kbak"}], **changes}
+                self.issue = {
+                    **copy.deepcopy(ISSUE),
+                    "assignees": [{"login": "fixture-owner"}],
+                    **changes,
+                }
                 with patch.object(monitor, "resume_reply") as reply:
                     monitor.poll(CONFIG, "offline-token")
                     reply.assert_not_called()
@@ -237,7 +244,7 @@ class PausedOwnershipTests(unittest.TestCase):
 
         for assigned in (True, False):
             with self.subTest(assigned=assigned):
-                old_issue["assignees"] = [{"login": "kbak"}] if assigned else []
+                old_issue["assignees"] = [{"login": "fixture-owner"}] if assigned else []
                 discovered = (
                     [copy.deepcopy(self.issue)]
                     if assigned
@@ -268,7 +275,7 @@ class PausedOwnershipTests(unittest.TestCase):
         self.build.side_effect = RuntimeError("tests failed")
         with self.assertRaisesRegex(RuntimeError, "tests failed"):
             monitor.poll(CONFIG, "offline-token")
-        self.assertEqual(self.issue["assignees"], [{"login": "kbak"}])
+        self.assertEqual(self.issue["assignees"], [{"login": "fixture-owner"}])
         self.assertEqual(self.mutations, ["POST"])
 
     def test_missing_claim_record_does_not_turn_stale_answer_into_fresh_work(self):

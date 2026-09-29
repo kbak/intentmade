@@ -68,7 +68,7 @@ class DownloadFilenameTests(unittest.TestCase):
         storage.read.return_value = b"unchanged tarball bytes\x00\xff"
         names = [
             "Factory",
-            "Factory — queue-pilot",
+            "Factory — example-project",
             "计划 🧪 café",
             '"/\\\r\n',
             'hello\r\nHeader: bad/"',
