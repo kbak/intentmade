@@ -302,7 +302,7 @@ The source commit and wheel hash are pinned in
 [docker/intentbond-requirements.txt](../docker/intentbond-requirements.txt).
 Version 0.4.6 alone does not distinguish the newer guidance and fixes from older
 builds. From a clean IntentBond checkout at
-`e997d2ae9886681d821cca7967c295a62e7ce6d7`, use the locked build dependencies and
+`5a1200a40cf76d18ab4ec725cc4b1e687004735d`, use the locked build dependencies and
 the commit timestamp so the wheel matches that hash:
 
 ```sh

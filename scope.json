@@ -37,6 +37,7 @@
     "tests"
   ],
   "review_paths": [
+    "AGENTS.md",
     "tests",
     "examples",
     ".github",
@@ -65,7 +66,7 @@
       "python3",
       "scripts/check_factory.py",
       "--image",
-      "sha256:0f5d83f2390bd975ce68e2aef488edbb392845a5f6429951ff48e643a3ead1a5"
+      "sha256:359dcd20948b84ccc0f5df3d20eef916a9ba3fbb7a3aea165884f352676b2fe6"
     ],
     "report": ".local-validation/factory.xml",
     "timeout_seconds": 900,

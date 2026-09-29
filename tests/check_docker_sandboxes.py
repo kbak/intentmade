@@ -50,7 +50,17 @@ def main():
             }
         )
         with (
-            patch.object(sandbox, "api", return_value={"profile": {"acp_model": args.model}}),
+            patch.object(
+                sandbox,
+                "api",
+                return_value={
+                    "profile": {
+                        "agent_kind": "acp",
+                        "acp_server": "codex",
+                        "acp_model": args.model,
+                    }
+                },
+            ),
             patch.object(
                 sandbox, "FileSecretsStore", side_effect=AssertionError("Canvas secret read")
             ),
