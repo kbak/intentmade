@@ -12,9 +12,34 @@ import httpx
 import reporting
 import run
 from openhands.automation.schemas import RunCompleteRequest, RunPhaseRequest
+from openhands.sdk.workspace import RemoteWorkspace
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_intermediate_native_workspace_cannot_complete_factory_run(self):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "AUTOMATION_RUN_ID": "run",
+                    "OH_SESSION_API_KEYS_0": "parent",
+                    "AUTOMATION_CALLBACK_URL": "http://fixture/complete",
+                },
+            ),
+            patch.object(reporting, "api") as api,
+            patch("httpx.Client") as native_callback,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "later tests failed"):
+                with reporting.run_report():
+                    with RemoteWorkspace(host="http://fixture", working_dir="/workspace"):
+                        pass
+                    api.assert_not_called()
+                    native_callback.assert_not_called()
+                    raise RuntimeError("later tests failed")
+            self.assertEqual(api.call_count, 1)
+            self.assertEqual(api.call_args.kwargs["json"]["status"], "FAILED")
+            self.assertEqual(os.environ["AUTOMATION_CALLBACK_URL"], "http://fixture/complete")
+
     def test_failed_export_keeps_workspace_and_original_error(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

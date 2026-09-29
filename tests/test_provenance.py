@@ -15,6 +15,21 @@ import provenance
 
 
 class ProvenanceTests(unittest.TestCase):
+    def test_native_runtime_identity_does_not_inspect_a_host_docker_container(self):
+        image = {
+            "backend": "docker-sandboxes",
+            "sandbox_name": "worker",
+            "image_id": "sha256:" + "a" * 64,
+            "daemon_id": None,
+        }
+        workspace = SimpleNamespace(_factory_image_observation=image)
+        with patch.object(provenance, "docker_json") as inspect:
+            record = provenance.capture(workspace)
+        inspect.assert_not_called()
+        provenance.required(record, {"observed.worker_image.image_id": image["image_id"]})
+        with self.assertRaisesRegex(RuntimeError, "Required execution identity"):
+            provenance.required(record, {"observed.worker_image.daemon_id": True})
+
     def test_image_comes_from_container_not_retargeted_tag_or_host(self):
         calls = []
 

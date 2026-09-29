@@ -7,10 +7,12 @@ import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "workflows"))
+sys.path.insert(0, str(ROOT / "scripts"))
 import deployment  # noqa: E402
 
 # Ask Compose to resolve .env, exported overrides and relative bind paths.
@@ -24,9 +26,12 @@ CANVAS = DEPLOYMENT["services"]["canvas"]
 MOUNTS = {item["target"]: item["source"] for item in CANVAS["volumes"] if item["type"] == "bind"}
 DATA = Path(MOUNTS["/workspaces"]).parent
 CONFIG = Path(MOUNTS["/opt/factory/config"])
+COMPOSE = ["docker", "compose"]
 
 
 def run(*args, **kwargs):
+    if args[:2] == ("docker", "compose"):
+        args = (*COMPOSE, *args[2:])
     return subprocess.run(args, cwd=ROOT, check=True, **kwargs)
 
 
@@ -41,6 +46,27 @@ def native(*args, **kwargs):
         "/opt/factory/configure.py",
         *args,
         **kwargs,
+    )
+
+
+def prepare_canvas_state():
+    # Preserve native state when switching either direction between controller
+    # images with different UIDs. Resolve ownership from the selected image.
+    run("docker", "compose", "stop", "canvas")
+    run(
+        "docker",
+        "compose",
+        "run",
+        "--rm",
+        "--no-deps",
+        "--user",
+        "0",
+        "--entrypoint",
+        "chown",
+        "canvas",
+        "-R",
+        "--reference=/home/openhands",
+        "/home/openhands/.openhands",
     )
 
 
@@ -69,6 +95,7 @@ p.add_argument(
         "logs",
         "configure",
         "codex-login",
+        "codex-logout",
         "submit",
         "review",
         "retry-issue",
@@ -79,6 +106,18 @@ p.add_argument(
 )
 p.add_argument("args", nargs=argparse.REMAINDER)
 a = p.parse_args()
+runtime = deployment.settings(CONFIG)["worker_runtime"]
+native_backend = runtime["backend"] == "docker-sandboxes"
+if native_backend and a.action == "up":
+    import sandbox_compose
+
+    resolved = sandbox_compose.resolve(DEPLOYMENT, runtime)
+    # Compose itself resolves the base model; the override only adds host wiring.
+    # Keep the rendered model out of the operator config and automation payloads.
+    compose_file = tempfile.NamedTemporaryFile(mode="w", suffix=".json")
+    json.dump(resolved, compose_file)
+    compose_file.flush()
+    COMPOSE = ["docker", "compose", "--project-directory", str(ROOT), "-f", compose_file.name]
 if a.action == "init":
     DATA.mkdir(exist_ok=True, parents=True, mode=0o700)
     (DATA / "secrets").mkdir(exist_ok=True, mode=0o700)
@@ -123,6 +162,22 @@ if a.action == "init":
                 "Disposable test fixture",
             )
     print("Initialized. Start the services, then run factoryctl codex-login.")
+elif a.action == "up" and native_backend:
+    projects()
+    sandbox_compose.prepare(ROOT, DEPLOYMENT, resolved, runtime)
+    prepare_canvas_state()
+    run(
+        "docker",
+        "compose",
+        "up",
+        "-d",
+        "--no-build",
+        "--remove-orphans",
+        "--wait",
+        "--wait-timeout",
+        "300",
+        "canvas",
+    )
 elif a.action == "up":
     image = CANVAS["image"]
     if image == "intentmade:dev":
@@ -152,6 +207,7 @@ elif a.action == "up":
         run("docker", "compose", "exec", "-T", "sandboxes", "docker", "load", stdin=source.stdout)
         if source.wait():
             raise RuntimeError("Could not transfer sandbox images")
+    prepare_canvas_state()
     run(
         "docker",
         "compose",
@@ -178,7 +234,7 @@ elif a.action == "submit":
             p.error("--inputs requires a manifest file")
         a.args[index : index + 2] = ["--inputs-json", Path(a.args[index + 1]).read_text()]
     native("submit", a.args[0], "-", *a.args[2:], input=Path(a.args[1]).read_text(), text=True)
-elif a.action in {"review", "codex-login"}:
+elif a.action in {"review", "codex-login", "codex-logout"}:
     native(a.action, *a.args)
 elif a.action == "retry-issue":
     if "--answer-file" in a.args:

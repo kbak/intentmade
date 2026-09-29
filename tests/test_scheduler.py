@@ -56,6 +56,52 @@ class ConfigurationTests(unittest.TestCase):
         ):
             spec.loader.exec_module(cls.configure)
 
+    def test_registration_waits_for_native_commits_without_repeating_writes(self):
+        trigger = {"type": "event", "source": "custom", "on": "fixture", "filter": "`false`"}
+        saved = {
+            "id": "automation",
+            "name": "Fixture",
+            "trigger": trigger,
+            "tarball_path": "oh-internal://uploads/upload",
+        }
+        missing = httpx.Response(404, request=httpx.Request("GET", "http://fixture"))
+        pending = httpx.HTTPStatusError("pending", request=missing.request, response=missing)
+        responses = [
+            {"id": "upload", "tarball_path": saved["tarball_path"]},
+            pending,
+            {"status": "COMPLETED"},
+            {"id": "automation"},
+            pending,
+            {"id": "automation"},
+            saved,
+            {**saved, "trigger": {"on": "old"}},
+            saved,
+        ]
+        with (
+            patch.object(self.configure, "api", side_effect=responses) as api,
+            patch.object(self.configure.time, "sleep"),
+        ):
+            self.configure.install({"name": "Fixture", "trigger": trigger}, {"job.py": b"pass"})
+        self.assertEqual(
+            [c.args[0] for c in api.call_args_list],
+            ["POST", "GET", "GET", "POST", "GET", "GET", "PATCH", "GET", "GET"],
+        )
+
+    def test_native_readback_is_bounded_and_does_not_hide_permission_errors(self):
+        for status in (404, 403):
+            response = httpx.Response(status, request=httpx.Request("GET", "http://fixture"))
+            error = httpx.HTTPStatusError(
+                "unavailable", request=response.request, response=response
+            )
+            with (
+                self.subTest(status=status),
+                patch.object(self.configure, "api", side_effect=error) as api,
+                patch.object(self.configure.time, "monotonic", side_effect=[0, 11]),
+                self.assertRaises(RuntimeError if status == 404 else httpx.HTTPStatusError),
+            ):
+                self.configure.persisted("/api/automation/v1/fixture", {"id": "fixture"})
+            api.assert_called_once_with("GET", "/api/automation/v1/fixture")
+
     def test_native_automation_bundle_loads_its_own_skill_files(self):
         from openhands.automation.execution import build_tarball
 

@@ -13,6 +13,31 @@ from common import projects
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_native_image_identity_is_bound_to_sandbox_and_excludes_secrets(self):
+        digest = "sha256:" + "a" * 64
+        inspect = Mock(
+            return_value=json.dumps(
+                {"name": "worker", "image_digest": digest, "secrets": [{"value": "DO_NOT_RETAIN"}]}
+            )
+        )
+        result = runtime.image_observation(inspect, "worker")
+        self.assertEqual(result["image_id"], digest)
+        self.assertEqual(result["sandbox_name"], "worker")
+        self.assertIsNone(result["daemon_id"])
+        self.assertNotIn("DO_NOT_RETAIN", json.dumps(result))
+        inspect.assert_called_once_with("inspect", "worker", "--json")
+
+    def test_unknown_or_wrong_native_identity_is_not_replaced_by_a_tag(self):
+        for record in (
+            {"name": "other", "image_digest": "sha256:" + "a" * 64},
+            {"name": "worker", "image": "known:tag"},
+            {"name": "worker", "image_digest": None},
+        ):
+            with self.subTest(record=record):
+                result = runtime.image_observation(Mock(return_value=json.dumps(record)), "worker")
+                self.assertIsNone(result["image_id"])
+                self.assertIsNotNone(result["error_type"])
+
     def test_optional_backend_and_invalid_configuration(self):
         self.assertEqual(runtime.validate({}), {"backend": "docker"})
         for value in (

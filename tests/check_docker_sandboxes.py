@@ -163,6 +163,7 @@ def main():
         )
         manifest = json.loads((root / ".factory-execution.json").read_text())
         assert manifest["intended"]["worker_runtime"]["backend"] == "docker-sandboxes"
+        assert manifest["observed"]["worker_image"]["image_id"].startswith("sha256:")
 
 
 if __name__ == "__main__":

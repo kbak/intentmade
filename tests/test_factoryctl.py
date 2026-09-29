@@ -76,6 +76,67 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class StartupTests(unittest.TestCase):
+    def native_start(self, *, preflight_failure=False):
+        with tempfile.TemporaryDirectory() as temporary:
+            config = Path(temporary)
+            (config / "defaults.json").write_text("{}")
+            (config / "deployment.json").write_text(
+                json.dumps(
+                    {"worker_runtime": {"backend": "docker-sandboxes", "kit": "/operator/kit"}}
+                )
+            )
+            original = {
+                "services": {
+                    "canvas": {
+                        "image": "factory:tested",
+                        "volumes": [
+                            {
+                                "type": "bind",
+                                "source": "/operator/workspaces",
+                                "target": "/workspaces",
+                            },
+                            {
+                                "type": "bind",
+                                "source": str(config),
+                                "target": "/opt/factory/config",
+                            },
+                        ],
+                    }
+                }
+            }
+            bridge = Mock()
+            bridge.resolve.return_value = {"services": {"canvas": {"image": "controller:tested"}}}
+            if preflight_failure:
+                bridge.prepare.side_effect = RuntimeError("native prerequisite unavailable")
+            with (
+                patch("sys.argv", ["factoryctl", "up"]),
+                patch.dict("sys.modules", {"sandbox_compose": bridge}),
+                patch("subprocess.check_output", return_value=json.dumps(original)),
+                patch("subprocess.run") as run,
+                patch("subprocess.Popen") as transfer,
+            ):
+                self.native_commands = run
+                self.native_transfer = transfer
+                runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts/factoryctl"))
+            bridge.prepare.assert_called_once()
+
+    def test_native_preflight_failure_leaves_running_controller_untouched(self):
+        with self.assertRaisesRegex(RuntimeError, "prerequisite unavailable"):
+            self.native_start(preflight_failure=True)
+        self.native_commands.assert_not_called()
+        self.native_transfer.assert_not_called()
+
+    def test_native_start_preserves_state_before_healthy_controller_start(self):
+        self.native_start()
+        commands = [call.args[0] for call in self.native_commands.call_args_list]
+        self.assertEqual(commands[0][-2:], ("stop", "canvas"))
+        self.assertIn("chown", commands[1])
+        self.assertIn("--reference=/home/openhands", commands[1])
+        self.assertEqual(commands[1][-1], "/home/openhands/.openhands")
+        self.assertIn("--wait", commands[2])
+        self.assertEqual(commands[2][-1], "canvas")
+        self.native_transfer.assert_not_called()
+
     def start(self, image, missing=False, transfer_exit=0, daemon_cached=True, pull_failed=False):
         deployment = {
             "services": {
@@ -120,6 +181,7 @@ class StartupTests(unittest.TestCase):
         load = next(c for c in run.call_args_list if c.args[0][-2:] == ("docker", "load"))
         self.assertIs(load.kwargs["stdin"], source.stdout)
         self.assertIn("--no-build", self.commands[-1])
+        self.assertIn("--reference=/home/openhands", self.commands[-2])
 
     def test_default_image_is_built_and_transferred(self):
         self.start("intentmade:dev")

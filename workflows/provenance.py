@@ -135,10 +135,13 @@ def required(record, expectations):
 
 
 def capture(workspace=None, intended=None, source=None):
+    worker_image = getattr(workspace, "_factory_image_observation", None)
+    if not isinstance(worker_image, dict):
+        worker_image = image_observation(getattr(workspace, "_container_id", None))
     observed = {
         "controller_runtime": runtime(),
         "worker_runtime": None,
-        "worker_image": image_observation(getattr(workspace, "_container_id", None)),
+        "worker_image": worker_image,
         "host_image": None,
         "application_runtime": None,
     }

@@ -63,6 +63,9 @@ configured.
 Canvas's encrypted `CODEX_AUTH_JSON` secret. Its temporary CLI directory is
 removed afterward. The **Settings → LLM → ChatGPT subscription** card connects
 OpenHands' own LLM backend; it does not connect the factory's Codex ACP workers.
+Use `./scripts/factoryctl codex-logout` to remove the factory login through native
+secret storage. Active workers are not cancelled, but their later refreshes
+cannot restore a deleted login or overwrite a newer one.
 
 Choose the factory model in **Settings → Agent → factory-codex**. Use the native
 custom model field for the model and reasoning level you want. The

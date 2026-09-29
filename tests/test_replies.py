@@ -50,6 +50,12 @@ class ReplyDispatchTests(unittest.TestCase):
     def native(self, method, path, **kwargs):
         return {"enabled": True} if method == "GET" else {"id": "queued-run"}
 
+    def test_local_fixture_report_survives_reload_without_colliding_with_remote(self):
+        fixture = {**CONFIG, "repository": None}
+        reporting.write_report(fixture, "issue-1406", {"status": "READY"})
+        self.assertEqual(reporting.read_report(fixture, "issue-1406"), {"status": "READY"})
+        self.assertEqual(reporting.read_report(CONFIG, "issue-1406"), self.record)
+
     def test_saved_answer_dispatches_immediately_and_duplicate_notification_is_idempotent(self):
         before = copy.deepcopy(reporting.read_report(CONFIG, "issue-1406"))
         self.assertTrue(replies.queue_reply("conversation"))

@@ -27,7 +27,7 @@ def now():
 
 
 def report_path(config, task):
-    repository = config["repository"].casefold()
+    repository = (config["repository"] or "fixture:" + config["project"]).casefold()
     return (
         DATA
         / "reports"
@@ -241,6 +241,9 @@ def resume_reply(config, task):
 def run_report():
     global ACTIVE, _RUN_KEY
     _RUN_KEY = session_api_key()
+    # A factory run spans several native workspaces. Their optional SDK exit
+    # callbacks must not complete the automation before tests/review/publication.
+    callback_url = os.environ.pop("AUTOMATION_CALLBACK_URL", None)
     ACTIVE = {
         "run_id": os.environ["AUTOMATION_RUN_ID"],
         "status": "SKIPPED",
@@ -265,7 +268,11 @@ def run_report():
         }
         if report.get("error"):
             body["error"] = report["error"]
-        api("POST", f"/api/automation/v1/runs/{report['run_id']}/complete", json=body)
+        try:
+            api("POST", f"/api/automation/v1/runs/{report['run_id']}/complete", json=body)
+        finally:
+            if callback_url is not None:
+                os.environ["AUTOMATION_CALLBACK_URL"] = callback_url
 
 
 def outcome(status, summary):

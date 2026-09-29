@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 import urllib.error
 import uuid
 from pathlib import Path
@@ -26,6 +27,23 @@ def records():
             return result
 
 
+def persisted(path, expected):
+    # The native FastAPI dependency commits after returning its response. Wait
+    # for readback before dependent writes; never repeat a creation or dispatch.
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            record = api("GET", path)
+            if all(record.get(key) == value for key, value in expected.items()):
+                return record
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+        if time.monotonic() >= deadline:
+            raise RuntimeError("Native automation write is not visible yet: " + path)
+        time.sleep(0.1)
+
+
 def install(definition, files, existing=None):
     from openhands.automation.execution import build_tarball
 
@@ -35,6 +53,7 @@ def install(definition, files, existing=None):
         content=build_tarball(files),
         headers={"Content-Type": "application/gzip"},
     )
+    persisted("/api/automation/v1/uploads/" + upload["id"], {"status": "COMPLETED"})
     definition = {**definition, "tarball_path": upload["tarball_path"]}
     if not existing:
         initial = {key: value for key, value in definition.items() if key != "enabled"}
@@ -45,7 +64,9 @@ def install(definition, files, existing=None):
             "filter": "`false`",
         }
         existing = api("POST", "/api/automation/v1", json=initial)["id"]
+        persisted("/api/automation/v1/" + existing, {"id": existing})
     result = api("PATCH", "/api/automation/v1/" + existing, json=definition)
+    persisted("/api/automation/v1/" + existing, {key: result[key] for key in definition})
     print("Native automation:", result["id"], "—", result["name"])
     return result
 
@@ -364,6 +385,7 @@ if __name__ == "__main__":
     sub.add_parser("configure").add_argument("--paused", action="store_true")
     sub.add_parser("github-login")
     sub.add_parser("codex-login")
+    sub.add_parser("codex-logout")
     sub.add_parser("projects")
     sub.add_parser("factories")
     finite_command = sub.add_parser("finite")
@@ -400,6 +422,9 @@ if __name__ == "__main__":
         from codex_login import login
 
         login()
+    elif args.action == "codex-logout":
+        api("DELETE", "/api/settings/secrets/CODEX_AUTH_JSON")
+        print("Factory Codex login removed. Existing workers are not cancelled.", flush=True)
     elif args.action == "projects":
         print(json.dumps(projects(), indent=2))
     elif args.action == "factories":

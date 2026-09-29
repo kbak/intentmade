@@ -32,6 +32,9 @@ Omit `--run` to register without dispatch. The automation has a false-filter
 manual trigger, never a polling schedule. Duplicate names are rejected so a lost
 registration/dispatch response causes inspection rather than blind re-execution.
 Before retrying any uncertain operation, reconcile the native automation/run list.
+Registration reads back native uploads and automation changes before issuing
+dependent requests. A delayed database commit causes bounded read polling;
+creation and dispatch requests are not repeated.
 
 `/projects/artifacts/RUN_ID-finite/result.json` records execution status, exit
 code, UTC endpoints, monotonic execution duration and separate callback timing.

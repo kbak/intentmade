@@ -3,6 +3,7 @@
 import ipaddress
 import json
 import os
+import re
 import shlex
 import subprocess
 import tempfile
@@ -60,6 +61,30 @@ def mount_arguments(volumes, options):
         if source != target:
             aliases.append((source, target))
     return paths, aliases
+
+
+def image_observation(inspect, name):
+    """Retain only native identity fields, never inspect's secrets or environment."""
+    result = {
+        "backend": "docker-sandboxes",
+        "sandbox_name": name,
+        "container_id": None,
+        "daemon_id": None,
+        "image_id": None,
+        "repo_digests": None,
+        "platform": None,
+        "rootfs_layers": None,
+        "error_type": None,
+    }
+    try:
+        record = json.loads(inspect("inspect", name, "--json"))
+        digest = record.get("image_digest", "")
+        if record.get("name") != name or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+            raise ValueError("Native sandbox identity is unavailable")
+        result["image_id"] = digest
+    except (RuntimeError, ValueError, TypeError, AttributeError) as exc:
+        result["error_type"] = type(exc).__name__
+    return result
 
 
 @contextmanager
@@ -148,6 +173,7 @@ def worker(root, volumes, environment, options):
                 working_dir=str(root / "source"),
             ) as workspace:
                 workspace._factory_log = log
+                workspace._factory_image_observation = image_observation(run, name)
                 deadline = time.monotonic() + 90
                 readiness = "no response"
                 while time.monotonic() < deadline:
