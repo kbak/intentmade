@@ -35,6 +35,49 @@ upstream archive extractor, including compressed input and sparse-file sizes.
 
 ## Traceability checks
 
+### Use a locally built test image
+
+Build the base and traceability image using the pinned wheel inputs and commands
+in [runtime setup](../docs/traceability.md#runtime-setup). From this checkout,
+resolve its immutable ID and run the suite:
+
+```sh
+FACTORY_TEST_IMAGE=$(docker image inspect intentmade:traceability-test --format '{{.Id}}')
+python3 scripts/check_factory.py --image "$FACTORY_TEST_IMAGE" \
+  --report ".local-validation/factory-$(date +%s).xml"
+```
+
+The runner rejects a stale image's build manifest. It uses an offline disposable
+container without credentials or the host Docker socket; it does not start or
+reconfigure your factory. Each report path must be new.
+
+For a full IntentBond check, record the baseline before editing. Make an explicit
+trusted scope copy with your local image ID instead of weakening build validation
+or committing an image ID that exists only on your machine:
+
+```sh
+FACTORY_BASE=$(git rev-parse HEAD) # Record before editing.
+FACTORY_CHECK_DIR=$(mktemp -d)
+python3 - "$FACTORY_TEST_IMAGE" "$FACTORY_CHECK_DIR/scope.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+scope = json.loads(Path("scope.json").read_text())
+command = scope["tests"]["command"]
+command[command.index("--image") + 1] = sys.argv[1]
+Path(sys.argv[2]).write_text(json.dumps(scope, indent=2) + "\n")
+PY
+ib check --repo "$PWD" --base "$FACTORY_BASE" --candidate worktree \
+  --scope "$FACTORY_CHECK_DIR/scope.json" --out "$FACTORY_CHECK_DIR/check"
+```
+
+Keep that scope and baseline for later verification. Exit 4 means automated
+checks passed with review still pending. A shared baseline image-pin change
+remains a deliberate maintainer update, reviewed with its build inputs.
+
+### Full suite coverage
+
 Build the [traceability image](../docs/traceability.md#runtime-setup), then run
 the regression command above with `intentmade:traceability-test`. The
 suite requires IntentBond and its OFT JAR to run the opt-in cases. The

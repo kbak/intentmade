@@ -118,7 +118,7 @@ in a `resume:` reply or `retry-issue --answer-file` response. Include this line
 (use the exact check names from the browser report):
 
 ```text
-accept-browser-gaps: {"Live Telegram integration": "No disposable session available; publish a draft with this limitation documented."}
+accept-browser-gaps: {"Live notification delivery": "No disposable test account available; publish a draft with this limitation documented."}
 ```
 
 Acceptance belongs only to that issue's unchanged specification and survives

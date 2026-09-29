@@ -42,6 +42,14 @@ with runtime/dependency inputs and refuses a mismatch. Rebuild and deliberately
 update the trusted image pin when those inputs change. Load that image into the
 job daemon for factory use; a local ID is not a registry distribution reference.
 
+Public [source CI](../.github/workflows/ci.yml) runs locked lint and the host
+CLI/Compose fixtures without model credentials. It does not replace this full
+runtime check or the native isolation probes. A separate
+[secret scan](../.github/workflows/secrets.yml) checks reachable history using
+upstream rules and a synthetic detection self-check. Neither establishes that
+operational evidence is safe to publish; follow the
+[sharing procedure](portable-workflow.md#continue-elsewhere).
+
 JUnit records named test-method outcomes, and explicit `oft_id` metadata connects
 125 linked test artifacts to execution observations. The scope requires every
 listed artifact to pass and rejects skipped cases. These associations identify

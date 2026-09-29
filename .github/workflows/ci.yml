@@ -1,0 +1,44 @@
+name: Source checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12.14'
+      - name: Install the lint version locked in uv.lock
+        run: |
+          python - <<'PY'
+          import pathlib
+          import subprocess
+          import tomllib
+
+          lock = tomllib.loads(pathlib.Path("uv.lock").read_text())
+          package = next(p for p in lock["package"] if p["name"] == "ruff")
+          wheel = next(w for w in package["wheels"] if w["url"].endswith("manylinux_2_17_x86_64.manylinux2014_x86_64.whl"))
+          subprocess.run(["python", "-m", "pip", "install", "--no-deps",
+                          wheel["url"] + "#" + wheel["hash"].replace(":", "=", 1)], check=True)
+          PY
+      - name: Lint and format
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Host CLI and Compose fixtures (no Docker or model calls)
+        run: |
+          python -m unittest discover -s tests -p test_factoryctl.py -v
+          python -m unittest discover -s tests -p test_sandbox_compose.py -v

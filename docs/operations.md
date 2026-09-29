@@ -26,11 +26,14 @@ routine shutdowns (`down`, without `-v`).
 With DockerWorkspace, workers receive the Codex credential. Docker Sandboxes
 uses a host credential proxy instead. The GitHub credential stays in the parent
 workflow. Implementation, triage and independent review run in separate
-disposable workers. Builders retain public internet access and Docker tests;
-worker access to the management daemon, other jobs and the host's private
-networks is blocked. See [SECURITY.md](../SECURITY.md) for the single-operator
-trust model, retained state and update procedure. Containers share the Docker
-host's Linux kernel. Normal completion and handled failures clean up job
+disposable workers. DockerWorkspace builders retain public internet access and
+Docker tests; their access to the management daemon, other jobs and the host's
+private networks is blocked. These containers share the Docker host's Linux
+kernel. Docker Sandboxes uses separate VMs and the selected Kit's network policy;
+allowed hostnames can resolve to private addresses. Read its
+[network limitations](docker-sandboxes.md#network-policy) before enabling it.
+See [SECURITY.md](../SECURITY.md) for the single-operator trust model, retained
+state and update procedure. Normal completion and handled failures clean up job
 resources; a host crash can require manual cleanup.
 
 ## Update the runtime and workflows

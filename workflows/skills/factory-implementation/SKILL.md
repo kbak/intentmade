@@ -50,4 +50,4 @@ Write the summary for a PR reviewer: explain the problem and resulting behavior
 across all changes since the listed base, including retained work from earlier
 attempts. Omit orchestration details, local artifact paths, tool branding and
 conversation history. Include a concise Conventional Commits title describing
-the resulting change, for example `fix(telegram): restore scanning after /stop`.
+the resulting change, for example `fix(search): resume indexing after cancellation`.

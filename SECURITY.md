@@ -10,6 +10,10 @@ credentials, private logs, or an unpatched exploit in a public issue.
 Include the affected revision, a minimal reproducer, the deployment assumptions,
 and practical impact.
 
+Runtime logs and handoff exports are private evidence, not sanitized release
+artifacts. See [evidence sharing](docs/portable-workflow.md#continue-elsewhere)
+before attaching them to an issue or sending them outside the project.
+
 ## Single-operator factory
 
 This setup assumes one trusted operator on a Linux host with Docker. Canvas is

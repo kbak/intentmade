@@ -135,8 +135,21 @@ The new folder contains Markdown/JSON reports, logs, test XML, patches and PNG
 evidence where present, plus `export.json` with file sizes and SHA-256 hashes.
 Provider JSONL transcripts are excluded. Exports are local and bounded to 256 MiB
 and 2,048 files; a failed export removes its incomplete destination. Full browser
-videos and other formats stay in the original run. Inspect exported material
-before sharing it outside the project.
+videos and other formats stay in the original run.
+
+Exports are private evidence, not sanitized release artifacts. Test/startup logs,
+raw structured model responses, patches and screenshots can contain credentials,
+personal data or private source even though provider transcripts are excluded.
+Worker diagnostic redaction does not cover all of these files.
+
+Before sharing, keep the original bundle private and make a separate copy.
+Remove unnecessary files, redact sensitive content in the copy, run
+`gitleaks dir --redact /path/to/share-copy`, and inspect screenshots and remaining
+text manually. A clean scanner result is not proof that every secret or private
+detail was removed. Label the copy as sanitized: the original hashes and any
+verification results no longer attest its changed files. Supply the intact
+original only through an appropriately private channel when verification is
+needed. Never upload raw evidence to a public issue or release by default.
 
 Give the next tool the project at the recorded candidate commit and this folder.
 For unpublished work, the retained task branch and `changes.patch` provide the
