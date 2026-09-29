@@ -111,11 +111,17 @@ approval, review, credential and source-transfer checks remain shared.
   metadata, and denied network sockets; rerun it when upgrading Docker, Codex,
   or the host kernel.
 
-Workers still receive the Codex subscription credential needed to run agents.
-The default DockerWorkspace backend uses containers, including privileged Docker
+The default DockerWorkspace backend delivers the real Codex credential into
+workers and uses containers, including privileged Docker
 test daemons, that share the Docker host's Linux kernel. The optional
 [Docker Sandboxes backend](docs/docker-sandboxes.md) places each worker and its
 test daemon in a VM; its native Kit owns VM resource and network policy.
+That backend uses Docker’s host-side credential proxy: worker auth files contain
+placeholders and their OpenHands secret store has no `CODEX_AUTH_JSON`. Canvas
+keeps its separate credential. A worker can still use authorized model access
+through the proxy while its sandbox is running; this does not impose a spend
+quota or prevent prompt injection. The trusted operator must not configure
+credential passthrough or mount a real credential into a worker.
 Use explicit trusted network destinations for this backend: allowing every
 hostname plus denying private CIDRs does not prevent private access through DNS.
 The [network probe and limitations](docs/docker-sandboxes.md#network-policy)

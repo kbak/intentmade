@@ -2,7 +2,7 @@
 
 The optional backend runs each factory worker and its Docker test daemon inside
 one local Docker Sandboxes VM. OpenHands still supplies `RemoteWorkspace`,
-conversations, file APIs and the existing versioned Codex credential handling.
+conversations and file APIs. Docker owns worker OAuth and credential refresh.
 The default backend remains `DockerWorkspace`.
 
 The adapter targets **sbx 0.46.0 and native v2 Kits**. A Kit describes the
@@ -117,9 +117,9 @@ After loading the worker image and selecting the backend, use the normal command
 
 ```bash
 ./scripts/factoryctl init
+./scripts/factoryctl codex-login
 ./scripts/factoryctl up
 ./scripts/factoryctl status
-./scripts/factoryctl codex-login
 ```
 
 `factoryctl up` asks Compose to resolve the existing `.env` and bind paths, then
@@ -133,7 +133,9 @@ The same ownership preparation applies when switching back to the default
 backend, using that controller image's own OpenHands UID/GID.
 
 The generated deployment mounts the native daemon socket, CLI and Docker sign-in
-state into the trusted controller. It uses Docker's native `DOCKER_SANDBOXES_API`
+state into the trusted controller. Native configuration directories retain their
+absolute host paths through `XDG_CONFIG_HOME`; only `com.docker.sandboxes`,
+`sbx` (read-only bindings), and `sandboxes` are mounted, not the whole host home. It uses Docker's native `DOCKER_SANDBOXES_API`
 setting and disables sbx telemetry. Kit and profile paths are read-only. Job
 storage is mounted at the same absolute host/controller path, using the existing
 `FACTORY_DATA` setting. The separate privileged Docker daemon service is omitted;
@@ -174,64 +176,69 @@ docker compose exec -T canvas python /tmp/factory-acceptance-tests/check_docker_
   --workspaces /absolute/shared/workspaces --native-probes
 ```
 
-The probe uses dummy worker credentials and a scripted parent profile. It
+The probe uses Docker’s host login and a scripted parent profile. It
 creates a disposable VM through the real shared worker context and checks
-credential delivery, shared edits, read-only inputs/profiles, tests, Git bundle
+placeholder-only authentication, an empty worker secret store, shared edits, read-only inputs/profiles, tests, Git bundle
 export, offline nested Docker and a worker session longer than the native idle
 grace period. The adapter deletes the VM before the retained bundle is consumed.
 It also reuses the existing Codex kernel permission assertions in the native
 agent's home. `--native-probes` adds the existing project-trust, specialist-review,
-startup-recovery and browser-evidence checks. No model call or GitHub publication
-occurs. Native session logs use the existing bounded, redacted retention path.
+startup-recovery and browser-evidence checks. Add `--model gpt-6-astra/low`
+to verify a real ACP subscription request. The default makes no model calls;
+neither mode publishes to GitHub. Native session logs use the existing bounded, redacted retention path.
 
-## Credential and workflow acceptance
+## Credentials
 
-`tests/check_worker_credentials.py` runs real disposable workers against separate
-native encrypted fixture stores. It checks refresh writeback, concurrent logout
-and replacement-login protection. It does not touch the controller's real login
-unless explicitly given `--live-refresh-and-logout`.
+The Kit extends Docker's built-in `codex` Kit, which configures a proxy provider
+and placeholder `auth.json`. Real OAuth tokens and refresh stay on the host.
+IntentMade never loads Canvas's credential store for this backend and never
+uploads `CODEX_AUTH_JSON` into the worker. OpenHands therefore leaves the native
+Codex home in place. A missing placeholder fails worker startup with login/Kit
+guidance; there is no fallback to copying Canvas tokens.
 
-Run that flag **only in a disposable Canvas with a separate account login and no
-active jobs**. It ages the credential's refresh timestamp, makes one real Codex
-request, verifies refreshed tokens reached Canvas, and logs that test Canvas out
-through the native OpenHands endpoint. It never prints tokens or restores an old
-refresh token. Logout prevents stale writeback; it does not forcibly cancel a
-worker already holding a credential.
+Before startup, authorize the custom Kit using Docker's native
+`~/.config/sbx/credentials.yaml` (or `$XDG_CONFIG_HOME/sbx/credentials.yaml`):
 
-### Credential isolation
-
-Successful refresh/logout checks establish lifecycle behavior, not secrecy from
-an implementation worker. The current shared bridge supplies real
-`CODEX_AUTH_JSON` to the worker's OpenHands store; a full-access worker can read
-its own agent credential. VM isolation does not protect a secret delivered into
-that VM.
-
-Docker provides [host-side Codex OAuth](https://docs.docker.com/ai/sandboxes/agents/codex/)
-and [proxy-managed credentials](https://docs.docker.com/ai/sandboxes/configuration/credentials/).
-Those are the preferred integration path. A native credential binding and OAuth
-sentinels could replace real-token delivery for this backend, while OpenHands
-continues to own conversations and role permissions. Avoid OAuth `passthrough`,
-which explicitly places real tokens in the sandbox.
-
-This is not enabled by the current Kit. Before adopting it, verify the pinned
-ACP adapter's credential-specific `CODEX_HOME` works with native placeholders,
-real subscription requests and refresh; then verify concurrent workers,
-replacement login and logout. The native host credential store must become the
-single authority for that backend so stale OpenHands copies cannot restore a
-login. Check that worker files, environment and logs contain only placeholders.
-No custom credential proxy is needed to evaluate this route, and DockerWorkspace
-can retain its existing native OpenHands credential flow.
-
-`factoryctl codex-logout` removes the factory's `CODEX_AUTH_JSON` through the
-native secret API. This login is separate from Canvas's LLM subscription card;
-logging out of that card does not log out Codex ACP workers.
-
-```bash
-docker compose exec -T canvas python /tmp/factory-acceptance-tests/check_worker_credentials.py
-# Only against the disposable deployment and its separate login:
-docker compose exec -T canvas python /tmp/factory-acceptance-tests/check_worker_credentials.py \
-  --live-refresh-and-logout
+```yaml
+bindings:
+  openai:
+    oauth:
+      domains: [auth.openai.com, chatgpt.com]
 ```
+
+Merge this into existing bindings; do not replace unrelated services. This is
+Docker configuration, not an IntentMade schema. Avoid OAuth `passthrough`, which
+puts real tokens inside the sandbox. The inherited Kit adds its own explicit
+network destinations; review the effective policy when customizing it.
+
+`factoryctl codex-login` runs native `sbx secret set openai --oauth` on the host.
+This uses the ChatGPT subscription even though the worker's placeholder file is
+API-key shaped. Complete the localhost callback on the machine running the CLI,
+or use an SSH tunnel to its callback port when using a remote browser.
+
+`factoryctl codex-logout` runs `sbx secret rm openai --force`. This removes the
+host's **global** OpenAI sandbox login, including access from other sandboxes
+using that global credential. Native Docker owns propagation to running VMs and
+concurrent refresh coordination; IntentMade stores no worker token copy.
+Requests already completed or in flight are not undone by logout.
+
+Canvas coordinator chats retain their separate OpenHands login. Use
+`factoryctl codex-login --canvas` or `factoryctl codex-logout --canvas` to manage
+it. Logging workers out does not delete this coordinator credential. The Canvas
+**LLM → ChatGPT subscription** card is a third, separate native LLM connection.
+
+The default `DockerWorkspace` backend still uses OpenHands' encrypted credential
+store, real-token delivery and versioned refresh writeback. Its existing
+`tests/check_worker_credentials.py` probe checks that lifecycle;
+`--live-refresh-and-logout` is destructive and belongs only in a disposable
+Canvas with its own login and no active work. Use `check_docker_sandboxes.py`
+for the VM backend instead.
+
+Native host refresh across actual expiry is a long-running runtime acceptance
+check. A worker POST using a refresh sentinel is not equivalent: the built-in
+Codex provider relies on host refresh, not on an in-VM OAuth client.
+
+## Workflow acceptance
 
 For the complete workflow, submit the included fixture through Canvas:
 

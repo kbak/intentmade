@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import secrets
 import shutil
 import subprocess
@@ -234,7 +235,22 @@ elif a.action == "submit":
             p.error("--inputs requires a manifest file")
         a.args[index : index + 2] = ["--inputs-json", Path(a.args[index + 1]).read_text()]
     native("submit", a.args[0], "-", *a.args[2:], input=Path(a.args[1]).read_text(), text=True)
-elif a.action in {"review", "codex-login", "codex-logout"}:
+elif a.action in {"codex-login", "codex-logout"}:
+    if a.args not in ([], ["--canvas"]):
+        p.error(a.action + " accepts only --canvas (the separate coordinator login)")
+    if native_backend and not a.args:
+        import sandbox_compose
+
+        command = sandbox_compose.native_command(runtime)
+        operation = (
+            ["set", "openai", "--oauth"]
+            if a.action == "codex-login"
+            else ["rm", "openai", "--force"]
+        )
+        run(command, "secret", *operation, env={**os.environ, "SBX_NO_TELEMETRY": "1"})
+    else:
+        native(a.action)
+elif a.action == "review":
     native(a.action, *a.args)
 elif a.action == "retry-issue":
     if "--answer-file" in a.args:

@@ -98,6 +98,7 @@ class RuntimeLifecycleTests(unittest.TestCase):
         body_failure=False,
         cleanup_failure=False,
         partial_create=False,
+        missing_proxy=False,
     ):
         self.commands = []
         self.session = Mock()
@@ -109,7 +110,9 @@ class RuntimeLifecycleTests(unittest.TestCase):
             self.commands.append(command)
             action = command[1]
             code = int(
-                (action == "create" and create_failure) or (action == "rm" and cleanup_failure)
+                (action == "create" and create_failure)
+                or (action == "rm" and cleanup_failure)
+                or (action == "exec" and "python" in command and missing_proxy)
             )
             output = (
                 json.dumps([{"sandbox_port": 8000, "host_port": 34567}])
@@ -157,6 +160,12 @@ class RuntimeLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "authentication failed"):
             self.exercise(status=401)
         self.assertEqual(self.commands[-1][1], "rm")
+
+    def test_missing_proxy_login_removes_vm_without_starting_openhands(self):
+        with self.assertRaisesRegex(RuntimeError, "factoryctl codex-login"):
+            self.exercise(missing_proxy=True)
+        self.assertEqual([c[1] for c in self.commands], ["create", "exec", "rm"])
+        self.session.wait.assert_not_called()
 
     def test_partial_creation_failure_removes_only_the_new_vm(self):
         with self.assertRaisesRegex(RuntimeError, "sbx create failed"):

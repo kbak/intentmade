@@ -60,13 +60,17 @@ Connect the factory's Codex account, then install the configured automations:
 `configure` imports your GitHub credential into native secret storage and
 applies the configured schedules. It creates the configured approval label.
 
-`codex-login` shows a device code and saves the completed login directly to
+With the default DockerWorkspace backend, `codex-login` shows a device code and saves the completed login directly to
 Canvas's encrypted `CODEX_AUTH_JSON` secret. Its temporary CLI directory is
 removed afterward. The **Settings → LLM → ChatGPT subscription** card connects
 OpenHands' own LLM backend; it does not connect the factory's Codex ACP workers.
 Use `./scripts/factoryctl codex-logout` to remove the factory login through native
 secret storage. Active workers are not cancelled, but their later refreshes
 cannot restore a deleted login or overwrite a newer one.
+
+The optional [Docker Sandboxes backend](docker-sandboxes.md#credentials) uses
+host-managed worker OAuth instead. Its `codex-login` opens Docker’s browser
+flow; `--canvas` manages the separate Canvas coordinator login.
 
 Choose the factory model in **Settings → Agent → factory-codex**. Use the native
 custom model field for the model and reasoning level you want. The

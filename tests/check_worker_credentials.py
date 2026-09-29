@@ -1,4 +1,4 @@
-"""Exercise native encrypted stores across real workers; optional disposable-account refresh."""
+"""Exercise DockerWorkspace credential copies; optional disposable-account refresh."""
 
 import argparse
 import json
@@ -91,6 +91,8 @@ if __name__ == "__main__":
         help="Rotate and then log out this DISPOSABLE Canvas account; makes one model call",
     )
     args = parser.parse_args()
+    if sandbox.docker_sandboxes.settings()["backend"] != "docker":
+        parser.error("Use check_docker_sandboxes.py for native proxy credentials")
     fixture_cases()
     if args.live_refresh_and_logout:
         live_refresh()

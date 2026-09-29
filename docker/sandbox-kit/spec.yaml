@@ -1,6 +1,7 @@
 schemaVersion: "2"
 kind: sandbox
 name: intentmade
+extends: codex
 sandbox:
   image: intentmade:sandbox-kit
   entrypoint: [/bin/bash]

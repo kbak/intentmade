@@ -9,5 +9,5 @@ RUN test "${CONTROLLER_UID}" -gt 0 && test "${CONTROLLER_GID}" -gt 0 && \
     (getent group "${CONTROLLER_GID}" || groupadd -g "${CONTROLLER_GID}" sandbox-operator) && \
     usermod -u "${CONTROLLER_UID}" -g "${CONTROLLER_GID}" openhands && \
     mkdir -p /home/openhands/.config && \
-    chown -R "${CONTROLLER_UID}:${CONTROLLER_GID}" /home/openhands
+    chown -R "${CONTROLLER_UID}:${CONTROLLER_GID}" /home/openhands /projects
 USER openhands

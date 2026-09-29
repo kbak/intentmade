@@ -23,7 +23,8 @@ under `artifacts/`. Back up this directory and the Compose native state volume
 together. Keep runtime data and `.env` out of Git, and preserve volumes during
 routine shutdowns (`down`, without `-v`).
 
-Workers receive the Codex credential; the GitHub credential stays in the parent
+With DockerWorkspace, workers receive the Codex credential. Docker Sandboxes
+uses a host credential proxy instead. The GitHub credential stays in the parent
 workflow. Implementation, triage and independent review run in separate
 disposable workers. Builders retain public internet access and Docker tests;
 worker access to the management daemon, other jobs and the host's private

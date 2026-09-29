@@ -1,9 +1,8 @@
-"""Disposable, offline Kit adapter check. Run in an authenticated controller."""
+"""Disposable Kit adapter check. Uses native host login; model calls are opt-in."""
 
 import argparse
 import ast
 import json
-import os
 import platform
 import shlex
 import shutil
@@ -16,6 +15,7 @@ from unittest.mock import Mock, patch
 import docker_sandboxes
 import httpx
 import sandbox
+from agent import converse
 from transfer import export_task
 
 
@@ -26,6 +26,7 @@ def main():
     parser.add_argument("--publish-host", default="127.0.0.1")
     parser.add_argument("--workspaces", required=True, type=Path)
     parser.add_argument("--native-probes", action="store_true")
+    parser.add_argument("--model", help="Opt in to a real ACP call, e.g. gpt-6-astra/low")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(dir=args.workspaces, prefix="kit-check-") as temporary:
         base = Path(temporary)
@@ -48,13 +49,12 @@ def main():
                 "profiles": str(profiles),
             }
         )
-        store = Mock()
-        store.load_versioned_secret.return_value = ('{"OPENAI_API_KEY":"offline-fixture"}', 1)
         with (
-            patch.object(sandbox, "api", return_value={"profile": {}}),
-            patch.object(sandbox, "FileSecretsStore", return_value=store),
-            patch.object(sandbox, "Cipher"),
-            patch.dict(os.environ, {"OH_SECRET_KEY": "offline-controller-key"}),
+            patch.object(sandbox, "api", return_value={"profile": {"acp_model": args.model}}),
+            patch.object(
+                sandbox, "FileSecretsStore", side_effect=AssertionError("Canvas secret read")
+            ),
+            patch.object(sandbox, "Cipher", side_effect=AssertionError("Canvas encryption read")),
             patch.object(docker_sandboxes, "settings", return_value=options),
             patch.object(sandbox.input_artifacts, "directory", return_value=str(inputs)),
             patch.object(sandbox.input_artifacts, "CURRENT", Mock(get=Mock(return_value=True))),
@@ -68,6 +68,22 @@ def main():
 
             assert execute("uname -r").strip() != platform.release()
             execute("test ! -e /run/sbx/sandboxd.sock")
+            assert workspace.client.get("/api/settings/secrets/CODEX_AUTH_JSON").status_code == 404
+            execute(
+                "python -c "
+                + shlex.quote(
+                    "import json, os; from pathlib import Path; "
+                    "assert json.loads((Path(os.environ['CODEX_HOME']) / 'auth.json').read_text()) "
+                    "== {'OPENAI_API_KEY': 'proxy-managed'}"
+                )
+            )
+            if args.model:
+                reply = converse(workspace, "Reply exactly NATIVE_PROXY_OK. Do not use tools.")
+                assert "NATIVE_PROXY_OK" in reply, "Native proxy ACP call failed"
+                assert (
+                    workspace.client.get("/api/settings/secrets/CODEX_AUTH_JSON").status_code == 404
+                )
+                print("PASS native proxy ACP call without a Canvas credential", flush=True)
             rejected = httpx.get(
                 workspace.host + "/api/settings/secrets/CODEX_AUTH_JSON",
                 headers={"X-Session-API-Key": "wrong-fixture-key"},
@@ -157,10 +173,7 @@ def main():
             stderr=subprocess.PIPE,
         )
         assert (checkout / "export.txt").read_text() == "exported\n"
-        store.replace_versioned_secret.assert_not_called()
-        print(
-            "PASS bundle retained after VM teardown; unchanged credential not rewritten", flush=True
-        )
+        print("PASS bundle retained after VM teardown; Canvas login never accessed", flush=True)
         manifest = json.loads((root / ".factory-execution.json").read_text())
         assert manifest["intended"]["worker_runtime"]["backend"] == "docker-sandboxes"
         assert manifest["observed"]["worker_image"]["image_id"].startswith("sha256:")

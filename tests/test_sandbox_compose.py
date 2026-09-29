@@ -2,8 +2,11 @@
 
 import copy
 import importlib.util
+import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location(
     "sandbox_compose", Path(__file__).resolve().parents[1] / "scripts/sandbox_compose.py"
@@ -65,10 +68,40 @@ class ComposeTests(unittest.TestCase):
         self.assertTrue(mounts["/operator/kit"]["read_only"])
         self.assertTrue(mounts["/operator/profiles"]["read_only"])
         self.assertNotIn("/run/factory-docker", mounts)
+        self.assertEqual(canvas["environment"]["XDG_CONFIG_HOME"], "/operator")
+        for target in ("/operator/sbx-auth", "/operator/sbx", "/operator/sandboxes"):
+            self.assertEqual(mounts[target]["source"], target)
+        self.assertTrue(mounts["/operator/sbx"]["read_only"])
+        self.assertFalse(mounts["/operator/sbx-auth"]["read_only"])
+        self.assertNotIn("/operator", mounts)  # Never mount unrelated host configuration.
 
     def test_loopback_worker_address_is_rejected_before_controller_start(self):
         with self.assertRaisesRegex(ValueError, "bridge networking"):
             self.render("127.0.0.1")
+
+    def test_missing_native_config_fails_before_rendering_a_deployment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with (
+                patch.object(sandbox_compose, "native_command", return_value="/usr/bin/sbx"),
+                patch.object(
+                    sandbox_compose.subprocess,
+                    "run",
+                    return_value=Mock(
+                        stdout=json.dumps({"status": "running", "socket": "/native.sock"})
+                    ),
+                ),
+                patch.dict("os.environ", {"XDG_CONFIG_HOME": temporary}),
+                patch.object(sandbox_compose, "render") as render,
+            ):
+                for missing in ("com.docker.sandboxes", "sbx", "sandboxes"):
+                    with self.assertRaisesRegex(
+                        ValueError, "Native configuration directory missing"
+                    ):
+                        sandbox_compose.resolve(ORIGINAL, {})
+                    render.assert_not_called()
+                    (Path(temporary) / missing).mkdir()
+                sandbox_compose.resolve(ORIGINAL, {})
+                render.assert_called_once()
 
 
 if __name__ == "__main__":

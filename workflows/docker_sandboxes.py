@@ -1,4 +1,4 @@
-"""Optional local sbx lifecycle; OpenHands still owns commands, files and secrets."""
+"""Local sbx lifecycle and credentials; OpenHands owns conversations and workspace APIs."""
 
 import ipaddress
 import json
@@ -133,6 +133,26 @@ def worker(root, volumes, environment, options):
                 *paths,
             )
             created = True
+            # Require the native Kit's proxy login before starting OpenHands.
+            # Missing login/binding or an old Kit must never fall back to Canvas
+            # secrets. Check only the placeholder; never return file contents.
+            try:
+                run(
+                    "exec",
+                    "-u",
+                    "agent",
+                    name,
+                    "python",
+                    "-c",
+                    "import json, os; from pathlib import Path; "
+                    "assert json.loads((Path(os.environ['CODEX_HOME']) / 'auth.json')"
+                    ".read_text()) == {'OPENAI_API_KEY': 'proxy-managed'}",
+                )
+            except RuntimeError:
+                raise RuntimeError(
+                    "Native Codex proxy login unavailable: use a Kit extending codex, "
+                    "authorize its openai OAuth binding, and run factoryctl codex-login"
+                ) from None
             setup = []
             for source, target in aliases:
                 setup.append("mkdir -p " + shlex.quote(str(Path(target).parent)))

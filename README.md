@@ -71,9 +71,11 @@ See [workflows](docs/workflows.md) for scheduling, replies, and PR maintenance.
 ## Deployment model
 
 IntentMade assumes one trusted operator. Canvas listens on localhost by default;
-access to it grants factory control. Workers receive the Codex credential, while
-GitHub publication credentials stay in the parent workflow. Containers share the
-host kernel, including privileged Docker test daemons.
+access to it grants factory control. DockerWorkspace workers receive the Codex
+credential; Docker Sandboxes workers use host-managed proxy credentials.
+GitHub publication credentials stay in the parent workflow. The default containers
+share the host kernel, including privileged Docker test daemons. Docker Sandboxes
+places each worker and its test daemon in a separate VM.
 
 New installations require a maintainer-controlled `factory:approved` label for
 issue work; scheduling starts disabled. Review the target repository's CI permissions before enabling

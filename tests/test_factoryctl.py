@@ -76,6 +76,71 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class StartupTests(unittest.TestCase):
+    def test_login_and_logout_select_the_worker_backend_or_explicit_canvas(self):
+        for backend, args in (
+            ("docker", []),
+            ("docker-sandboxes", []),
+            ("docker-sandboxes", ["--canvas"]),
+        ):
+            for action in ("codex-login", "codex-logout"):
+                with (
+                    self.subTest(backend=backend, action=action, args=args),
+                    tempfile.TemporaryDirectory() as temporary,
+                ):
+                    config = Path(temporary)
+                    (config / "deployment.json").write_text(
+                        json.dumps(
+                            {
+                                "worker_runtime": {
+                                    "backend": backend,
+                                    **(
+                                        {"kit": "/operator/kit"}
+                                        if backend == "docker-sandboxes"
+                                        else {}
+                                    ),
+                                }
+                            }
+                        )
+                    )
+                    compose = {
+                        "services": {
+                            "canvas": {
+                                "volumes": [
+                                    {
+                                        "type": "bind",
+                                        "source": "/operator/workspaces",
+                                        "target": "/workspaces",
+                                    },
+                                    {
+                                        "type": "bind",
+                                        "source": str(config),
+                                        "target": "/opt/factory/config",
+                                    },
+                                ]
+                            }
+                        }
+                    }
+                    with (
+                        patch("sys.argv", ["factoryctl", action, *args]),
+                        patch("subprocess.check_output", return_value=json.dumps(compose)),
+                        patch("subprocess.run") as run,
+                        patch("shutil.which", return_value="/operator/sbx"),
+                    ):
+                        runpy.run_path(
+                            str(Path(__file__).resolve().parents[1] / "scripts/factoryctl")
+                        )
+                    command = run.call_args.args[0]
+                    if backend == "docker-sandboxes" and not args:
+                        self.assertEqual(command[:2], ("/operator/sbx", "secret"))
+                        self.assertEqual(
+                            command[2:],
+                            ("set", "openai", "--oauth")
+                            if action == "codex-login"
+                            else ("rm", "openai", "--force"),
+                        )
+                    else:
+                        self.assertEqual(command[-2:], ("/opt/factory/configure.py", action))
+
     def native_start(self, *, preflight_failure=False):
         with tempfile.TemporaryDirectory() as temporary:
             config = Path(temporary)

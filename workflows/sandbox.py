@@ -66,11 +66,15 @@ def worker(root, config):
     profile = api("GET", "/api/agent-profiles/factory-codex")["profile"]
     require_disk_space(root)
     name = root.name
-    encryption_key = (
-        os.environ.get("OH_SECRET_KEY") or Path("/run/secrets/encryption-key").read_text().strip()
-    )
-    parent = FileSecretsStore("/home/openhands/.openhands", Cipher(encryption_key))
-    value, version = load_credential(parent)
+    options = docker_sandboxes.settings()
+    parent = None
+    if options["backend"] == "docker":
+        encryption_key = (
+            os.environ.get("OH_SECRET_KEY")
+            or Path("/run/secrets/encryption-key").read_text().strip()
+        )
+        parent = FileSecretsStore("/home/openhands/.openhands", Cipher(encryption_key))
+        value, version = load_credential(parent)
     settings = {
         "OH_SESSION_API_KEYS_0": secrets.token_urlsafe(32),
         "OH_CONVERSATION_WORKTREE_ROOT": str(root / "worktrees"),
@@ -82,7 +86,6 @@ def worker(root, config):
     old = {key: os.environ.get(key) for key in settings}
     try:
         os.environ.update(settings)
-        options = docker_sandboxes.settings()
         runtime = (
             docker_sandboxes.worker(root, mounts(root, config), settings, options)
             if options["backend"] == "docker-sandboxes"
@@ -113,23 +116,25 @@ def worker(root, config):
                 recorder.save()
             for selected in configs:
                 provenance.required(manifest, selected.get("required_environment", {}))
-            workspace.client.put(
-                "/api/settings/secrets",
-                json={
-                    "name": "CODEX_AUTH_JSON",
-                    "value": value,
-                },
-            ).raise_for_status()
+            # Native sbx owns OAuth on the host. Leaving this store empty also
+            # prevents OpenHands from automatically binding a real auth.json.
+            if parent is not None:
+                workspace.client.put(
+                    "/api/settings/secrets",
+                    json={"name": "CODEX_AUTH_JSON", "value": value},
+                ).raise_for_status()
             try:
                 yield workspace
             finally:
                 primary_failure = sys.exc_info()[0] is not None
-                credentials = [value, settings["OH_SESSION_API_KEYS_0"]]
+                credentials = [settings["OH_SESSION_API_KEYS_0"]]
                 try:
-                    refreshed = workspace.client.get("/api/settings/secrets/CODEX_AUTH_JSON")
-                    refreshed.raise_for_status()
-                    credentials.append(refreshed.text)
-                    sync_credential(parent, version, value, refreshed.text)
+                    if parent is not None:
+                        credentials.append(value)
+                        refreshed = workspace.client.get("/api/settings/secrets/CODEX_AUTH_JSON")
+                        refreshed.raise_for_status()
+                        credentials.append(refreshed.text)
+                        sync_credential(parent, version, value, refreshed.text)
                 except Exception as exc:
                     if not primary_failure:
                         raise

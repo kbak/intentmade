@@ -54,7 +54,12 @@ def render(original, options, *, command, socket, auth_directory, uid, gid):
         True,
     )
     mount(socket, "/run/sbx/sandboxd.sock")
-    mount(auth_directory, "/home/openhands/.config/com.docker.sandboxes")
+    # Native credential authorization refers to host paths. Rewriting these
+    # paths inside the controller makes an otherwise valid binding ineffective.
+    config_home = Path(auth_directory).parent
+    mount(auth_directory, auth_directory)
+    mount(config_home / "sbx", config_home / "sbx", True)
+    mount(config_home / "sandboxes", config_home / "sandboxes")
     mount(options["kit"], options["kit"], True)
     mount(workspaces, workspaces)
     if options.get("profiles"):
@@ -64,6 +69,7 @@ def render(original, options, *, command, socket, auth_directory, uid, gid):
     environment.update(
         DOCKER_SANDBOXES_API="unix:///run/sbx/sandboxd.sock",
         SBX_NO_TELEMETRY="1",
+        XDG_CONFIG_HOME=str(config_home),
         FACTORY_DATA=workspaces,
     )
     result["services"].pop("sandboxes", None)
@@ -86,6 +92,13 @@ def resolve(original, options):
         raise ValueError("Start the local sbx daemon before factoryctl up")
     socket = status["socket"]
     auth = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "com.docker.sandboxes"
+    for directory in (auth, auth.parent / "sbx", auth.parent / "sandboxes"):
+        if not directory.is_dir():
+            raise ValueError(
+                f"Native configuration directory missing: {directory}; "
+                "complete sbx login and configure the Kit's native credential bindings "
+                "before factoryctl up (see docs/docker-sandboxes.md#credentials)"
+            )
     return render(
         original,
         options,

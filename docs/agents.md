@@ -14,7 +14,8 @@ which use Codex through ACP.
 
 Connect the workers with `./scripts/factoryctl codex-login`. The **Settings →
 LLM → ChatGPT subscription** card connects OpenHands' own LLM backend, not the
-factory's ACP workers. See [setup](getting-started.md).
+factory's ACP workers. With Docker Sandboxes, use `codex-login --canvas`
+for the separate coordinator login. See [setup](getting-started.md).
 
 ## Roles
 
