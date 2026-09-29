@@ -82,7 +82,18 @@ def projects(config_dir=None):
             config["repository"] = issues.normalize_repo(config["repository"])
         if "traceability" in config:
             raise ValueError(f"{name}: replace inline traceability with a traceability_scope path")
-        if "traceability_scope" in config:
+        if "traceability_scope_git" in config:
+            if "traceability_scope" in config:
+                raise ValueError(f"{name}: choose traceability_scope or traceability_scope_git")
+            if "test_command" in registration:
+                raise ValueError(f"{name}: put the test command only in the traceability scope")
+            from traceability.scope_identity import capture_git
+
+            config["traceability_scope"], config["traceability_scope_source"] = capture_git(
+                Path("/projects/repos") / name, config["traceability_scope_git"]
+            )
+            config.pop("test_command", None)
+        elif "traceability_scope" in config:
             reference = config["traceability_scope"]
             if (
                 not isinstance(reference, str)

@@ -76,6 +76,69 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class StartupTests(unittest.TestCase):
+    def test_plan_and_submit_forward_documents_without_container_path_assumptions(self):
+        # [utest~im-sdlc-cli-handoff~1->req~im-portable-plan~1]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            documents = {name: "# " + name + "\n" for name in ("intent.md", "spec.md", "plan.md")}
+            for name, content in documents.items():
+                (root / name).write_text(content)
+            package = {"task": "task", "documents": documents}
+            compose = {
+                "services": {
+                    "canvas": {
+                        "volumes": [
+                            {
+                                "type": "bind",
+                                "source": str(root / "workspaces"),
+                                "target": "/workspaces",
+                            },
+                            {"type": "bind", "source": str(root), "target": "/opt/factory/config"},
+                        ]
+                    }
+                }
+            }
+            output = root / "work-package.json"
+            for arguments in (
+                [
+                    "plan",
+                    "example",
+                    str(root / "spec.md"),
+                    "--intent",
+                    str(root / "intent.md"),
+                    "--plan",
+                    str(root / "plan.md"),
+                    "--output",
+                    str(output),
+                ],
+                [
+                    "submit",
+                    "example",
+                    str(root / "spec.md"),
+                    "--work-package",
+                    str(output),
+                    "--run",
+                ],
+            ):
+                with (
+                    patch("sys.argv", ["factoryctl", *arguments]),
+                    patch("subprocess.check_output", return_value=json.dumps(compose)),
+                    patch("subprocess.run", return_value=Mock(stdout=json.dumps(package))) as run,
+                ):
+                    runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts/factoryctl"))
+                supplied = json.loads(run.call_args.kwargs["input"])
+                if arguments[0] == "plan":
+                    self.assertEqual(supplied, documents)
+                    self.assertEqual(json.loads(output.read_text()), package)
+                    self.assertNotIn("--run", run.call_args.args[0])
+                else:
+                    self.assertEqual(
+                        supplied, {"request": documents["spec.md"], "work_package": package}
+                    )
+                    self.assertIn("--submission-stdin", run.call_args.args[0])
+                    self.assertIn("--run", run.call_args.args[0])
+                    self.assertNotIn(str(output), run.call_args.args[0])
+
     def test_login_and_logout_select_the_worker_backend_or_explicit_canvas(self):
         for backend, args in (
             ("docker", []),

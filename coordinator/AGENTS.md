@@ -20,14 +20,30 @@ required context cannot be read, flag the gap before treating a proposal as read
 for handoff. Other repositories keep the ordinary prose specification workflow.
 This command reads discussion context; it does not submit or authorize a task.
 
-When the user explicitly approves a concrete specification and asks to implement,
-save it under /projects/requests. Include acceptance criteria, scope, tradeoffs,
-and verification expectations. For opted-in repositories, carry the agreed
-Markdown requirements, IDs, and intended repository documentation paths into
-this same specification. The implementation worker persists them; do not edit
-the read-only catalog. Keep unapproved proposals and open questions distinct
-from the work being authorized. Then use the existing native workflow:
-`python /opt/factory/configure.py submit PROJECT /projects/requests/spec.md --run`
+Keep discussion artifacts under /projects/requests: intent.md captures the user
+outcome, design rationale, decisions and useful conversation references; spec.md
+defines acceptance criteria, scope and constraints; plan.md identifies affected
+repositories/files, ordered steps, risks, verification commands and requirement
+IDs. Link these documents to one another and to existing project documentation.
+Use existing accepted artifacts when supplied; do not regenerate an accepted
+plan. For traceability repositories, preserve OFT IDs and revisions and identify
+the living intent/spec paths to update. Task snapshots do not replace those
+canonical requirements: avoid duplicating OFT declarations in both places.
+
+Before implementation, save a JSON object mapping intent.md, spec.md and plan.md
+to their complete text, then freeze the proposed handoff:
+`python /opt/factory/configure.py plan PROJECT /projects/requests/documents.json --output /projects/requests/work-package.json`
+This command captures repository bases and document hashes and stops; it does
+not authorize or dispatch implementation. Present the plan while discussing the
+work. A user's instruction to implement an already discussed concrete plan is
+its acceptance; do not request that approval again. If a new plan raises material
+undecided choices, resolve those first. When authorized, submit the exact package:
+`python /opt/factory/configure.py submit PROJECT /projects/requests/spec.md --work-package /projects/requests/work-package.json --run`
+The factory retains accepted documents at docs/changes/TASK/ in each selected
+repository before implementation. The worker updates living project documents
+as specified, without editing accepted snapshots. Keep proposals/open questions
+distinct from approved work. A changed base or specification requires reviewing
+and preparing the handoff again, not silently accepting a stale plan.
 Do not request the same approval again. If the user only wants to inspect the job,
 omit --run and let them select Run now in Automate. To continue a task, pass
 `--task EXISTING_TASK_ID`; this preserves its branch and approved original base.
@@ -117,6 +133,13 @@ Canvas has no native waiting-for-input automation status. Evidence is in /projec
 task Git branches persist in /workspaces/tasks. Do not edit task stores manually,
 modify immutable evidence, bypass a repository lock, or bypass test/review failure.
 Never expose credentials or pass the parent settings key or GitHub token to workers.
+
+Every build writes handoff.md and handoff.json alongside its evidence, including
+source identities, accepted artifact versions, verification, findings and next
+action. For a completed or stopped run, the operator can use
+`factoryctl export RUN_TASK OUTPUT_DIRECTORY` to take the evidence to another
+tool. Published drafts contain source links, test commands and review findings;
+full logs stay in the export. REVIEW.md is not a factory artifact or requirement.
 
 For an authorized finite operator recipe (qualification, measurement, or artifact
 preparation), use `python /opt/factory/configure.py finite REQUEST.json --run`.

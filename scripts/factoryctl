@@ -98,6 +98,8 @@ p.add_argument(
         "codex-login",
         "codex-logout",
         "submit",
+        "plan",
+        "export",
         "review",
         "retry-issue",
         "refresh",
@@ -224,6 +226,38 @@ elif a.action == "configure":
     credential = run("gh", "auth", "token", capture_output=True, text=True).stdout
     native("github-login", input=credential, text=True)
     native("configure", *a.args)
+elif a.action == "plan":
+    planning = argparse.ArgumentParser(prog="factoryctl plan")
+    planning.add_argument("project")
+    planning.add_argument("spec")
+    planning.add_argument("--intent", required=True)
+    planning.add_argument("--plan", required=True)
+    planning.add_argument("--task")
+    planning.add_argument("--output", required=True)
+    options = planning.parse_args(a.args)
+    documents = {
+        "intent.md": Path(options.intent).read_text(),
+        "spec.md": Path(options.spec).read_text(),
+        "plan.md": Path(options.plan).read_text(),
+    }
+    result = native(
+        "plan",
+        options.project,
+        "-",
+        *(["--task", options.task] if options.task else []),
+        input=json.dumps(documents),
+        text=True,
+        capture_output=True,
+    )
+    package = json.loads(result.stdout)
+    Path(options.output).write_text(json.dumps(package, indent=2) + "\n")
+    print("Planning package saved:", options.output, "— task:", package["task"])
+elif a.action == "export":
+    from export_handoff import export
+
+    if len(a.args) != 2:
+        p.error("export requires RUN_TASK OUTPUT_DIRECTORY")
+    export(Path(MOUNTS["/projects/artifacts"]), a.args[0], Path(a.args[1]))
 elif a.action == "submit":
     if len(a.args) < 2:
         p.error(
@@ -234,7 +268,22 @@ elif a.action == "submit":
         if index + 1 >= len(a.args):
             p.error("--inputs requires a manifest file")
         a.args[index : index + 2] = ["--inputs-json", Path(a.args[index + 1]).read_text()]
-    native("submit", a.args[0], "-", *a.args[2:], input=Path(a.args[1]).read_text(), text=True)
+    envelope = {"request": Path(a.args[1]).read_text()}
+    if "--work-package" in a.args:
+        index = a.args.index("--work-package")
+        if index + 1 >= len(a.args):
+            p.error("--work-package requires a JSON file")
+        envelope["work_package"] = json.loads(Path(a.args[index + 1]).read_text())
+        del a.args[index : index + 2]
+    native(
+        "submit",
+        a.args[0],
+        "-",
+        *a.args[2:],
+        "--submission-stdin",
+        input=json.dumps(envelope),
+        text=True,
+    )
 elif a.action in {"codex-login", "codex-logout"}:
     if a.args not in ([], ["--canvas"]):
         p.error(a.action + " accepts only --canvas (the separate coordinator login)")

@@ -61,10 +61,29 @@ configuration. A project-owned scope travels with the project: standalone
 maintained scope can also be used standalone with `--scope`, provided its test
 dependencies and environment are available.
 
-The factory currently loads scopes from `FACTORY_CONFIG_DIR`, the configuration
-directory mounted at `/opt/factory/config`. It does not yet load scopes from
-project Git commits. The config directory can live wherever the operator
-chooses; it does not require a particular repository or directory name.
+The factory can capture a scope from an operator-selected project Git commit:
+
+```json
+{
+  "traceability_scope_git": {
+    "revision": "0123456789abcdef0123456789abcdef01234567",
+    "path": "scope.json"
+  }
+}
+```
+
+Replace the example revision with a reviewed full commit ID available in
+`/projects/repos/PROJECT` (refresh the catalog first when necessary). Branch names
+and candidate revisions inferred at execution time are not accepted. The loader
+reads a regular Git blob at that exact revision, captures its bytes and identity,
+and includes them in the native payload. Updating the project file cannot silently
+change an existing task's policy. Deliberately update the registration pin and
+reconfigure to adopt a new policy. Prefer project-owned test commands in that scope.
+
+Alternatively, load scopes from `FACTORY_CONFIG_DIR`, mounted at `/opt/factory/config`.
+The config directory can live wherever the operator chooses. Choose exactly one
+of `traceability_scope_git` and `traceability_scope`; both select the same portable
+checks and neither permits a second `test_command` in the registration.
 
 For factory use, place a scope under that directory, for example at
 `traceability/my-project.json`. In `repositories/my-project.json`, reference it
@@ -76,7 +95,7 @@ relative to the config directory:
 }
 ```
 
-The reference enables the workflow. Missing or invalid files are configuration
+Either reference enables the workflow. Missing or invalid files/revisions are configuration
 errors. Without a reference, the repository keeps its usual workflow. Paths
 must stay inside the config directory. The location restriction belongs to the
 current factory loader, not the portable scope format. Maintain one authoritative

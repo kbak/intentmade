@@ -53,6 +53,13 @@ Needs: req
 Rationale: carrying the request and verified inputs through repair and continuation
 avoids losing the original task while recovering from an unsuccessful attempt.
 
+Agreed direction: projects should remain understandable and usable when people
+leave IntentMade for another development tool. Keep intent, specification and
+planning in ordinary project artifacts, preserve accepted versions and trace
+links, and export continuation/evidence. Add artifacts only when they serve the
+factory: a separate REVIEW.md would duplicate its existing review policy and is
+not part of this workflow.
+
 Source: [feature work](workflows.md#feature-work), [declared inputs](input-artifacts.md)
 and [repair context](repair-context.md).
 

@@ -22,6 +22,7 @@ The boundary column identifies areas needing more detailed requirements or check
 | Independent review and maintenance | [review-evidence](#derive-review-verdicts-from-native-evidence-and-complete-coverage), [immutable-pr-comparison](#review-the-captured-base-and-head), [pr-publication](#recheck-review-identity-and-ci-before-posting), [review-retry](#reconcile-uncertain-review-publication), [review-report-integrity](#preserve-findings-through-report-consolidation), [feedback-authority](#accept-maintenance-feedback-only-from-eligible-sources), [feedback-lifecycle](#deduplicate-and-recheck-maintenance-feedback) | Native read-only enforcement, model finding quality and live API behavior are not established by scripted tests. |
 | Browser acceptance | [browser-evidence](#require-browser-checks-screenshots-and-unchanged-source), [browser-gap-acceptance](#make-accepted-browser-gaps-explicit) | Live browser interaction and screenshot delivery probe not selected by the regression command. |
 | Inputs and continuation | [input-bytes](#verify-and-freeze-declared-input-artifacts), [input-restart](#bind-input-declarations-across-task-restarts), [repair-context](#reuse-only-matching-retained-repair-context) | Input size/count combinatorics and bounded continuation record limits need further boundary tests. |
+| Portable workflow | [portable-plan](#retain-an-explicitly-accepted-planning-package), [repository-policy](#capture-verification-policy-from-a-pinned-project-commit), [portable-handoff](#export-source-bound-continuation-and-review-evidence) | Explicit package gates are controller-enforced; request-only delegated planning remains agent guidance. No live model or GitHub qualification. |
 | IntentBond integration | [trace-opt-in](#enable-traceability-through-explicit-configuration), [trace-source-gate](#match-controller-evidence-to-exported-source-and-policy), [trace-assessment](#require-semantic-accounting-beyond-a-green-trace-graph), [scope-identity](#distinguish-scope-bytes-from-canonical-policy), [trace-retention](#retain-bounded-invocation-evidence-including-failures) | Deployment activation requires explicit configuration; fixture annotations are excluded through the trusted scope. |
 | Observability and operator automation | [execution-provenance](#keep-observed-environment-identity-distinct-from-intent), [finite-completion](#record-finite-execution-before-acknowledgement), [finite-timeout](#stop-timed-out-finite-recipes), [measurement-outcomes](#preserve-attempts-and-unknown-measurements), [startup-retry](#retry-only-a-typed-pre-work-startup-timeout) | Provider counter conversion, finite registration consistency, full CLI/setup and backup/restore promises remain deferred. |
 | Runtime validation | [runtime-build-inputs](#runtime-test-image-matches-candidate-patch-inputs) | A matching build manifest checks consistency; it does not attest an untrusted image. |
@@ -42,7 +43,7 @@ update the trusted image pin when those inputs change. Load that image into the
 job daemon for factory use; a local ID is not a registry distribution reference.
 
 JUnit records named test-method outcomes, and explicit `oft_id` metadata connects
-110 linked test artifacts to execution observations. The scope requires every
+120 linked test artifacts to execution observations. The scope requires every
 listed artifact to pass and rejects skipped cases. These associations identify
 executed assertions; they do not establish that the assertions adequately verify
 every clause. Approval, structural coverage and runtime evidence remain distinct.
@@ -746,3 +747,77 @@ Needs: impl, utest
 Implementation: [manifest and verify](../runtime/build_inputs.py), [regression runner](../scripts/check_factory.py).
 
 Existing assertions: [test_patch_additions_removals_modes_and_lock_changes_require_rebuild](../tests/test_build_inputs.py).
+
+### Retain an explicitly accepted planning package
+`req~im-portable-plan~1`
+
+Planning must freeze supplied intent, specification and plan documents with their
+hashes and selected repository base commits without dispatching implementation.
+Explicit submission accepts the package only for its matching task, specification
+and bases. Accepted documents must enter the task source before implementation,
+remain unchanged in the exported candidate, and be supplied to implementation
+and independent review. A retained task must not silently adopt a different
+package. Existing request-only and issue workflows retain their authorization.
+
+Covers:
+- `intent~im-deliver-changes~1`
+- `intent~im-authorized-work~1`
+
+Needs: impl, utest
+
+Documentation: [portable workflow](portable-workflow.md).
+
+Implementation: [sdlc.py](../workflows/sdlc.py), [configure.py](../scripts/configure.py), [run.py](../workflows/run.py).
+
+Existing assertions: [planning, identity and lifecycle checks](../tests/test_sdlc.py).
+
+Evidence limit: scripted agents and real Git exercise package custody and rejection;
+they do not establish plan quality or the quality of delegated request-only planning.
+
+### Capture verification policy from a pinned project commit
+`req~im-repository-policy~1`
+
+An operator may select a repository-owned scope using a full Git commit ID and
+relative regular-file path. Capture its exact bytes and source identity into the
+native job payload. Candidate edits and later catalog updates must not replace
+that selected policy. Reject symbolic revisions, missing/linked files, conflicting
+scope sources and a second registration test command. External scopes remain supported.
+
+Covers:
+- `intent~im-trust-evidence~1`
+
+Needs: impl, utest
+
+Documentation: [scope configuration](traceability.md#configuration).
+
+Implementation: [scope_identity.py](../workflows/traceability/scope_identity.py), [common.py](../workflows/common.py).
+
+Existing assertions: [pinned policy and configuration checks](../tests/test_sdlc.py).
+
+### Export source-bound continuation and review evidence
+`req~im-portable-handoff~1`
+
+Build execution must maintain readable and structured handoffs on success and
+failure, identifying the task phase, retained source, accepted artifact versions
+when supplied, verification outcomes, available review findings and next action.
+Draft publication must include source-bound evidence and accepted-artifact links
+without altering the validated commit; repair publication must preserve other PR
+text while refreshing its evidence section. A stopped run's supported evidence
+files must be exportable with hashes; missing checks cannot be represented as
+passes. Do not introduce a separate REVIEW.md review policy.
+
+Covers:
+- `intent~im-deliver-changes~1`
+- `intent~im-review-changes~1`
+- `intent~im-trust-evidence~1`
+
+Needs: impl, utest
+
+Documentation: [portable workflow](portable-workflow.md#continue-elsewhere).
+
+Implementation: [sdlc.py](../workflows/sdlc.py), [export_handoff.py](../scripts/export_handoff.py), [run.py](../workflows/run.py).
+
+Existing assertions: [handoff, publication content and failed-run export](../tests/test_sdlc.py).
+
+Evidence limit: local tests verify content and identity; live GitHub posting and
+another tool's ability to interpret the exported artifacts are not established.

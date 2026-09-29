@@ -14,6 +14,7 @@ import input_artifacts
 import measurements
 import repair_context
 import reporting
+import sdlc
 import traceability
 from agent import StructuredResponseError, converse, worktree
 from cleanup import job_directory
@@ -154,10 +155,12 @@ def publish(
     browser_result=None,
 ):
     title = pull_request_title(title or request, config)
+    review_evidence = sdlc.pr_evidence(artifact, config, repo)
     body = (
         (summary or request.splitlines()[0]).strip()[:35000]
         + "\n\n### Validation\n\n- Tests passed.\n- Alibaba code and security review passed.\n"
         + browser_qa.limitations(browser_result or {})
+        + sdlc.evidence_block(review_evidence)
         + (f"\nCloses #{issue}\n" if issue else "")
     )
     if issue:
@@ -189,6 +192,13 @@ def publish(
             credential, config["repository"], branch, config["branch"], title, body
         )
     )
+    if repair and review_evidence:
+        github(
+            credential,
+            "PATCH",
+            f"/repos/{config['repository']}/pulls/{repair['number']}",
+            body={"body": sdlc.update_pr_evidence(result.get("body") or "", review_evidence)},
+        )
     (artifact / "pull-request.json").write_text(json.dumps(result, indent=2))
     from followup import track
 
@@ -218,9 +228,12 @@ def build_group(
     issue=None,
     publish_draft=None,
     input_artifacts_declared=None,
+    work_package=None,
 ):
     """Single-repository and grouped tasks share this pipeline and native workspaces."""
     identifier(task)
+    if work_package is not None:
+        sdlc.accept(work_package, task, bases, request)
     if not configs or len({c["project"] for c in configs}) != len(configs):
         raise ValueError("A task needs unique repositories")
     if issue is not None and len(configs) != 1:
@@ -252,6 +265,14 @@ def build_group(
                 ).stdout.strip(),
                 "repository": str(repository),
             }
+            package = sdlc.bind(repository, work_package)
+            if package is not None:
+                states[project]["work_package"] = {
+                    "directory": package["directory"],
+                    "sha256": package["sha256"],
+                    "work_package_sha256": sdlc.digest(sdlc.encoded(package)),
+                }
+                (artifact / "work-package.json").write_bytes(sdlc.encoded(package))
             if config["repository"] and states[project]["base"] != bases[project]:
                 git(
                     ["--git-dir", str(repository), "fetch", "--no-tags", "origin", bases[project]],
@@ -357,6 +378,7 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
         job_directory(DATA, artifact) as root,
     ):
         prepare_sources(root, states)
+        sdlc.stage(states)
         if attempt and continuation is None:
             prompt += stage_test_evidence(configs, artifact, attempt - 1, root)
         trace_runs = traceability.prepare(configs, states, root, artifact, attempt)
@@ -419,9 +441,11 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                     implementation = converse(
                         workspace,
                         prompt
+                        + f"\n\nTask ID: {task}"
                         + "\n\nTask repositories:\n"
                         + task_context(states)
                         + input_artifacts.instructions()
+                        + sdlc.instructions(states)
                         + traceability.instructions(trace_runs, states, environments)
                         + "\nBase-branch merge results (resolve any conflicts, preserving both sides' intended behavior):\n"
                         + "\n".join(s.get("merge_output", "") for s in states.values())
@@ -552,6 +576,7 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                     if key in details
                 }
                 test_output.append(project + " traceability:\n" + json.dumps(feedback))
+    sdlc.verify(states)
     return results, test_output
 
 
@@ -583,6 +608,7 @@ def review_changes(configs, states, request, results, transcript=None, *, artifa
                 + "\nSpecification:\n"
                 + request
                 + input_artifacts.instructions()
+                + sdlc.instructions(states)
                 + traceability.review_context(trace_review),
                 title="Independent review",
                 transcript=transcript,
@@ -687,6 +713,7 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
 
     def save():
         (artifact / "result.json").write_text(json.dumps(outcome, indent=2))
+        sdlc.handoff(artifact, outcome)
         measurements.update(outcome)
 
     prompt = request
@@ -936,5 +963,6 @@ if __name__ == "__main__":
             token() if any(c["repository"] for c in configs) else "",
             publish_draft=job.get("publish_draft"),
             input_artifacts_declared=job.get("input_artifacts"),
+            work_package=job.get("work_package"),
         )
         outcome("COMPLETED", "Task validated; inspect its result for draft PR URLs")

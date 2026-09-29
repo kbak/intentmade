@@ -4,7 +4,7 @@ New native task payloads capture both the validated policy and its exact source-
 
 Every traced attempt retains `scope-identity-N.json` alongside the trusted scope. The implementation prompt, independent review context and result record distinguish:
 
-- `source_file`: deployment-relative reference, exact size and SHA-256.
+- `source_file`: deployment-relative reference or `git:COMMIT:PATH` for a pinned repository scope, exact size and SHA-256.
 - `worker_file`: exact exported size and SHA-256. New captures preserve the source bytes, including formatting.
 - `canonical_policy`: SHA-256 of sorted, compact, ASCII-escaped JSON without a trailing newline. Array order is preserved. This is the portable checker's canonical representation, not a file-byte digest.
 

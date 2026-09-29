@@ -326,5 +326,35 @@
   ],
   "test_traceability.TraceabilityPipelineTests.test_required_execution_rejects_skipped_linked_test_before_review_or_publication": [
     "utest~im-required-execution-gate~1"
+  ],
+  "test_sdlc.PortableTests.test_acceptance_rejects_changed_request_bases_documents_and_retained_plan": [
+    "utest~im-sdlc-plan-identity~1"
+  ],
+  "test_sdlc.PortableTests.test_accepted_documents_survive_worktree_tests_export_and_review": [
+    "utest~im-sdlc-plan-lifecycle~1"
+  ],
+  "test_sdlc.PortableTests.test_changed_accepted_document_stops_before_review_and_publication": [
+    "utest~im-sdlc-plan-tampering~1"
+  ],
+  "test_sdlc.PortableTests.test_handoff_pr_and_offline_export_preserve_source_and_findings": [
+    "utest~im-sdlc-handoff-export~1"
+  ],
+  "test_sdlc.PortableTests.test_failed_run_exports_next_action_and_missing_review": [
+    "utest~im-sdlc-failed-handoff~1"
+  ],
+  "test_sdlc.PlanningCommandTests.test_plan_stops_and_submit_carries_exact_accepted_package": [
+    "utest~im-sdlc-planning-command~1"
+  ],
+  "test_sdlc.RepositoryPolicyTests.test_git_scope_is_frozen_from_pin_and_candidate_cannot_replace_it": [
+    "utest~im-sdlc-repository-policy~1"
+  ],
+  "test_sdlc.PortableTests.test_export_refuses_running_jobs_existing_outputs_and_linked_files": [
+    "utest~im-sdlc-export-boundaries~1"
+  ],
+  "test_sdlc.PortableTests.test_repair_publication_refreshes_evidence_and_preserves_other_pr_text": [
+    "utest~im-sdlc-repair-publication~1"
+  ],
+  "test_factoryctl.StartupTests.test_plan_and_submit_forward_documents_without_container_path_assumptions": [
+    "utest~im-sdlc-cli-handoff~1"
   ]
 }

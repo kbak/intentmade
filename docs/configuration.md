@@ -37,6 +37,12 @@ For an external test adapter, put its files under `profiles/NAME/` and set
 uses that profile's read-only mount; escape the quotes in JSON. Multiple
 repositories can share a profile. A profile is optional.
 
+For portability, prefer project-owned test scripts that also run outside the
+factory. Traceability repositories can select their scope from a reviewed Git
+commit with `traceability_scope_git`; see [scope configuration](traceability.md#configuration).
+Accepted intent/spec/plan packages and evidence exports are described in the
+[portable workflow](portable-workflow.md).
+
 ### Resource limits
 
 An optional `worker_runtime` object in `deployment.json` selects the experimental

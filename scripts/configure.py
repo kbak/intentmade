@@ -252,19 +252,7 @@ def discussion(project):
     return discussion_context([configured[member] for member in members])
 
 
-def submit(project, spec, task=None, run=False, publish=None, inputs=None):
-    from input_artifacts import validate
-
-    declared = validate([] if inputs is None else inputs)
-    configured = projects()
-    members = factories().get(project, [project])
-    configs = [configured[member] for member in members]
-    request = (sys.stdin.read() if spec == "-" else Path(spec).read_text()).strip()
-    if not request:
-        raise ValueError("The reviewed specification is empty")
-    task = identifier(task or "feature-" + uuid.uuid4().hex[:12])
-    name = "Build — " + project + " — " + task
-    previous = next((x for x in records() if x["name"] == name), None)
+def selected_bases(configs):
     bases = {}
     credential = token() if any(c["repository"] for c in configs) else ""
     for config in configs:
@@ -278,7 +266,51 @@ def submit(project, spec, task=None, run=False, publish=None, inputs=None):
                 ["-c", "safe.directory=" + source, "-C", source, "rev-parse", "HEAD"]
             ).stdout.strip()
         bases[config["project"]] = base
+    return bases
+
+
+def plan(project, documents, task=None):
+    """Freeze discussion documents and source identity; never dispatch a build."""
+    from sdlc import propose
+
+    configured = projects()
+    configs = [configured[member] for member in factories().get(project, [project])]
+    return propose(task or "feature-" + uuid.uuid4().hex[:12], selected_bases(configs), documents)
+
+
+def submit(
+    project,
+    spec,
+    task=None,
+    run=False,
+    publish=None,
+    inputs=None,
+    work_package=None,
+    request_text=None,
+):
+    from input_artifacts import validate
+    from sdlc import accept
+
+    declared = validate([] if inputs is None else inputs)
+    configured = projects()
+    members = factories().get(project, [project])
+    configs = [configured[member] for member in members]
+    request = (
+        request_text
+        if request_text is not None
+        else (sys.stdin.read() if spec == "-" else Path(spec).read_text())
+    ).strip()
+    if not request:
+        raise ValueError("The reviewed specification is empty")
+    task = identifier(
+        task or (work_package or {}).get("task") or "feature-" + uuid.uuid4().hex[:12]
+    )
+    name = "Build — " + project + " — " + task
+    previous = next((x for x in records() if x["name"] == name), None)
+    bases = selected_bases(configs)
     job = {"configs": configs, "task": task, "bases": bases, "publish_draft": publish}
+    if work_package is not None:
+        job["work_package"] = accept(work_package, task, bases, request)
     if declared:
         job["input_artifacts"] = declared
     bundle = files(job)
@@ -395,6 +427,13 @@ if __name__ == "__main__":
     finite_status.add_argument("automation_id")
     finite_status.add_argument("run_id")
     sub.add_parser("discussion").add_argument("project")
+    planning = sub.add_parser("plan")
+    planning.add_argument("project")
+    planning.add_argument(
+        "documents", help="JSON object containing intent.md, spec.md, plan.md text; - for stdin"
+    )
+    planning.add_argument("--task")
+    planning.add_argument("--output", help="Save proposed work package here instead of stdout")
     review_command = sub.add_parser("review")
     review_command.add_argument("project")
     review_command.add_argument("number", type=int)
@@ -406,6 +445,10 @@ if __name__ == "__main__":
     command.add_argument("project")
     command.add_argument("spec")
     command.add_argument("--task")
+    command.add_argument(
+        "--work-package", help="Previously prepared JSON package accepted by this submission"
+    )
+    command.add_argument("--submission-stdin", action="store_true", help=argparse.SUPPRESS)
     command.add_argument(
         "--inputs-json", help="JSON array of declared controller artifact references"
     )
@@ -437,6 +480,15 @@ if __name__ == "__main__":
         print(json.dumps(inspect_status(args.automation_id, args.run_id), indent=2))
     elif args.action == "discussion":
         print(json.dumps(discussion(args.project), indent=2))
+    elif args.action == "plan":
+        documents = json.loads(
+            sys.stdin.read() if args.documents == "-" else Path(args.documents).read_text()
+        )
+        package = json.dumps(plan(args.project, documents, args.task), indent=2) + "\n"
+        if args.output:
+            Path(args.output).write_text(package)
+        else:
+            print(package, end="")
     elif args.action == "configure":
         configure(args.paused)
     elif args.action == "review":
@@ -444,6 +496,7 @@ if __name__ == "__main__":
     elif args.action == "retry-issue":
         retry_issue(args.project, args.number, args.answer_file)
     else:
+        envelope = json.loads(sys.stdin.read()) if args.submission_stdin else {}
         submit(
             args.project,
             args.spec,
@@ -451,4 +504,8 @@ if __name__ == "__main__":
             args.run,
             False if args.no_publish else None,
             json.loads(args.inputs_json) if args.inputs_json else None,
+            json.loads(Path(args.work_package).read_text())
+            if args.work_package
+            else (envelope.get("work_package")),
+            envelope.get("request"),
         )

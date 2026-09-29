@@ -6,6 +6,7 @@
 - [Configuration](configuration.md) — repositories, tests, browser QA, groups, and resource limits.
 - [Deployment choices](deployments.md) — shared core, personal and OSS deployments, and enterprise extension boundaries.
 - [Workflows](workflows.md) — feature builds, issue scheduling, replies, and PR maintenance.
+- [Portable workflow](portable-workflow.md) — accepted intent/spec/plan artifacts, source-bound review and exportable continuation.
 - [Reviews](reviews.md) — independent review, GitHub verdicts, and optional security audits.
 - [Agents](agents.md) — model selection, roles, and workflow skills.
 - [Operations](operations.md) — updates, backups, recovery, and observability.
@@ -14,7 +15,7 @@
 ## Requirements and evidence
 
 - [Intent](intent.md) — intended outcomes, rationale and conversation guidance.
-- [Specification](spec.md) — the 40 maintained requirements and their code/test links.
+- [Specification](spec.md) — maintained requirements and their code/test links.
 - [Traceability](traceability.md) — configure IntentBond and understand the validation stages.
 - [Traceability agent API](traceability-agent-api.md) — guidance and command helpers.
 - [Scope identity](scope-identity.md) — capture and verify the selected policy.

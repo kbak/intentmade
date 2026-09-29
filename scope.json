@@ -184,7 +184,17 @@
         "utest~im-transfer-TransferTests-hostile_git_config_stays_in_worker_and_review_uses_fresh_clone",
         "utest~im-worker_credentials_backend-WorkerCredentialTests-native_success_and_failure_never_read_upload_or_sync_real_login",
         "utest~im-worker_credentials_backend-WorkerCredentialTests-docker_workspace_retains_native_openhands_login_and_refresh",
-        "utest~im-required-execution-gate"
+        "utest~im-required-execution-gate",
+        "utest~im-sdlc-plan-identity",
+        "utest~im-sdlc-plan-lifecycle",
+        "utest~im-sdlc-plan-tampering",
+        "utest~im-sdlc-handoff-export",
+        "utest~im-sdlc-failed-handoff",
+        "utest~im-sdlc-planning-command",
+        "utest~im-sdlc-repository-policy",
+        "utest~im-sdlc-export-boundaries",
+        "utest~im-sdlc-repair-publication",
+        "utest~im-sdlc-cli-handoff"
       ]
     }
   },
