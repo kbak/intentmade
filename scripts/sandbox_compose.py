@@ -53,7 +53,9 @@ def render(original, options, *, command, socket, auth_directory, uid, gid):
         else "/usr/local/bin/sbx",
         True,
     )
-    mount(socket, "/run/sbx/sandboxd.sock")
+    # The daemon replaces its socket on restart. A directory bind follows the
+    # new inode; binding the socket file leaves a running controller disconnected.
+    mount(Path(socket).parent, "/run/sbx", True)
     # Native credential authorization refers to host paths. Rewriting these
     # paths inside the controller makes an otherwise valid binding ineffective.
     config_home = Path(auth_directory).parent

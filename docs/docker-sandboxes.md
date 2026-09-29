@@ -135,8 +135,10 @@ backend, using that controller image's own OpenHands UID/GID.
 The generated deployment mounts the native daemon socket, CLI and Docker sign-in
 state into the trusted controller. Native configuration directories retain their
 absolute host paths through `XDG_CONFIG_HOME`; only `com.docker.sandboxes`,
-`sbx` (read-only bindings), and `sandboxes` are mounted, not the whole host home. It uses Docker's native `DOCKER_SANDBOXES_API`
-setting and disables sbx telemetry. Kit and profile paths are read-only. Job
+`sbx` (read-only bindings), and `sandboxes` are mounted, not the whole host home.
+The daemon directory is mounted read-only so replacement sockets remain visible
+after daemon restarts. It uses Docker's native `DOCKER_SANDBOXES_API` setting and
+disables sbx telemetry. Kit and profile paths are read-only. Job
 storage is mounted at the same absolute host/controller path, using the existing
 `FACTORY_DATA` setting. The separate privileged Docker daemon service is omitted;
 each VM supplies its own test daemon. Use `factoryctl` for lifecycle operations;
