@@ -165,7 +165,8 @@ class DirectReportTests(unittest.TestCase):
         for findings, event in (([], "APPROVE"), ([finding()], "REQUEST_CHANGES")):
             with self.subTest(event=event):
                 result = review.evaluate(
-                    [evidence(code=specialist(summary=summary, blocking_findings=findings))]
+                    [evidence(code=specialist(summary=summary, blocking_findings=findings))],
+                    review_inputs={"app": {"base": "c" * 40, "candidate": "a" * 40, "files": []}},
                 )
                 with patch.object(review_report, "converse") as editor:
                     result.presentation = review_report.consolidate(
@@ -300,6 +301,14 @@ class InitialReviewContextTests(unittest.TestCase):
                     patch.object(monitor.reviews, "_prepare_repository", return_value=checkout),
                     patch.object(monitor.reviews, "_load_repo_review_guide", return_value=""),
                     patch.object(monitor.issues, "_github_paginate", side_effect=paginate),
+                    patch.object(
+                        monitor.review_requests,
+                        "github",
+                        return_value={
+                            "base_commit": {"sha": "c" * 40},
+                            "files": [],
+                        },
+                    ),
                     patch.object(monitor, "worker", return_value=nullcontext(Mock())),
                     patch.object(
                         monitor, "review_code", return_value=review.evaluate([evidence()])

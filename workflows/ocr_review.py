@@ -74,7 +74,12 @@ def prepare(workspace, sources, destination):
             inventory = [
                 {"path": checked_path(item["filename"]), "status": item["status"]} for item in files
             ]
-            preview = {"mode": "github-archive", "to": spec["candidate"], "files": files}
+            preview = {
+                "mode": "github-archive",
+                "from": spec["base"],
+                "to": spec["candidate"],
+                "files": files,
+            }
             flags = []
         else:
             flags = ["--from", spec["base"], "--to", spec["candidate"]]

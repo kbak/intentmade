@@ -83,11 +83,17 @@ class OCRPreparationTests(unittest.TestCase):
                     "candidate": "a" * 40,
                     "files": files,
                     "changed_files": 2,
+                    "base": "c" * 40,
                 },
             },
             self.output,
         )
         self.assertEqual(len(expected["example"]["files"]), 2)
+        self.assertEqual(expected["example"]["base"], "c" * 40)
+        self.assertEqual(expected["example"]["candidate"], "a" * 40)
+        preview = json.loads(self.output.read_text())["projects"]["example"]["preview"]
+        self.assertEqual(preview["from"], "c" * 40)
+        self.assertEqual(preview["to"], "a" * 40)
         self.assertFalse((self.source / ".git").exists())
         self.assertFalse((self.source / "should-not-exist").exists())
         self.assertEqual({p.name for p in self.source.iterdir()}, {name})

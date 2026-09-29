@@ -139,7 +139,7 @@ def _review_pr(config, pr, credential):
         shutil.move(str(checkout), root / "source")
         context = {
             "pr": pr,
-            "files": issues._github_paginate(credential, f"/repos/{repo}/pulls/{number}/files"),
+            "files": review_requests.comparison_files(config, pr, credential),
             "discussion": issues._github_paginate(
                 credential, f"/repos/{repo}/issues/{number}/comments"
             ),
@@ -199,6 +199,7 @@ def _review_pr(config, pr, credential):
                     config["project"]: {
                         "source": str(root / "source"),
                         "candidate": sha,
+                        "base": review_requests.base(pr)["sha"],
                         "files": context["files"],
                         "changed_files": pr["changed_files"],
                     }

@@ -130,6 +130,8 @@ class WorkerProfileTests(unittest.TestCase):
     def test_filtered_parent_env_uses_mounted_encryption_key_without_forwarding_it(self):
         store = Mock()
         store.load_versioned_secret.return_value = ("codex-login", 1)
+        key_file = Mock()
+        key_file.read_text.return_value = "mounted-encryption-key\n"
         workspace = Mock()
         workspace.client.get.return_value.text = "codex-login"
         with (
@@ -138,7 +140,13 @@ class WorkerProfileTests(unittest.TestCase):
             patch.object(
                 sandbox, "api", return_value={"profile": {"acp_model": "gpt-6-astra/xhigh"}}
             ),
-            patch.object(sandbox, "Path") as path,
+            patch.object(
+                sandbox,
+                "Path",
+                side_effect=lambda value: (
+                    key_file if value == "/run/secrets/encryption-key" else Path(value)
+                ),
+            ),
             patch.object(sandbox, "Cipher") as cipher,
             patch.object(sandbox, "FileSecretsStore", return_value=store),
             patch.object(sandbox.subprocess, "run"),
@@ -146,7 +154,6 @@ class WorkerProfileTests(unittest.TestCase):
             patch.object(sandbox, "DockerWorkspace") as docker,
             patch.object(sandbox.provenance, "capture", return_value={"id": "fixture"}),
         ):
-            path.return_value.read_text.return_value = "mounted-encryption-key\n"
             docker.return_value.__enter__.return_value = workspace
             with sandbox.worker(Path(temporary), {}):
                 cipher.assert_called_once_with("mounted-encryption-key")

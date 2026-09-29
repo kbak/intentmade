@@ -17,7 +17,7 @@ class PublicationError(RuntimeError):
 
 def current_protocol(artifact):
     artifact = Path(artifact)
-    if json.loads((artifact / "review.json").read_text()).get("review_protocol") != 2:
+    if json.loads((artifact / "review.json").read_text()).get("review_protocol") != 3:
         return False
     try:
         review_requests.base(json.loads((artifact / "result.json").read_text()))
@@ -70,10 +70,11 @@ def publish(config, pr, review, credential):
         raise PublicationError(
             "Review verdict does not match its blocking findings or traceability obligations"
         )
+    validate_comparison(config, pr, review)
     repo, number, sha = config["repository"], pr["number"], pr["head"]["sha"]
     event = "REQUEST_CHANGES" if blocked else "APPROVE"
     expected = "CHANGES_REQUESTED" if blocked else "APPROVED"
-    marker = f"<!-- factory-review:v2:{repo}:{number}:{review_requests.revision(pr)} -->"
+    marker = f"<!-- factory-review:v3:{repo}:{number}:{review_requests.revision(pr)} -->"
     body = review.report(repo, sha) + "\n\n" + marker
     # All publication paths share this lock, including recovery after an
     # ambiguous GitHub response. Never retry a POST before looking for its result.
@@ -136,6 +137,7 @@ def load_saved(config, pr, artifact):
         raise PublicationError("Saved review does not match this repository, PR, head and base")
     stored = ReviewResult.model_validate_json((artifact / "review.json").read_text())
     validate_traceability(config, stored)
+    validate_comparison(config, pr, stored)
     review = evaluate(
         [json.loads(line) for line in (artifact / "review.jsonl").read_text().splitlines()],
         stored.traceability_context,
@@ -149,3 +151,16 @@ def load_saved(config, pr, artifact):
     if stored.presentation:
         validate_report(review, stored.presentation)
     return stored
+
+
+def validate_comparison(config, pr, review):
+    expected = review.review_inputs
+    if (
+        review.review_protocol != 3
+        or set(expected) != {config["project"]}
+        or expected[config["project"]].get("base") != review_requests.base(pr)["sha"]
+        or expected[config["project"]].get("candidate") != pr["head"]["sha"]
+    ):
+        raise PublicationError(
+            "Review inputs are not bound to this immutable comparison; a fresh review is required"
+        )

@@ -57,9 +57,14 @@ credentials or running work. A failed update aborts the worker. The job test
 daemon retains its Compose CPU/memory limits and receives a process limit of
 2048. Canvas and the outer daemon retain their limits in [compose.yaml](../compose.yaml).
 
-The controller also bounds incoming Git bundles (256 MiB), compressed review
-archives (256 MiB), expanded archives (1024 MiB), and archive members (100000).
-It rejects oversized input and leaves failed work available for recovery. A
+The controller also bounds incoming Git bundles (256 MiB), retained patches
+(`max_patch_mb`, 64 MiB), compressed review archives (256 MiB), expanded archives
+(1024 MiB), and archive members (100000). Git bundle inspection, import and patch
+generation have a per-process address-space ceiling (`git_memory_mb`, 1024 MiB),
+a 600-second timeout and bounded output. Patch generation streams to disk; only
+a complete patch replaces the previous artifact. An oversized patch fails the
+attempt while preserving its imported task branch for recovery. These limits
+can be raised deliberately for unusually large repositories. A
 5120 MiB free-disk admission check stops new jobs when storage is low. This check
 is not a filesystem quota: running jobs, Git object expansion, Docker images and
 retained artifacts can still consume disk. A hard disk ceiling requires a quota

@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+import job_files
 import provenance
 
 
@@ -16,17 +17,19 @@ def now():
     return datetime.now(UTC).isoformat()
 
 
-def write(path, record):
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(record, indent=2) + "\n")
-    temporary.replace(path)
+def write(path, record, *, trusted_root=None):
+    job_files.write_text(
+        trusted_root if trusted_root is not None else path.parent,
+        path,
+        json.dumps(record, indent=2) + "\n",
+    )
 
 
-def begin(root, phase, repo, scope, base):
+def begin(root, phase, repo, scope, base, *, trusted_root=None):
     identity = str(uuid4())
     prefix = "agent-check-" if phase == "feedback" else "controller-check-"
     directory = Path(root) / (prefix + identity)
-    directory.mkdir()
+    job_files.mkdir(trusted_root if trusted_root is not None else root, directory)
     command = [
         "python",
         "-m",
@@ -61,11 +64,11 @@ def begin(root, phase, repo, scope, base):
         if phase == "feedback"
         else None,
     }
-    write(directory / "invocation.json", record)
+    write(directory / "invocation.json", record, trusted_root=trusted_root)
     return directory, record
 
 
-def finish(directory, record, started, exit_code, error_type=None):
+def finish(directory, record, started, exit_code, error_type=None, *, trusted_root=None):
     record.update(
         completed_at=now(),
         elapsed_seconds=round(time.monotonic() - started, 3),
@@ -73,7 +76,7 @@ def finish(directory, record, started, exit_code, error_type=None):
         status="finished" if exit_code is not None else "incomplete",
         error_type=error_type,
     )
-    write(directory / "invocation.json", record)
+    write(directory / "invocation.json", record, trusted_root=trusted_root)
 
 
 def main():

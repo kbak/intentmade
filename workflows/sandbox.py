@@ -11,6 +11,7 @@ from pathlib import Path
 import diagnostics
 import docker_sandboxes
 import input_artifacts
+import job_files
 import measurements
 import provenance
 from common import ROOT, api
@@ -103,8 +104,10 @@ def worker(root, config):
                 },
                 source={"job": name},
             )
-            Path(settings["FACTORY_EXECUTION_MANIFEST"]).write_text(
-                json.dumps(manifest, indent=2) + "\n"
+            job_files.write_text(
+                root,
+                Path(settings["FACTORY_EXECUTION_MANIFEST"]),
+                json.dumps(manifest, indent=2) + "\n",
             )
             recorder = measurements.CURRENT.get()
             if recorder:

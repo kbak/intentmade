@@ -152,6 +152,13 @@ do not create a hard disk quota or prune failed jobs. Recover retained work
 before manual cleanup. See the
 [resource limits](docs/configuration.md#resource-limits) defaults and storage limitations.
 
+Controller writes into worker-visible job directories walk ancestors without
+following symlinks and atomically replace file entries. Each browser QA worker
+receives a fresh job directory. Imported bundles and generated patches use
+bounded Git processes; exceeding the patch limit fails the attempt and preserves
+the task branch. Standalone PR reviews bind source and changed-file evidence to
+the captured base/head commits, with incomplete inventories blocking publication.
+
 Task stores validate the actual GitHub fetch and push destinations before reuse.
 Changing a registration's repository or base branch requires a new task ID.
 

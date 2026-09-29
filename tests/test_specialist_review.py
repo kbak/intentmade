@@ -286,7 +286,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
             config = {"project": "example", "repository": "org/repo", "traceability_scope": scope}
             pr = {
                 "number": 42,
-                "head": {"sha": "head"},
+                "head": {"sha": "a" * 40},
                 "base": {"ref": "main", "sha": "c" * 40},
                 "changed_files": 2,
             }
@@ -331,7 +331,15 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                 patch.object(
                     monitor.issues,
                     "_github_paginate",
-                    side_effect=lambda token, path: files if path.endswith("/files") else [],
+                    return_value=[],
+                ),
+                patch.object(
+                    monitor.review_requests,
+                    "github",
+                    return_value={
+                        "base_commit": {"sha": "c" * 40},
+                        "files": files if pr["changed_files"] else [],
+                    },
                 ),
                 patch.object(monitor, "worker", return_value=nullcontext(Mock())),
                 patch.object(monitor, "review_code", side_effect=reviewed),
@@ -359,13 +367,13 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                 result = review.evaluate([] if blocked else [evidence()])
                 pr = {
                     "number": 42,
-                    "head": {"sha": "head"},
+                    "head": {"sha": "a" * 40},
                     "base": {"ref": "main", "sha": "c" * 40},
                     "changed_files": 0,
                 }
                 changed = {
                     **pr,
-                    "head": {"sha": "new-head" if stale == "head" else "head"},
+                    "head": {"sha": ("b" if stale == "head" else "a") * 40},
                     "base": {
                         "ref": "release" if stale == "base_ref" else "main",
                         "sha": ("d" if stale == "base_sha" else "c") * 40,
@@ -386,6 +394,14 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                     patch.object(monitor.reviews, "_prepare_repository", side_effect=checkout),
                     patch.object(monitor.reviews, "_load_repo_review_guide", return_value=""),
                     patch.object(monitor.issues, "_github_paginate", return_value=[]),
+                    patch.object(
+                        monitor.review_requests,
+                        "github",
+                        return_value={
+                            "base_commit": {"sha": "c" * 40},
+                            "files": [],
+                        },
+                    ),
                     patch.object(monitor, "worker", return_value=nullcontext(Mock())),
                     patch.object(monitor, "review_code", return_value=result) as reviewers,
                     patch.object(
@@ -421,7 +437,10 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                             publication.assert_called_once_with(
                                 args[0], args[1], result, "token", artifact
                             )
-                self.assertIn("exact commit head", reviewers.call_args.args[1])
+                self.assertIn("exact commit " + pr["head"]["sha"], reviewers.call_args.args[1])
+                source = reviewers.call_args.kwargs["sources"]["example"]
+                self.assertEqual(source["base"], pr["base"]["sha"])
+                self.assertEqual(source["candidate"], pr["head"]["sha"])
                 self.assertEqual(
                     reviewers.call_args.kwargs["transcript"], artifact / "review.jsonl"
                 )

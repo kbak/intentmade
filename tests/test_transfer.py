@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import common
+import resource_limits
 import run
 import transfer
 
@@ -89,6 +90,59 @@ class TransferTests(unittest.TestCase):
             self.assertEqual(common.git(["rev-parse", "HEAD"], cwd=source).stdout, head)
             self.assertIn("<<<<<<<", (source / "code.txt").read_text())
             self.assertFalse((root / "task.bundle").exists())
+
+    def test_amplified_patch_is_rejected_without_losing_imported_work(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source, state = self.seed(root)
+            # Git stores one compressed object; the patch repeats it per path.
+            for index in range(32):
+                (source / f"repeated-{index}.txt").write_text("repeated content\n" * 4096)
+            common.git(["add", "."], cwd=source)
+            common.git(["commit", "-m", "repeated blob"], cwd=source)
+            bundle = root / "task.bundle"
+            common.git(
+                ["bundle", "create", str(bundle), "factory/task", "^" + state["base"]], cwd=source
+            )
+            self.assertLess(bundle.stat().st_size, 16 * 1024)
+            transfer.import_task(state, bundle)
+            artifact = root / "artifact"
+            artifact.mkdir()
+            destination = artifact / "changes.patch"
+            with patch.object(
+                transfer, "settings", return_value=resource_limits.validate({"max_patch_mb": 1})
+            ):
+                with self.assertRaisesRegex(RuntimeError, "Task patch exceeds"):
+                    transfer.retain_patch(state, destination)
+                self.assertEqual(list(artifact.iterdir()), [])
+                destination.write_text("previous complete patch")
+                with self.assertRaisesRegex(RuntimeError, "Task patch exceeds"):
+                    transfer.retain_patch(state, destination)
+                self.assertEqual(destination.read_text(), "previous complete patch")
+                self.assertEqual(list(artifact.iterdir()), [destination])
+            self.assertEqual(
+                common.git(
+                    ["--git-dir", state["repository"], "rev-parse", state["branch"]]
+                ).stdout.strip(),
+                state["commit"],
+            )
+            # A deliberate higher cap retains the entire patch, never a prefix.
+            with patch.object(
+                transfer, "settings", return_value=resource_limits.validate({"max_patch_mb": 4})
+            ):
+                transfer.retain_patch(state, destination)
+            expected = common.git(
+                [
+                    "--git-dir",
+                    state["repository"],
+                    "diff",
+                    "--binary",
+                    state["base"],
+                    state["commit"],
+                ]
+            ).stdout
+            self.assertGreater(len(expected), resource_limits.MIB)
+            self.assertEqual(destination.read_bytes(), expected.encode())
 
     def test_group_retains_later_valid_export_when_first_bundle_is_corrupt(self):
         with tempfile.TemporaryDirectory() as temp:

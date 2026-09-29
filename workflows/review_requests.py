@@ -129,6 +129,25 @@ def revision(pr):
     return sha + "-" + hashlib.sha256(json.dumps(base(pr), sort_keys=True).encode()).hexdigest()
 
 
+def comparison_files(config, pr, credential):
+    """Read the captured comparison, never the PR's mutable current diff."""
+    revision(pr)  # Validate both immutable object names before building the URL.
+    before, after = base(pr)["sha"], pr["head"]["sha"]
+    comparison = github(
+        credential, "GET", f"/repos/{config['repository']}/compare/{before}...{after}"
+    )
+    if comparison.get("base_commit", {}).get("sha") != before:
+        raise ValueError("GitHub comparison does not match the captured base")
+    files = comparison.get("files")
+    if not isinstance(files, list) or len(files) != pr["changed_files"]:
+        # GitHub limits the compare response's file inventory. Never fill gaps
+        # with the mutable PR-files endpoint or approve a truncated comparison.
+        raise ValueError(
+            "GitHub's immutable changed-file inventory is incomplete; no review can be published"
+        )
+    return files
+
+
 def receipt_path(config, pr):
     return (
         DATA

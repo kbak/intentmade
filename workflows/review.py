@@ -112,7 +112,7 @@ class RoleReview(SpecialistReview):
 
 
 class ReviewResult(BaseModel):
-    review_protocol: Literal[2] = 2
+    review_protocol: Literal[3] = 3
     verdict: Verdict
     summary: str
     reviews: list[RoleReview] = Field(default_factory=list)

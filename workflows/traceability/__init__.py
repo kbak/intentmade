@@ -11,6 +11,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import job_files
+
 
 def scope_for(config):
     if "traceability_scope" not in config:
@@ -45,6 +47,7 @@ def discussion_context(configs):
 
 def prepare(configs, states, root, artifact, attempt):
     """Freeze controller-selected policy before entering the implementation worker."""
+    root = root.resolve()
     selected = {}
     for config in configs:
         project = config["project"]
@@ -142,6 +145,7 @@ def check(workspace, state, paths, env):
         state["worktree"],
         paths["worker_scope"],
         state["base"],
+        trusted_root=paths["root"],
     )
     paths["out"] = invocation / "evidence"
     started, code, error = time.monotonic(), None, None
@@ -152,7 +156,7 @@ def check(workspace, state, paths, env):
         record["execution_environment"] = provenance.remote_boundary(workspace, state["worktree"])
         from .invocation import write
 
-        write(invocation / "invocation.json", record)
+        write(invocation / "invocation.json", record, trusted_root=paths["root"])
         result = portable_check(
             workspace,
             repo=state["worktree"],
@@ -163,13 +167,15 @@ def check(workspace, state, paths, env):
             timeout=paths["timeout"],
         )
         code = result.exit_code
-        (invocation / "checker.log").write_text(result.stdout + result.stderr)
+        job_files.write_text(
+            paths["root"], invocation / "checker.log", result.stdout + result.stderr
+        )
         return result
     except BaseException as exc:
         error = type(exc).__name__
         raise
     finally:
-        finish(invocation, record, started, code, error)
+        finish(invocation, record, started, code, error, trusted_root=paths["root"])
 
 
 def collect(state, paths, check_exit_code):

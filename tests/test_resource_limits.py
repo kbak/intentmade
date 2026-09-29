@@ -4,6 +4,8 @@ import gzip
 import io
 import json
 import os
+import shlex
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -50,6 +52,39 @@ class ResourceLimitTests(unittest.TestCase):
         self.assertEqual(target.getvalue(), b"1234")
         with self.assertRaisesRegex(RuntimeError, "Fixture exceeds"):
             limits.copy_bounded(io.BytesIO(b"12345"), io.BytesIO(), 4, "Fixture")
+
+    def test_git_stream_accepts_exact_output_limit_and_rejects_overflow(self):
+        output = io.BytesIO()
+        limits.stream_git(["--version"], output, 1024, "Git version")
+        expected = output.getvalue()
+        self.assertTrue(expected.startswith(b"git version "))
+        exact = io.BytesIO()
+        limits.stream_git(["--version"], exact, len(expected), "Git version")
+        self.assertEqual(exact.getvalue(), expected)
+        with self.assertRaisesRegex(RuntimeError, "Git version exceeds"):
+            limits.stream_git(["--version"], io.BytesIO(), len(expected) - 1, "Git version")
+
+    def test_git_children_have_memory_and_time_bounds_and_bounded_diagnostics(self):
+        # A trusted test alias exercises the real launcher and its descendants.
+        def run_script(script, **kwargs):
+            alias = "!" + shlex.join([sys.executable, "-I", "-c", script])
+            output = io.BytesIO()
+            limits.stream_git(
+                ["-c", "alias.probe=" + alias, "probe"], output, 1024, "Git probe", **kwargs
+            )
+            return output.getvalue()
+
+        with self.configure(git_memory_mb=128):
+            self.assertEqual(
+                run_script("import resource; print(resource.getrlimit(resource.RLIMIT_AS)[0])"),
+                f"{128 * limits.MIB}\n".encode(),
+            )
+            with self.assertRaisesRegex(RuntimeError, "(?s)Git probe failed.*MemoryError"):
+                run_script("bytearray(256 * 1024 * 1024)")
+            with self.assertRaisesRegex(RuntimeError, "diagnostic limit"):
+                run_script("import sys; sys.stderr.write('x' * 100000)")
+            with self.assertRaisesRegex(RuntimeError, "timed out"):
+                run_script("import time; time.sleep(30)", timeout=0.2)
 
     def test_low_disk_prevents_job_admission_without_deleting_retained_work(self):
         with tempfile.TemporaryDirectory() as temp:

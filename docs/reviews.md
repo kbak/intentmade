@@ -60,6 +60,13 @@ and formal GitHub verdict: `PASS` submits **Approve**; blockers submit
 **Request changes**. Advisory findings appear in the report. Incomplete or stale
 reviews cannot approve a PR. Publication does not merge or deploy the change.
 
+PR source archives and changed-file patches are fetched using the captured
+commit SHAs. The changed-file inventory comes from the immutable base/head
+comparison, so temporary changes to a PR cannot substitute another revision's
+files. GitHub's [comparison API](https://docs.github.com/en/rest/commits/commits#compare-two-commits)
+returns at most 300 files. If its inventory does not match the PR's changed-file
+count, the review stops without publication; larger PRs need to be split.
+
 Reports combine duplicate findings and link code to the reviewed commit.
 The factory retains the original findings and any editing transcript, validates
 their correspondence, and computes the verdict from the source findings.
@@ -72,6 +79,10 @@ wait for an explicit retry instead of running on every poll. `PUBLICATION_FAILED
 can be retried with `factoryctl review`, reusing a saved report only when its
 source and evidence still validate. Submitted factory reviews are checked before
 retrying a POST to avoid duplicates after a lost response.
+
+Saved results from before immutable comparisons were introduced (review protocol
+2 or earlier) require a fresh review. Current results also validate their
+captured base and head before reuse.
 
 A rejected Codex login produces `NEEDS_INPUT`. Run `factoryctl codex-login`, then
 reply `resume: retry` or run `factoryctl review` again. A typed startup timeout

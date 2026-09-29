@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 from common import git
-from resource_limits import MIB, copy_bounded, require_disk_space, settings
+from resource_limits import MIB, copy_bounded, require_disk_space, settings, stream_git
 
 
 def worker_git(workspace, args, cwd, check=True):
@@ -70,24 +70,56 @@ def import_task(state, bundle):
                 "Worker bundle",
             )
         branch = "refs/heads/" + state["branch"]
-        heads = git(["bundle", "list-heads", str(trusted_bundle)]).stdout.splitlines()
+        with tempfile.TemporaryFile() as output:
+            stream_git(["bundle", "list-heads", str(trusted_bundle)], output, MIB, "Bundle refs")
+            output.seek(0)
+            heads = output.read().decode().splitlines()
         if len(heads) != 1 or heads[0].split()[1:] != [branch]:
             raise RuntimeError("Worker bundle contains unexpected refs")
         # Fetch only the expected branch, without force. Git validates object
         # integrity and rejects a rewritten/unrelated retained task history.
-        git(
-            [
-                "-c",
-                "fetch.fsckObjects=true",
-                "-c",
-                "transfer.fsckObjects=true",
-                "--git-dir",
-                state["repository"],
-                "fetch",
-                "--no-tags",
-                "--no-write-fetch-head",
-                str(trusted_bundle),
-                f"{branch}:{branch}",
-            ]
-        )
+        with tempfile.TemporaryFile() as output:
+            stream_git(
+                [
+                    "-c",
+                    "fetch.fsckObjects=true",
+                    "-c",
+                    "transfer.fsckObjects=true",
+                    "--git-dir",
+                    state["repository"],
+                    "fetch",
+                    "--no-tags",
+                    "--no-write-fetch-head",
+                    str(trusted_bundle),
+                    f"{branch}:{branch}",
+                ],
+                output,
+                MIB,
+                "Git bundle import",
+            )
     state["commit"] = git(["--git-dir", state["repository"], "rev-parse", branch]).stdout.strip()
+
+
+def retain_patch(state, destination):
+    """Keep a complete bounded patch, or fail while preserving the task branch."""
+    require_disk_space(destination.parent)
+    with tempfile.TemporaryDirectory(dir=destination.parent) as temporary:
+        staged = Path(temporary) / "changes.patch"
+        with staged.open("wb") as output:
+            stream_git(
+                [
+                    "--git-dir",
+                    state["repository"],
+                    "diff",
+                    "--no-ext-diff",
+                    "--no-textconv",
+                    "--binary",
+                    state["base"],
+                    state["commit"],
+                ],
+                output,
+                settings()["max_patch_mb"] * MIB,
+                "Task patch",
+            )
+        # Publish only complete evidence; an over-limit patch stays a failure.
+        staged.replace(destination)

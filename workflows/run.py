@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field, model_validator
 from reporting import NeedsInput, outcome, phase, run_report
 from review import ReviewResult, review_code  # noqa: F401 (ReviewResult remains a public import)
 from sandbox import worker
-from transfer import export_task, import_task, worker_git
+from transfer import export_task, import_task, retain_patch, worker_git
 
 
 class ImplementationResult(BaseModel):
@@ -503,19 +503,7 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                     repo_artifact = artifact / project
                     repo_artifact.mkdir(exist_ok=True)
                     state = states[project]
-                    patch = git(
-                        [
-                            "--git-dir",
-                            state["repository"],
-                            "diff",
-                            "--no-ext-diff",
-                            "--no-textconv",
-                            "--binary",
-                            state["base"],
-                            state["commit"],
-                        ]
-                    ).stdout
-                    (repo_artifact / "changes.patch").write_text(patch)
+                    retain_patch(state, repo_artifact / "changes.patch")
                 except Exception as exc:
                     retention_errors.append(f"{project}: {exc}")
             # Preserve every check, including feedback before a malformed response.
@@ -615,10 +603,11 @@ def browser_checks(configs, states, request, artifact, attempt):
     if not selected:
         return {}
     results = {}
-    with job_directory(DATA, artifact) as root:
-        qa_states = {project: dict(state) for project, state in states.items()}
-        prepare_sources(root, qa_states)
-        for config in selected:
+    for config in selected:
+        # Each QA worker gets a fresh filesystem as well as a fresh runtime.
+        with job_directory(DATA, artifact) as root:
+            qa_states = {project: dict(state) for project, state in states.items()}
+            prepare_sources(root, qa_states)
             project = config["project"]
             output = root / "captures" / project
             output.mkdir(parents=True)

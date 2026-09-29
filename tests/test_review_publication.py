@@ -27,8 +27,12 @@ PR = {
 }
 
 
-def present(events):
-    result = review.evaluate(events)
+def comparison(pr=PR):
+    return {"example": {"base": pr["base"]["sha"], "candidate": pr["head"]["sha"], "files": []}}
+
+
+def present(events, pr=PR):
+    result = review.evaluate(events, review_inputs=comparison(pr))
     result.presentation = validate_report(result, draft_report(result))
     return result
 
@@ -141,7 +145,7 @@ class PublicationTests(unittest.TestCase):
                 ]
             )
         )
-        result = review.evaluate([native], expected)
+        result = review.evaluate([native], expected, review_inputs=comparison())
         result.presentation = validate_report(result, draft_report(result))
         config = {**CONFIG, "traceability_scope": scope}
         posted = review_publication.publish(config, PR, result, "secret")
@@ -213,7 +217,7 @@ class PublicationTests(unittest.TestCase):
     def test_old_protocol_publication_retry_runs_a_fresh_review(self):
         with tempfile.TemporaryDirectory() as temp:
             artifact = Path(temp)
-            (artifact / "review.json").write_text('{"verdict":"PASS"}')
+            (artifact / "review.json").write_text('{"review_protocol":2,"verdict":"PASS"}')
             (artifact / "review.md").write_text("Fresh Alibaba review")
             with (
                 patch.object(monitor.reporting, "ACTIVE", None),
@@ -247,6 +251,47 @@ class PublicationTests(unittest.TestCase):
             review_publication.publish(CONFIG, PR, result, "secret")
         self.assertEqual(self.posted, [])
 
+    def test_missing_or_mismatched_comparison_cannot_publish_or_resume(self):
+        for inputs in (
+            {},
+            comparison({**PR, "base": {"sha": "d" * 40}}),
+            comparison({**PR, "head": {"sha": "b" * 40}}),
+        ):
+            result = present([evidence()])
+            result.review_inputs = inputs
+            with self.assertRaisesRegex(
+                review_publication.PublicationError, "immutable comparison"
+            ):
+                review_publication.publish(CONFIG, PR, result, "secret")
+            with tempfile.TemporaryDirectory() as temp:
+                artifact = Path(temp)
+                (artifact / "review.json").write_text(result.model_dump_json())
+                (artifact / "result.json").write_text(
+                    json.dumps(
+                        {
+                            "repository": CONFIG["repository"],
+                            "pr": PR["number"],
+                            "head": PR["head"]["sha"],
+                            "base": PR["base"],
+                            "status": "REVIEWED",
+                        }
+                    )
+                )
+                with self.assertRaisesRegex(
+                    review_publication.PublicationError, "immutable comparison"
+                ):
+                    review_publication.load_saved(CONFIG, PR, artifact)
+        self.assertEqual(self.calls, [])
+
+    def test_old_publication_marker_does_not_suppress_a_fresh_review(self):
+        result = present([evidence()])
+        review_publication.publish(CONFIG, PR, result, "secret")
+        self.posted[0]["body"] = self.posted[0]["body"].replace(
+            "factory-review:v3:", "factory-review:v2:"
+        )
+        review_publication.publish(CONFIG, PR, result, "secret")
+        self.assertEqual(len(self.posted), 2)
+
     def test_lost_response_is_reconciled_without_duplicate_post(self):
         result = present([evidence()])
         self.lost_response = True
@@ -267,7 +312,9 @@ class PublicationTests(unittest.TestCase):
                 with self.assertRaisesRegex(review_publication.PublicationError, "head or base"):
                     review_publication.publish(CONFIG, PR, result, "secret")
                 self.assertEqual(len(self.posted), 1)
-                review_publication.publish(CONFIG, self.pr, result, "secret")
+                review_publication.publish(
+                    CONFIG, self.pr, present([evidence()], self.pr), "secret"
+                )
                 self.assertNotEqual(self.posted[-1]["body"], original_body)
                 self.posted.pop()
 
@@ -292,7 +339,7 @@ class PublicationRecoveryTests(unittest.TestCase):
             job = root / "job"
             job.mkdir()
             events = [evidence(code=specialist(blocking_findings=[finding()]))]
-            result = review.evaluate(events)
+            result = review.evaluate(events, review_inputs=comparison())
             saved = {
                 "repository": "org/repo",
                 "pr": 42,
