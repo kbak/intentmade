@@ -185,6 +185,7 @@ class SpecialistVerdictTests(unittest.TestCase):
                 message=json.dumps(specialist(blocking_findings=[finding(scenario="")]))
             ),
         ]
+        # [utest~im-specialist_review-SpecialistVerdictTests-incomplete_unverified_or_invalid_reviews_cannot_pass~1->req~im-review-evidence~1]
         self.assertEqual(review.evaluate([]).verdict, "BLOCKED")
         for mutate in mutations:
             event = evidence()
@@ -212,6 +213,7 @@ class SpecialistVerdictTests(unittest.TestCase):
                 ),
             ),
         ):
+            # [utest~im-specialist_review-SpecialistVerdictTests-coordinator_cannot_override_native_results~1->req~im-review-evidence~1]
             self.assertEqual(review.review_code(Mock(), "Context").verdict, "CHANGES_REQUESTED")
         with patch.object(review, "converse", side_effect=RuntimeError("timed out")):
             self.assertEqual(review.review_code(Mock(), "Context").verdict, "BLOCKED")

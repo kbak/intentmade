@@ -86,6 +86,7 @@ class PolicyTests(unittest.TestCase):
             self.assertEqual(policy.checks_for("token", "owner/repo", "sha")["last"], "failure")
 
     def test_only_approved_unassigned_issues_are_eligible(self):
+        # [utest~im-factory-PolicyTests-only_approved_unassigned_issues_are_eligible~1->req~im-issue-ownership~1]
         self.assertTrue(policy.issue_eligible(ISSUE, CONFIG))
         for change in (
             {"assignees": [{"login": "human"}]},
@@ -175,6 +176,7 @@ class OwnershipTests(unittest.TestCase):
             patch.object(monitor, "build", side_effect=build),
         ):
             monitor.implement_issue(CONFIG, ISSUE, "secret")
+        # [utest~im-factory-OwnershipTests-success_claims_before_build_and_keeps_assignment~1->req~im-issue-ownership~1]
         self.assertNotIn("DELETE", order)
 
     def test_failure_releases_only_our_own_assignment(self):
@@ -200,6 +202,7 @@ class OwnershipTests(unittest.TestCase):
                 patch.object(monitor, "github", side_effect=api),
                 patch.object(monitor, "build", side_effect=RuntimeError("tests failed")),
             ):
+                # [utest~im-factory-OwnershipTests-failure_releases_only_our_own_assignment~1->req~im-issue-ownership~1]
                 with self.assertRaises(RuntimeError):
                     monitor.implement_issue(CONFIG, ISSUE, "secret")
             self.assertEqual(calls.count("DELETE"), deletes)
@@ -335,6 +338,7 @@ class UpstreamTests(unittest.TestCase):
                         ],
                     },
                 )
+            # [utest~im-factory-UpstreamTests-actual_upstream_push_and_draft_payload_use_task_branch~1->req~im-publication-gate~1]
             self.assertTrue(captured[0]["draft"])
             self.assertEqual(captured[0]["base"], "trunk")
             self.assertEqual(captured[0]["head"], "factory/feature")
@@ -493,6 +497,7 @@ class PipelineTests(unittest.TestCase):
                     patch.object(run, "review_code", converse),
                     patch.object(run, "publish") as publish,
                 ):
+                    # [utest~im-factory-PipelineTests-failed_tests_or_review_keep_branch_and_never_publish~1->req~im-publication-gate~1]
                     with self.assertRaises(RuntimeError):
                         run.execute_build(
                             [config],
@@ -630,6 +635,7 @@ class PipelineTests(unittest.TestCase):
                         )
 
                     if test_exit or verdict != "PASS" or publication_failure:
+                        # [utest~im-factory-PipelineTests-group_validation_retention_and_partial_publication~1->req~im-group-publication~1]
                         with self.assertRaises(RuntimeError):
                             invoke()
                     else:
@@ -664,6 +670,7 @@ class PipelineTests(unittest.TestCase):
         ):
             configs = [{**CONFIG, "project": p} for p in ("first", "second")]
             with common.lock("second.build"):
+                # [utest~im-factory-PipelineTests-group_acquires_all_repository_locks_before_preparing_work~1->req~im-repository-locks~1]
                 with self.assertRaises(BlockingIOError):
                     run.build_group(configs, "task", "spec", {"first": "sha", "second": "sha"})
             prepare.assert_not_called()

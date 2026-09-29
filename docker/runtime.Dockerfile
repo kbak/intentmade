@@ -80,6 +80,12 @@ RUN mkdir /tmp/agency-agents && \
     cp /tmp/agency-agents/LICENSE /opt/factory/agency-agents/LICENSE && \
     chmod -R a+rX /opt/factory/agency-agents && \
     rm -rf /tmp/agency-agents /tmp/agency-agents.tar.gz /tmp/agency-convert.log
+# Retain the exact patch/dependency build inputs, independently of source overlays.
+COPY runtime/ /tmp/factory-build-inputs/runtime/
+COPY docker/runtime.Dockerfile /tmp/factory-build-inputs/docker/runtime.Dockerfile
+COPY upstream.lock.json .dockerignore /tmp/factory-build-inputs/
+RUN python /tmp/factory-build-inputs/runtime/build_inputs.py /tmp/factory-build-inputs /opt/factory/runtime-build.json && \
+    rm -rf /tmp/factory-build-inputs && chmod a+r /opt/factory/runtime-build.json
 USER openhands
 ENV PYTHONPATH=/opt/factory/workflows
 ENV OH_CONVERSATIONS_PATH=/home/openhands/.openhands/conversations

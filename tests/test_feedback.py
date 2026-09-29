@@ -47,6 +47,7 @@ class FeedbackTests(unittest.TestCase):
             return feedback.collect(self.config, PR, "credential", record or {}, retry=retry)
 
     def test_author_permission_bot_allowlist_and_own_generated_reviews(self):
+        # [utest~im-feedback-FeedbackTests-author_permission_bot_allowlist_and_own_generated_reviews~1->req~im-feedback-authority~1]
         self.assertEqual(len(self.collect()), 1)
         self.permission = "read"
         self.assertEqual(self.collect(), [])
@@ -65,6 +66,7 @@ class FeedbackTests(unittest.TestCase):
             ("CHANGES_REQUESTED", "old"),
         ):
             self.reviews[0].update(state=state, commit_id=commit)
+            # [utest~im-feedback-FeedbackTests-current_submitted_reviews_and_unresolved_roots_only~1->req~im-feedback-authority~1]
             self.assertEqual(self.collect(), [])
         self.comments = [
             {**self.reviews[0], "id": 2, "path": "app.py", "line": 8},
@@ -77,6 +79,7 @@ class FeedbackTests(unittest.TestCase):
 
     def test_later_approval_supersedes_review_body(self):
         self.reviews.append({**self.reviews[0], "id": 2, "state": "APPROVED"})
+        # [utest~im-feedback-FeedbackTests-later_approval_supersedes_review_body~1->req~im-feedback-authority~1]
         self.assertEqual(self.collect(), [])
 
     def test_feedback_receipt_brackets_the_existing_build_pipeline(self):
@@ -145,6 +148,7 @@ class FeedbackTests(unittest.TestCase):
     def test_general_comments_need_explicit_mention_and_edits_get_new_digest(self):
         self.reviews = []
         self.discussion = [{"id": 4, "body": "Thanks!", "user": {"login": "reviewer"}}]
+        # [utest~im-feedback-FeedbackTests-general_comments_need_explicit_mention_and_edits_get_new_digest~1->req~im-feedback-authority~1]
         self.assertEqual(self.collect(), [])
         self.discussion[0]["body"] = "@openhands please fix the empty result"
         record = {"head": "head"}
@@ -213,6 +217,7 @@ class FeedbackTests(unittest.TestCase):
             }
             followup.save(self.config, record)
             action = followup.plan(self.config, PR, "credential")
+            # [utest~im-feedback-FeedbackTests-green_ci_admits_feedback_once_and_interruption_requires_resume~1->req~im-feedback-lifecycle~1]
             self.assertEqual(action["feedback"], entries)
             feedback.remember(record, entries, "STARTED")
             followup.save(self.config, record)
@@ -237,6 +242,7 @@ class FeedbackTests(unittest.TestCase):
         }
         changed = copy.deepcopy(expected["feedback"])
         changed[0]["digest"] = "edited"
+        # [utest~im-feedback-FeedbackTests-feedback_change_before_publication_is_rejected~1->req~im-feedback-lifecycle~1]
         with (
             patch.object(followup, "github", return_value=PR),
             patch.object(followup, "read", return_value={}),

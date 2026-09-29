@@ -54,6 +54,7 @@ def settings(config_dir=None):
     }
 
 
+# [impl->req~im-deployment-authority~1]
 def workflow_settings(defaults, registration):
     """Keep operator settings out of repository overrides and submitted jobs."""
     for name in FIELDS & registration.keys():
@@ -61,6 +62,7 @@ def workflow_settings(defaults, registration):
     return {**{key: value for key, value in defaults.items() if key not in FIELDS}, **registration}
 
 
+# [impl->req~im-deployment-authority~1]
 def check_issue_authorization(config, options=None):
     """Apply the current operator requirement even to captured job settings."""
     options = settings() if options is None else options

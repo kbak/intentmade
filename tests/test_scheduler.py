@@ -418,6 +418,7 @@ class TaskIdentityTests(unittest.TestCase):
             patch.object(run, "job_id", return_value="offline-run"),
             patch.object(run, "execute_build") as execute,
         ):
+            # [utest~im-scheduler-TaskIdentityTests-repointed_registration_is_rejected_before_any_build_or_push~1->req~im-task-identity~1]
             with self.assertRaisesRegex(RuntimeError, "origin changed"):
                 run.build(
                     {**CONFIG, "repository": "example/new"}, "issue-42", "new repo spec", self.base
@@ -435,12 +436,14 @@ class TaskIdentityTests(unittest.TestCase):
         ):
             with self.subTest(setting=setting):
                 self.git("config", setting, value)
+                # [utest~im-scheduler-TaskIdentityTests-override_push_url_and_non_github_origins_are_rejected~1->req~im-task-identity~1]
                 with self.assertRaisesRegex(RuntimeError, "origin"):
                     run.task_repository(CONFIG, "issue-42", self.base, "")
                 self.git("config", "--unset", setting)
                 self.git("config", "remote.origin.url", "https://github.com/Example/Repo.git")
 
     def test_changed_base_branch_requires_a_new_task_id(self):
+        # [utest~im-scheduler-TaskIdentityTests-changed_base_branch_requires_a_new_task_id~1->req~im-task-identity~1]
         with self.assertRaisesRegex(RuntimeError, "different base branch"):
             run.task_repository({**CONFIG, "branch": "trunk"}, "issue-42", self.base, "")
 
@@ -452,6 +455,7 @@ class TaskIdentityTests(unittest.TestCase):
             "",
             "fix: different descriptive title",
         )
+        # [utest~im-scheduler-TaskIdentityTests-new_naming_defaults_preserve_a_retained_published_branch~1->req~im-task-identity~1]
         self.assertEqual(branch, "factory/issue-42")
         self.assertEqual(self.git("config", "factory.branch"), branch)
         self.assertEqual(self.git("rev-parse", branch), self.tip)
@@ -519,6 +523,7 @@ class SchedulerTests(unittest.TestCase):
             raise RuntimeError("tests failed")
 
         self.build.side_effect = fail
+        # [utest~im-scheduler-SchedulerTests-attempt_is_persisted_before_work_and_relabeling_permits_retry~1->req~im-issue-deduplication~1]
         with self.assertRaisesRegex(RuntimeError, "tests failed"):
             monitor.poll(CONFIG, "offline-token")
         self.build.reset_mock(side_effect=True)

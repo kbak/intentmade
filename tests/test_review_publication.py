@@ -234,6 +234,7 @@ class PublicationTests(unittest.TestCase):
                 patch.object(monitor, "_review_pr", return_value=True) as fresh,
                 patch.object(monitor, "publish_review") as publish,
             ):
+                # [utest~im-review_publication-PublicationTests-old_protocol_publication_retry_runs_a_fresh_review~1->req~im-pr-publication~1]
                 self.assertTrue(monitor.review_pr(CONFIG, PR, "secret"))
                 fresh.assert_called_once_with(CONFIG, PR, "secret")
                 publish.assert_not_called()
@@ -243,6 +244,7 @@ class PublicationTests(unittest.TestCase):
     def test_changed_head_or_failed_ci_never_posts(self):
         result = present([evidence()])
         self.pr["head"]["sha"] = "b" * 40
+        # [utest~im-review_publication-PublicationTests-changed_head_or_failed_ci_never_posts~1->req~im-pr-publication~1]
         with self.assertRaisesRegex(review_publication.PublicationError, "PR changed"):
             review_publication.publish(CONFIG, PR, result, "secret")
         self.pr = copy.deepcopy(PR)
@@ -295,6 +297,7 @@ class PublicationTests(unittest.TestCase):
     def test_lost_response_is_reconciled_without_duplicate_post(self):
         result = present([evidence()])
         self.lost_response = True
+        # [utest~im-review_publication-PublicationTests-lost_response_is_reconciled_without_duplicate_post~1->req~im-review-retry~1]
         with self.assertRaises(TimeoutError):
             review_publication.publish(CONFIG, PR, result, "secret")
         self.lost_response = False
@@ -309,6 +312,7 @@ class PublicationTests(unittest.TestCase):
         for base in ({"ref": "release", "sha": "c" * 40}, {"ref": "main", "sha": "d" * 40}):
             with self.subTest(base=base):
                 self.pr = {**PR, "base": base}
+                # [utest~im-review_publication-PublicationTests-retargeted_or_advanced_base_cannot_publish_or_reuse_old_review~1->req~im-pr-publication~1]
                 with self.assertRaisesRegex(review_publication.PublicationError, "head or base"):
                     review_publication.publish(CONFIG, PR, result, "secret")
                 self.assertEqual(len(self.posted), 1)
@@ -431,6 +435,7 @@ class PublicationRecoveryTests(unittest.TestCase):
                     side_effect=[TimeoutError("GitHub unavailable"), posted],
                 ),
             ):
+                # [utest~im-review_publication-PublicationRecoveryTests-failed_publication_reuses_verified_artifacts_without_rerunning_specialists~1->req~im-review-retry~1]
                 with self.assertRaises(review_publication.PublicationError):
                     monitor.publish_review(CONFIG, PR, result, "secret", artifact)
                 self.assertEqual(review_requests.read(CONFIG, PR)["status"], "PUBLICATION_FAILED")

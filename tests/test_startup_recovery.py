@@ -37,12 +37,14 @@ class StartupRecoveryTests(unittest.TestCase):
             transcript = Path(directory) / "review.jsonl"
             agent.run_with_startup_recovery(self.conversation, transcript)
             record = json.loads(next(Path(directory).glob("*-startup-*.jsonl")).read_text())
+        # [utest~im-startup_recovery-StartupRecoveryTests-temporary_startup_timeout_retries_once_and_retains_reason~1->req~im-startup-retry~1]
         self.assertEqual(self.conversation.run.call_count, 2)
         self.assertTrue(record["retrying"])
         self.assertEqual(record["code"], "ACPStartupTimeout")
 
     def test_repeated_timeout_is_bounded(self):
         self.conversation.run.side_effect = lambda: self.fail("ACPStartupTimeout")
+        # [utest~im-startup_recovery-StartupRecoveryTests-repeated_timeout_is_bounded~1->req~im-startup-retry~1]
         with (
             patch.object(agent.time, "sleep"),
             self.assertRaises(agent.AgentStartupError) as caught,
@@ -71,6 +73,7 @@ class StartupRecoveryTests(unittest.TestCase):
         for code in ("ACPAuthRequired", "ACPSpawnError", "ACPInitError"):
             self.conversation.run.reset_mock()
             self.conversation.run.side_effect = lambda: self.fail(code)
+            # [utest~im-startup_recovery-StartupRecoveryTests-auth_spawn_and_unknown_initialization_failures_are_not_retried~1->req~im-startup-retry~1]
             with self.subTest(code=code), self.assertRaisesRegex(agent.AgentStartupError, code):
                 agent.run_with_startup_recovery(self.conversation)
             self.conversation.run.assert_called_once()
@@ -92,6 +95,7 @@ class StartupRecoveryTests(unittest.TestCase):
             self.fail("ACPStartupTimeout")
 
         self.conversation.run.side_effect = run
+        # [utest~im-startup_recovery-StartupRecoveryTests-timeout_after_agent_activity_does_not_replay~1->req~im-startup-retry~1]
         with self.assertRaises(agent.AgentStartupError):
             agent.run_with_startup_recovery(self.conversation)
         self.conversation.run.assert_called_once()

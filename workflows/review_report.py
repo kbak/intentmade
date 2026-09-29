@@ -68,6 +68,7 @@ def traceability_items(review):
     ]
 
 
+# [impl->req~im-review-report-integrity~1]
 def validate_report(review, report):
     report = ReviewReport.model_validate(report)
     seen = [source for finding in report.findings for source in finding.source_ids]

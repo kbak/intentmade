@@ -98,6 +98,7 @@ class AssessmentGateTests(unittest.TestCase):
 
     def test_existing_relationships_pass_without_new_ids(self):
         reviewed = result()
+        # [utest~im-traceability_review-AssessmentGateTests-existing_relationships_pass_without_new_ids~1->req~im-trace-assessment~1]
         self.assertEqual(reviewed.verdict, "PASS")
         self.assertEqual(
             reviewed.reviews[0].traceability_assessment[0].changes[0].requirement_ids,
@@ -133,6 +134,7 @@ class AssessmentGateTests(unittest.TestCase):
                 )
             ]
         )
+        # [utest~im-traceability_review-AssessmentGateTests-concrete_gap_blocks_even_if_reviewer_labels_overall_result_pass~1->req~im-trace-assessment~1]
         self.assertEqual(reviewed.verdict, "CHANGES_REQUESTED")
         self.assertEqual(reviewed.reviews[0].blocking_findings, [])
         reviewed.presentation = review_report.validate_report(
@@ -151,12 +153,14 @@ class AssessmentGateTests(unittest.TestCase):
                 )
             ]
         )
+        # [utest~im-traceability_review-AssessmentGateTests-uncertain_is_incomplete_not_covered_or_a_fabricated_defect~1->req~im-trace-assessment~1]
         self.assertEqual(reviewed.verdict, "BLOCKED")
         self.assertEqual(reviewed.reviews[0].blocking_findings, [])
         self.assertIn("acceptance evidence is unavailable", reviewed.report())
 
     def test_absent_required_assessment_cannot_pass(self):
         reviewed = review.evaluate([evidence()], EXPECTED)
+        # [utest~im-traceability_review-AssessmentGateTests-absent_required_assessment_cannot_pass~1->req~im-trace-assessment~1]
         self.assertEqual(reviewed.verdict, "BLOCKED")
         self.assertIn("required traceability assessment", reviewed.summary)
 

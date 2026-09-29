@@ -43,6 +43,7 @@ class RecoveryTests(unittest.TestCase):
     def test_failed_export_keeps_workspace_and_original_error(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
+            # [utest~im-recovery-RecoveryTests-failed_export_keeps_workspace_and_original_error~1->req~im-failed-work-retention~1]
             with self.assertRaisesRegex(RuntimeError, "export failed"):
                 with cleanup.job_directory(root, root) as job:
                     (job / "valuable-code.txt").write_text("retained")
@@ -56,6 +57,7 @@ class RecoveryTests(unittest.TestCase):
             with patch.object(cleanup, "remove_job", side_effect=PermissionError("root output")):
                 with cleanup.job_directory(root, root) as job:
                     (job / "test-output").write_text("test results")
+            # [utest~im-recovery-RecoveryTests-cleanup_failure_does_not_abort_completed_attempt~1->req~im-failed-work-retention~1]
             self.assertIn(str(job), (root / "cleanup-warnings.log").read_text())
 
     def test_bounded_repair_uses_test_failure_and_original_spec_before_publication(self):
@@ -92,6 +94,7 @@ class RecoveryTests(unittest.TestCase):
                 result = run.execute_build(
                     [config], "task", "Original specification", "token", 42, True, root, states
                 )
+            # [utest~im-recovery-RecoveryTests-bounded_repair_uses_test_failure_and_original_spec_before_publication~1->req~im-bounded-repair~1]
             self.assertEqual(result["status"], "PASSED")
             self.assertEqual(review.call_count, 1)
             self.assertIn("Original specification", implement.call_args.args[3])
@@ -109,6 +112,7 @@ class RecoveryTests(unittest.TestCase):
                 patch.object(run, "review_changes") as review,
                 patch.object(run, "publish") as publish,
             ):
+                # [utest~im-recovery-RecoveryTests-exhausted_test_failures_do_not_start_review~1->req~im-bounded-repair~1]
                 with self.assertRaisesRegex(RuntimeError, "Missing static/assets"):
                     run.execute_build(
                         [{"repair_attempts": 0}], "task", "spec", "", None, True, Path(temp), {}
@@ -153,6 +157,7 @@ class RecoveryTests(unittest.TestCase):
                 patch.object(run, "review_changes") as review,
                 patch.object(run, "publish") as publish,
             ):
+                # [utest~im-recovery-RecoveryTests-questions_stop_before_review_and_publication_and_save_detail~1->req~im-needs-input~1]
                 with self.assertRaises(reporting.NeedsInput):
                     run.execute_build(
                         [{"repair_attempts": 1}], "task", "spec", "", 42, True, root, {}
@@ -178,6 +183,7 @@ class RecoveryTests(unittest.TestCase):
                 ),
                 patch.object(run, "publish") as publish,
             ):
+                # [utest~im-recovery-RecoveryTests-blocked_reviewer_does_not_spend_a_code_repair_attempt~1->req~im-bounded-repair~1]
                 with self.assertRaisesRegex(RuntimeError, "infrastructure blocked"):
                     run.execute_build(
                         [{"repair_attempts": 1}], "task", "spec", "", None, True, Path(temp), {}
@@ -211,6 +217,7 @@ class RecoveryTests(unittest.TestCase):
         with patch.object(reporting, "read_report", return_value=record):
             for item in cases:
                 with patch.object(reporting, "api", return_value={"items": [item]}):
+                    # [utest~im-recovery-RecoveryTests-only_new_explicit_user_reply_can_resume_same_snapshot~1->req~im-explicit-resume~1]
                     self.assertIsNone(reporting.resume_reply({}, "task"))
             with patch.object(
                 reporting,
@@ -280,6 +287,7 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(api.call_args.kwargs["json"]["status"], "FAILED")
 
     def test_structured_implementation_cannot_hide_unanswered_questions(self):
+        # [utest~im-recovery-RecoveryTests-structured_implementation_cannot_hide_unanswered_questions~1->req~im-needs-input~1]
         with self.assertRaises(ValueError):
             run.ImplementationResult(
                 status="IMPLEMENTED", summary="Maybe", questions=["Which option?"]

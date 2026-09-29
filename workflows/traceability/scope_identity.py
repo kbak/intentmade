@@ -9,6 +9,7 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+# [impl->req~im-scope-identity~1]
 def capture(path, reference):
     from intentbond.common import CheckError, parse_json
     from intentbond.config import validate_scope
@@ -26,6 +27,7 @@ def capture(path, reference):
     }
 
 
+# [impl->req~im-scope-identity~1]
 def export(config):
     from intentbond.common import canonical, parse_json
     from intentbond.config import validate_scope

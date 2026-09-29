@@ -14,6 +14,7 @@ from pathlib import Path
 import job_files
 
 
+# [impl->req~im-trace-opt-in~1]
 def scope_for(config):
     if "traceability_scope" not in config:
         return None
@@ -132,6 +133,7 @@ def instructions(selected, states, environments):
     return "\n\n".join(sections)
 
 
+# [impl->req~im-trace-source-gate~1]
 def check(workspace, state, paths, env):
     from .invocation import begin, finish
     from .openhands import check as portable_check
@@ -178,6 +180,7 @@ def check(workspace, state, paths, env):
         finish(invocation, record, started, code, error, trusted_root=paths["root"])
 
 
+# [impl->req~im-trace-source-gate~1]
 def collect(state, paths, check_exit_code):
     """Retain after worker teardown, then match against a fresh trusted Git clone."""
     from common import git
@@ -247,6 +250,7 @@ def collect(state, paths, check_exit_code):
         return check_exit_code if check_exit_code not in (None, 0, 4) else 2
 
 
+# [impl->req~im-trace-source-gate~1]
 def checks_passed(configs, states):
     for config in configs:
         if "traceability_scope" not in config:

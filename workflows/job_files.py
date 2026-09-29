@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 
+# [impl->req~im-safe-controller-writes~1]
 @contextmanager
 def parent(root, path):
     relative = Path(path).relative_to(root)
@@ -28,6 +29,7 @@ def mkdir(root, path):
         os.mkdir(name, dir_fd=directory)
 
 
+# [impl->req~im-safe-controller-writes~1]
 def write_text(root, path, text):
     # Write a new inode, then replace the directory entry itself. Never truncate
     # an existing inode: it may be a symlink, FIFO or hardlink planted by a worker.

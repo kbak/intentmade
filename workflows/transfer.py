@@ -17,6 +17,7 @@ def worker_git(workspace, args, cwd, check=True):
     return result
 
 
+# [impl->req~im-git-transfer~1]
 def export_task(workspace, state, destination, task):
     """All commands consuming mutable Git configuration execute in the worker."""
     checkout = state["worktree"]
@@ -52,6 +53,7 @@ def export_task(workspace, state, destination, task):
     worker_git(workspace, ["bundle", "create", str(destination), branch], checkout)
 
 
+# [impl->req~im-git-transfer~1]
 def import_task(state, bundle):
     """Copy a regular bundle after worker teardown; never import its Git config."""
     # A worker can replace its export with a symlink, FIFO or device. Open without
@@ -100,6 +102,7 @@ def import_task(state, bundle):
     state["commit"] = git(["--git-dir", state["repository"], "rev-parse", branch]).stdout.strip()
 
 
+# [impl->req~im-bounded-git~1]
 def retain_patch(state, destination):
     """Keep a complete bounded patch, or fail while preserving the task branch."""
     require_disk_space(destination.parent)

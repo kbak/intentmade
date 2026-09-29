@@ -49,6 +49,8 @@ def validate_traceability(config, review):
         raise PublicationError("Required traceability assessment remains uncertain")
 
 
+# [impl->req~im-pr-publication~1]
+# [impl->req~im-review-retry~1]
 def publish(config, pr, review, credential):
     validate_traceability(config, review)
     if (
@@ -117,6 +119,8 @@ def publish(config, pr, review, credential):
         return {key: posted[key] for key in ("id", "html_url", "state", "commit_id")}
 
 
+# [impl->req~im-pr-publication~1]
+# [impl->req~im-review-retry~1]
 def load_saved(config, pr, artifact):
     artifact = Path(artifact)
     if not current_protocol(artifact):

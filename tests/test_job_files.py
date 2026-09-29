@@ -31,6 +31,7 @@ class JobFileTests(unittest.TestCase):
                 else:
                     os.mkfifo(target)
                 job_files.write_text(job, target, "new manifest")
+                # [utest~im-job_files-JobFileTests-existing_symlink_hardlink_and_fifo_are_replaced_without_following~1->req~im-safe-controller-writes~1]
                 self.assertEqual(sentinel.read_text(), "protected")
                 self.assertEqual(target.read_text(), "new manifest")
                 self.assertFalse(target.is_symlink())
@@ -70,6 +71,7 @@ class JobFileTests(unittest.TestCase):
 
             with patch.object(job_files.os, "open", side_effect=replace_after_open):
                 job_files.write_text(job, checks / "log", "safe")
+            # [utest~im-job_files-JobFileTests-ancestor_replacement_after_open_keeps_write_on_opened_directory~1->req~im-safe-controller-writes~1]
             self.assertEqual(list(outside.iterdir()), [])
             self.assertEqual((job / "moved/log").read_text(), "safe")
 
@@ -155,6 +157,7 @@ class JobFileTests(unittest.TestCase):
                 patch.object(run.reporting, "browser_evidence"),
             ):
                 result = run.browser_checks(configs, states, "request", root, 0)
+            # [utest~im-job_files-JobFileTests-grouped_browser_qa_uses_a_fresh_root_and_source_for_each_worker~1->req~im-safe-controller-writes~1]
             self.assertEqual(set(result), {"one", "two"})
             self.assertEqual(len(roots), 2)
             self.assertFalse((root / "protected").exists())

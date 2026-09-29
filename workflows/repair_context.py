@@ -166,6 +166,7 @@ def retain(configs, states, task, request, artifact, attempt, status, failure):
         temporary.replace(destination)
 
 
+# [impl->req~im-repair-context~1]
 def previous(configs, states, task, request):
     pointers = [Path(s["repository"]) / "factory-continuation.json" for s in states.values()]
     if not all(p.is_file() for p in pointers):
@@ -196,6 +197,7 @@ def previous(configs, states, task, request):
         return None, "context_rejected: " + str(exc)
 
 
+# [impl->req~im-repair-context~1]
 @contextmanager
 def staged(configs, states, task, request, artifact, attempt):
     receipt = artifact / f"continuation-selection-{attempt}.json"
@@ -247,6 +249,7 @@ def staged(configs, states, task, request, artifact, attempt):
         write_once(receipt, inputs.encoded(decision))
 
 
+# [impl->req~im-repair-context~1]
 def prompt(selected, decision, original):
     current = runtime()
     if not selected:

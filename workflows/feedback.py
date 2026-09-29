@@ -48,6 +48,7 @@ def unresolved_roots(config, number, credential):
         cursor = following
 
 
+# [impl->req~im-feedback-authority~1]
 def collect(config, pr, credential, record, retry=False):
     if not config.get("pr_feedback", False):
         return []
@@ -132,6 +133,7 @@ def runs_today(record):
     return [stamp for stamp in record.get("feedback_runs", []) if stamp > time.time() - 86400]
 
 
+# [impl->req~im-feedback-lifecycle~1]
 def remember(record, entries, status):
     for entry in entries:
         record.setdefault("feedback", {})[entry["id"]] = {

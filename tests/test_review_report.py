@@ -92,6 +92,7 @@ class ConsolidationTests(unittest.TestCase):
         ):
             report = merged_report(result)
             change(report)
+            # [utest~im-review_report-ConsolidationTests-missing_repeated_and_invented_source_ids_are_rejected~1->req~im-review-report-integrity~1]
             with self.assertRaisesRegex(ValueError, "every source finding exactly once"):
                 review_report.validate_report(result, report)
 
@@ -99,6 +100,7 @@ class ConsolidationTests(unittest.TestCase):
         result = overlapping_review()
         report = review_report.validate_report(result, merged_report(result))
         result.reviews[0].blocking_findings[0].evidence = "Different defect"
+        # [utest~im-review_report-ConsolidationTests-report_cannot_be_reused_with_changed_native_evidence~1->req~im-review-report-integrity~1]
         with self.assertRaisesRegex(ValueError, "different specialist evidence"):
             review_report.validate_report(result, report)
 
@@ -138,6 +140,7 @@ class ConsolidationTests(unittest.TestCase):
         draft.findings = draft.findings[:1]
         result.presentation = review_report.validate_report(result, draft)
         text = result.report()
+        # [utest~im-review_report-ConsolidationTests-merged_advisory_cannot_downgrade_a_blocker_or_its_severity~1->req~im-review-report-integrity~1]
         self.assertIn("Changes requested", text)
         self.assertIn("Blocking · High", text)
         self.assertIn("1 issue to address", text)

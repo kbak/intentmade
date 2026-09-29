@@ -3,9 +3,11 @@
 import importlib.util
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -41,6 +43,7 @@ class FiniteTests(unittest.TestCase):
                 self.run_id = str(uuid4())
                 os.environ["AUTOMATION_RUN_ID"] = self.run_id
                 result, body = self.run_recipe(f"raise SystemExit({code})")
+                # [utest~im-finite-FiniteTests-success_and_failure_both_report_native_terminal_outcome~1->req~im-finite-completion~1]
                 self.assertEqual(result, code)
                 self.assertEqual(body["status"], "COMPLETED" if code == 0 else "FAILED")
                 record = json.loads(finite.receipt_path(self.run_id, self.root).read_text())
@@ -50,6 +53,7 @@ class FiniteTests(unittest.TestCase):
 
     def test_lost_callback_preserves_execution_and_never_reexecutes(self):
         marker = self.root / "ran"
+        # [utest~im-finite-FiniteTests-lost_callback_preserves_execution_and_never_reexecutes~1->req~im-finite-completion~1]
         with self.assertRaises(ConnectionError):
             self.run_recipe(
                 f"from pathlib import Path; Path({str(marker)!r}).write_text('once')",
@@ -77,6 +81,7 @@ class FiniteTests(unittest.TestCase):
                 {"command": [sys.executable, "-c", "import time; time.sleep(20)"], "timeout": 1},
                 self.root,
             )
+        # [utest~im-finite-FiniteTests-timeout_is_reported_failed_without_waiting_for_native_watchdog~1->req~im-finite-timeout~1]
         self.assertEqual(code, 1)
         self.assertEqual(callback.call_args.kwargs["json"]["status"], "FAILED")
         record = json.loads(finite.receipt_path(self.run_id, self.root).read_text())
@@ -95,6 +100,51 @@ class FiniteTests(unittest.TestCase):
             ):
                 self.assertEqual(finite.run(request, self.root), 1)
             execute.assert_not_called()
+
+    def test_timeout_stops_parent_and_descendant(self):
+        pids = self.root / "processes.json"
+        source = (
+            "import json, os, subprocess, sys, time\n"
+            "from pathlib import Path\n"
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+            f"Path({str(pids)!r}).write_text(json.dumps([os.getpid(), child.pid]))\n"
+            "time.sleep(60)\n"
+        )
+
+        def alive(pid):
+            try:
+                # Orphans may remain zombies until the container init reaps them.
+                return Path(f"/proc/{pid}/stat").read_text().split(")", 1)[1].split()[0] != "Z"
+            except FileNotFoundError:
+                return False
+
+        try:
+            with (
+                patch.object(reporting, "session_api_key", return_value="fixture"),
+                patch.object(reporting, "api") as callback,
+            ):
+                code = finite.run(
+                    {"command": [sys.executable, "-c", source], "timeout": 2}, self.root
+                )
+            self.assertTrue(pids.exists(), "Child did not start before the timeout")
+            processes = json.loads(pids.read_text())
+            deadline = time.monotonic() + 2
+            while any(alive(pid) for pid in processes) and time.monotonic() < deadline:
+                time.sleep(0.01)
+            # [utest~im-finite-FiniteTests-timeout_stops_parent_and_descendant~1->req~im-finite-timeout~1]
+            self.assertFalse(any(alive(pid) for pid in processes), "Timeout left a process running")
+            self.assertEqual(code, 1)
+            self.assertEqual(callback.call_args.kwargs["json"]["status"], "FAILED")
+            record = json.loads(finite.receipt_path(self.run_id, self.root).read_text())
+            self.assertEqual(record["error_type"], subprocess.TimeoutExpired.__name__)
+        finally:
+            if pids.exists():
+                for pid in json.loads(pids.read_text()):
+                    if alive(pid):
+                        try:
+                            os.kill(pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
 
     def test_payload_names_cannot_escape_or_replace_relative_paths(self):
         for name in ("../recipe.py", "/recipe.py", "./recipe.py", "a/../recipe.py"):

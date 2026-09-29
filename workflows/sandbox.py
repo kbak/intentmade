@@ -32,6 +32,7 @@ def load_credential(parent):
         raise RuntimeError("Native Codex login is unavailable") from None
 
 
+# [impl->req~im-worker-credentials~1]
 def sync_credential(parent, version, previous, refreshed):
     if refreshed == previous:
         return
@@ -50,6 +51,7 @@ def sync_credential(parent, version, previous, refreshed):
         print("Native credential store retained a newer login version.", flush=True)
 
 
+# [impl->req~im-input-bytes~1]
 def mounts(root, config):
     volumes = [f"{root}:{root}"]
     if input_artifacts.CURRENT.get():
@@ -60,6 +62,9 @@ def mounts(root, config):
     return volumes
 
 
+# [impl->req~im-disk-admission~1]
+# [impl->req~im-execution-provenance~1]
+# [impl->req~im-worker-credentials~1]
 @contextmanager
 def worker(root, config):
     # Resolve against Canvas before replacing its API key with the worker's.

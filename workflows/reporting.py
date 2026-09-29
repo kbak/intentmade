@@ -188,6 +188,7 @@ class TaskReport:
             print(f"Canvas report update unavailable: {type(exc).__name__}", flush=True)
 
 
+# [impl->req~im-explicit-resume~1]
 def resume_reply(config, task):
     """Only an explicit, new user reply can restart a failed/waiting task."""
     record = read_report(config, task)

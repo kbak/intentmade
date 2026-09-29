@@ -41,6 +41,7 @@ def directory(path, root):
             raise RuntimeError("Traceability retention refuses linked parent directories")
 
 
+# [impl->req~im-trace-retention~1]
 def copy_file(source, target, budget):
     fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, "rb") as handle:
@@ -55,6 +56,7 @@ def copy_file(source, target, budget):
     return {"sha256": hashlib.sha256(contents).hexdigest(), "bytes": len(contents)}
 
 
+# [impl->req~im-trace-retention~1]
 def retain(paths, attempt):
     root = paths["root"].resolve()
     source = paths["scratch"].parent

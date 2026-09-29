@@ -120,6 +120,7 @@ def publish_review(config, pr, review, credential, artifact):
     print(f"GitHub review: {posted['html_url']} — {posted['state']}", flush=True)
 
 
+# [impl->req~im-immutable-pr-comparison~1]
 def _review_pr(config, pr, credential):
     repo, number, sha = config["repository"], pr["number"], pr["head"]["sha"]
     artifact = evidence(job_id() + "-pr-" + str(number))
@@ -291,6 +292,7 @@ def waiting_replies(config, credential, discovered):
             yield {**item, "factory_resume": reply}
 
 
+# [impl->req~im-issue-ownership~1]
 def implement_issue(config, issue, credential, resume=None):
     from approval import approved_issue
 
@@ -421,6 +423,7 @@ def implement_issue(config, issue, credential, resume=None):
         raise
 
 
+# [impl->req~im-issue-deduplication~1]
 def poll(config, credential, replies_only=False):
     deployment.check_issue_authorization(config)
     repo = config["repository"]

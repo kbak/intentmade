@@ -89,6 +89,7 @@ def docker_json(arguments, template):
     return json.loads(result.stdout)
 
 
+# [impl->req~im-execution-provenance~1]
 def image_observation(container_id):
     result = {
         "container_id": container_id,
@@ -121,6 +122,7 @@ def image_observation(container_id):
     return result
 
 
+# [impl->req~im-execution-provenance~1]
 def required(record, expectations):
     if not isinstance(expectations, dict):
         raise ValueError("required_environment must map observed paths to expected values or true")

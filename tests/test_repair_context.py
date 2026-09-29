@@ -132,6 +132,7 @@ class RepairContextTests(unittest.TestCase):
                 if changed == "artifact":
                     (self.artifact / "queue/tests-0.log").write_text("forged pass")
                 selected, reason = repair.previous(configs, states, "task", contract)
+                # [utest~im-repair_context-RepairContextTests-stale_contract_base_policy_candidate_and_artifact_are_not_reused~1->req~im-repair-context~1]
                 self.assertIsNone(selected)
                 self.assertIn("context_rejected", reason)
 
@@ -145,6 +146,7 @@ class RepairContextTests(unittest.TestCase):
             with patch.object(
                 repair, "runtime", return_value={**RUNTIME, "image_id": "sha256:other"}
             ):
+                # [utest~im-repair_context-RepairContextTests-runtime_change_falls_back_without_weakening_current_contract~1->req~im-repair-context~1]
                 self.assertEqual(repair.prompt(selected, decision, self.contract), self.contract)
                 self.assertEqual(decision["reason"], "runtime_identity_unknown_or_changed")
 
@@ -200,6 +202,7 @@ class RepairContextTests(unittest.TestCase):
             )
 
         output = fixture.invoke(edit)
+        # [utest~im-repair_context-RepairContextTests-real_pipeline_repairs_with_verified_context_and_fresh_review~1->req~im-repair-context~1]
         self.assertEqual(output["status"], "PASSED")
         self.assertEqual(len(fixture.attempts), 2)
         self.assertEqual(len(fixture.review_prompts), 1)

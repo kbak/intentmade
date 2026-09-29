@@ -166,6 +166,7 @@ def coordinator_prompt(context, traceability=None):
     )
 
 
+# [impl->req~im-trace-assessment~1]
 def validate_assessments(assessments, expected):
     """Check required accounting and outcomes; relevance remains the reviewer's judgment."""
     projects = [item.project for item in assessments]
@@ -223,6 +224,7 @@ def validate_assessments(assessments, expected):
             raise ValueError(f"{assessment.project}: traceability assessment omits changed paths")
 
 
+# [impl->req~im-review-evidence~1]
 def validate_coverage(coverage, expected):
     required = {
         (project, item["path"], item["status"])
@@ -236,6 +238,8 @@ def validate_coverage(coverage, expected):
         raise ValueError("Required source or patch evidence remains unavailable")
 
 
+# [impl->req~im-review-evidence~1]
+# [impl->req~im-trace-assessment~1]
 def evaluate(events, traceability=None, review_inputs=None):
     # ACPToolCallEvent comes from the adapter, not assistant prose or a shell's output.
     evidence = [

@@ -16,7 +16,8 @@ docker run --rm --network none --entrypoint python \
   -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
   -v "$PWD/tests:/tests:ro" -v "$PWD/tests/config:/opt/factory/config:ro" \
   -v "$PWD/examples:/examples:ro" \
-  -v "$PWD/scripts:/scripts:ro" -v "$PWD/tests/profiles:/factory-tests:ro" \
+  -v "$PWD/scripts:/scripts:ro" -v "$PWD/runtime:/runtime:ro" \
+  -v "$PWD/tests/profiles:/factory-tests:ro" \
   intentmade:dev -m unittest discover -s /tests -p 'test_*.py' -v
 ```
 
@@ -38,6 +39,25 @@ Build the [traceability image](../docs/traceability.md#runtime-setup), then run
 the regression command above with `intentmade:traceability-test`. The
 suite requires IntentBond and its OFT JAR to run the opt-in cases. The
 ordinary image skips those cases.
+
+The maintained `scope.json` uses `scripts/check_factory.py` with an immutable
+traceability image ID. This checks `/opt/factory/runtime-build.json` against the
+captured runtime files, Docker build recipe, ignore policy and upstream lock
+before starting tests. Rebuild and review the image pin after those inputs change.
+The manifest checks consistency; it does not attest an arbitrary image's behavior.
+
+The runner emits JUnit through `python -m intentbond.unittest_junit` and the
+explicit `tests/oft-links.json` mapping. Named OFT comments beside assertions and
+`tests.execution_links.required_artifacts` bind mandatory tests to passing
+observations. Maintain all three when adding or renaming a linked test. Skips,
+zero discovery, setup errors and missing required executions cannot pass this
+scope. Generated reports belong under ignored `.local-validation/`.
+
+The same runner works inside a factory job whose Docker daemon shares its
+`/workspaces` tree; traceability already places checker snapshots there. Load the
+pinned image into that job daemon before checking. A host-local image is not
+automatically available inside a job VM. Deployment scope copies should record
+the source scope digest and be refreshed deliberately.
 
 Traceability tests run Git, OFT, and unittest through implementation, repair,
 export, and review. They also check that discussion context selects only opted-in
@@ -109,7 +129,7 @@ fixture server and VM and changes policy only for that disposable VM. See the
 
 ```bash
 python3 tests/check_review_sandbox.py
-python3 tests/check_resource_limits.py
+PYTHONPATH=workflows python3 tests/check_resource_limits.py
 python3 tests/check_isolation.py
 ```
 

@@ -36,6 +36,7 @@ class BrowserResult(BaseModel):
     checks: list[BrowserCheck] = Field(default_factory=list, max_length=30)
     screenshots: list[Screenshot] = Field(default_factory=list, max_length=8)
 
+    # [impl->req~im-browser-evidence~1]
     @model_validator(mode="after")
     def complete(self):
         if self.status == "PASS" and (
@@ -51,6 +52,7 @@ class BrowserResult(BaseModel):
         return self
 
 
+# [impl->req~im-browser-gap-acceptance~1]
 def accepted_gaps(answers):
     """Read explicit directives only from maintainer replies to this specification.
 
@@ -97,6 +99,7 @@ def infrastructure_gaps(result):
     return blocked
 
 
+# [impl->req~im-browser-gap-acceptance~1]
 def accept_infrastructure_gaps(result, accepted):
     """Called only after startup, evidence retention and source integrity succeed."""
     blocked = infrastructure_gaps(result)
@@ -192,6 +195,7 @@ def mcp_config(output):
     }
 
 
+# [impl->req~im-browser-evidence~1]
 def retain(workspace, output, destination, screenshots):
     """Accept only named PNGs; persist in a parent-owned directory, outside Git."""
     destination.mkdir(parents=True, exist_ok=True)
@@ -223,6 +227,7 @@ def retain(workspace, output, destination, screenshots):
     return retained
 
 
+# [impl->req~im-browser-evidence~1]
 def run(workspace, config, state, request, output, destination):
     settings, checkout = config["browser_qa"], state["source"]
     expected = state["commit"]

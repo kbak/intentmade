@@ -37,6 +37,7 @@ def identifier(value, max_length=80):
     return value
 
 
+# [impl->req~im-trace-opt-in~1]
 def projects(config_dir=None):
     directory = Path(config_dir) if config_dir is not None else ROOT / "config"
     defaults = json.loads((directory / "defaults.json").read_text())
@@ -169,6 +170,7 @@ def token():
     return issues.get_secret("GITHUB_PERSONAL_ACCESS_TOKEN")
 
 
+# [impl->req~im-repository-locks~1]
 @contextmanager
 def lock(name, blocking=False):
     directory = DATA / "locks"

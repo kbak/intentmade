@@ -114,6 +114,7 @@ def report_status(config, record, status, message, *, metrics=None):
         )
 
 
+# [impl->req~im-feedback-lifecycle~1]
 def verify_revision(config, expected, credential):
     pr = github(credential, "GET", f"/repos/{config['repository']}/pulls/{expected['number']}")
     if (
@@ -362,6 +363,7 @@ def failure_context(config, pr, credential, artifact):
     return "\n\n".join(sections)[-60000:]
 
 
+# [impl->req~im-feedback-lifecycle~1]
 def maintain(config, pr, action, credential):
     from approval import approved_issue
     from run import execute_build, task_repository

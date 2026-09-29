@@ -28,6 +28,7 @@ class RetentionTests(unittest.TestCase):
                 "retained": root / "traceability-0",
             }
             index = retention.retain(paths, 0)
+            # [utest~im-traceability_retention-RetentionTests-incomplete_and_unregistered_checks_stay_visible~1->req~im-trace-retention~1]
             self.assertEqual(len(index["invocations"]), 2)
             self.assertTrue(
                 all(i["bundle"]["status"] == "incomplete" for i in index["invocations"])
@@ -70,6 +71,7 @@ class RetentionTests(unittest.TestCase):
                     "retained": root / "traceability-0",
                 }
                 with patch.object(retention, "MAX_FILE_BYTES", 10 if kind == "size" else 100000):
+                    # [utest~im-traceability_retention-RetentionTests-links_special_files_unknown_files_and_size_limits_are_not_exported~1->req~im-trace-retention~1]
                     with self.assertRaises((RuntimeError, OSError)):
                         retention.retain(paths, 0)
                 self.assertTrue(secret.exists())
@@ -103,6 +105,7 @@ class RetentionTests(unittest.TestCase):
                 0,
             )
             retained = index["invocations"][0]
+            # [utest~im-traceability_retention-RetentionTests-manifest_hashes_cover_preserved_rejected_bundle~1->req~im-trace-retention~1]
             self.assertEqual(retained["bundle"]["status"], "rejected")
             self.assertEqual(
                 retained["artifacts"]["evidence/evidence.json"]["sha256"],

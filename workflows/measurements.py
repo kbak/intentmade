@@ -73,6 +73,7 @@ class Recorder:
             self.save()
 
 
+# [impl->req~im-measurement-outcomes~1]
 @contextmanager
 def task(directory, name, kind, repositories):
     recorder = Recorder(directory, name, kind, repositories)
@@ -154,6 +155,7 @@ def stage(name, project=None):
         recorder.save()
 
 
+# [impl->req~im-measurement-outcomes~1]
 def update(outcome):
     recorder = CURRENT.get()
     if not recorder:
@@ -257,6 +259,7 @@ def usage_evidence(conversation):
     return list(unique.values())
 
 
+# [impl->req~im-measurement-outcomes~1]
 def record_agent(conversation, before, started, skill, transcript, before_events=()):
     recorder = CURRENT.get()
     if not recorder:

@@ -23,6 +23,11 @@ Do not run experiments against an active factory.
 
 ## Make a change
 
+- Read the [intent](docs/intent.md) and affected [specification requirements](docs/spec.md).
+  Follow their links to code and assertions; keep intent, promises, links and
+  evidence consistent. Preserve IDs for continuing promises, including document
+  moves. Use the matching packaged IntentBond guidance and the root
+  [checking scope](scope.json); ordinary development does not repeat recovery.
 - Check the pinned upstream implementation before adding glue or a runtime patch.
 - Keep the single-operator deployment model explicit. Preserve existing authorization,
   credential, source-transfer, and evidence boundaries.

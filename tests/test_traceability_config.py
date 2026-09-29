@@ -36,6 +36,7 @@ class ScopeConfigurationTests(unittest.TestCase):
         self.register()
         with patch.dict(sys.modules, {"intentbond": None}):
             config = common.projects(self.root)["pilot"]
+        # [utest~im-traceability_config-ScopeConfigurationTests-absent_scope_keeps_ordinary_workflow_without_optional_packages~1->req~im-trace-opt-in~1]
         self.assertNotIn("traceability_scope", config)
         self.assertEqual(config["test_command"], "make test")
 
@@ -74,6 +75,7 @@ class ScopeConfigurationTests(unittest.TestCase):
         for reference in (None, False, "", " ", {}, str(self.scope), "../outside.json"):
             with self.subTest(reference=reference):
                 self.register(traceability_scope=reference)
+                # [utest~im-traceability_config-ScopeConfigurationTests-reference_must_be_a_relative_path_inside_config~1->req~im-trace-opt-in~1]
                 with self.assertRaisesRegex(ValueError, "traceability_scope"):
                     common.projects(self.root)
         self.scope.unlink()
@@ -89,6 +91,7 @@ class ScopeConfigurationTests(unittest.TestCase):
 
     def test_scope_and_registration_cannot_define_two_test_commands(self):
         self.register(traceability_scope="traceability/pilot.json", test_command="true")
+        # [utest~im-traceability_config-ScopeConfigurationTests-scope_and_registration_cannot_define_two_test_commands~1->req~im-trace-opt-in~1]
         with self.assertRaisesRegex(ValueError, "only in the traceability scope"):
             common.projects(self.root)
 
@@ -96,6 +99,7 @@ class ScopeConfigurationTests(unittest.TestCase):
     def test_scope_contents_are_resolved_from_config_and_own_the_test_command(self):
         # The process cwd is unrelated to the deployment directory.
         config = common.projects(self.root)["pilot"]
+        # [utest~im-traceability_config-ScopeConfigurationTests-scope_contents_are_resolved_from_config_and_own_the_test_command~1->req~im-trace-opt-in~1]
         self.assertEqual(config["traceability_scope"], json.loads(self.scope.read_text()))
         self.assertNotIn("test_command", config)
         self.scope.unlink()
@@ -133,6 +137,7 @@ class ScopeIdentityTests(unittest.TestCase):
         config = json.loads(json.dumps(common.projects(self.root)["pilot"]))
         self.scope.unlink()  # Execution must not reread mutable deployment config.
         data, identity = export(config)
+        # [utest~im-traceability_config-ScopeIdentityTests-exact_source_survives_native_payload_and_worker_freezing~1->req~im-scope-identity~1]
         self.assertEqual(data, raw)
         self.assertEqual(identity["source_file"]["sha256"], identity["worker_file"]["sha256"])
         artifact, worker = self.root / "artifacts", self.root / "worker"
@@ -154,6 +159,7 @@ class ScopeIdentityTests(unittest.TestCase):
         first = export(common.projects(self.root)["pilot"])[1]
         self.scope.write_text(json.dumps(scope, sort_keys=True, separators=(",", ":")))
         second = export(common.projects(self.root)["pilot"])[1]
+        # [utest~im-traceability_config-ScopeIdentityTests-formatting_changes_byte_identity_but_values_change_policy_identity~1->req~im-scope-identity~1]
         self.assertNotEqual(first["source_file"], second["source_file"])
         self.assertEqual(first["canonical_policy"], second["canonical_policy"])
         scope["tests"]["timeout_seconds"] += 1
@@ -166,6 +172,7 @@ class ScopeIdentityTests(unittest.TestCase):
 
         config = common.projects(self.root)["pilot"]
         config["traceability_scope"]["tests"]["timeout_seconds"] += 1
+        # [utest~im-traceability_config-ScopeIdentityTests-captured_source_tampering_fails_and_legacy_source_is_unknown~1->req~im-scope-identity~1]
         with self.assertRaisesRegex(ValueError, "controller-selected"):
             export(config)
         config = common.projects(self.root)["pilot"]

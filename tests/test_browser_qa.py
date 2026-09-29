@@ -72,6 +72,7 @@ class BrowserQATests(unittest.TestCase):
         }
 
     def test_only_explicit_named_gap_directives_grant_and_replace_acceptance(self):
+        # [utest~im-browser_qa-BrowserQATests-only_explicit_named_gap_directives_grant_and_replace_acceptance~1->req~im-browser-gap-acceptance~1]
         self.assertEqual(browser_qa.accepted_gaps(["Just retry"]), {})
         answer = 'accept-browser-gaps: {"Live Telegram": "No disposable session"}'
         self.assertEqual(
@@ -132,6 +133,7 @@ class BrowserQATests(unittest.TestCase):
                 result["checks"] = result["checks"][:1]
             with self.subTest(problem=problem):
                 before = copy.deepcopy(result)
+                # [utest~im-browser_qa-BrowserQATests-acceptance_preserves_unverified_checks_and_rejects_other_failures~1->req~im-browser-gap-acceptance~1]
                 self.assertEqual(
                     bool(browser_qa.gap_resume_hint(result, {})),
                     problem in {None, "unaccepted"},
@@ -187,6 +189,8 @@ class BrowserQATests(unittest.TestCase):
                     patch.object(run, "publish", return_value="https://example.test/pr") as publish,
                 ):
                     if test_code or verdict != "PASS":
+                        # [utest~im-browser_qa-BrowserQATests-accepted_gaps_reach_review_and_publication_but_do_not_waive_tests_or_review~1->req~im-browser-gap-acceptance~1]
+                        # [utest~im-browser_qa-BrowserQATests-accepted_gaps_reach_review_and_publication_but_do_not_waive_tests_or_review-2~1->req~im-publication-gate~1]
                         with self.assertRaises(RuntimeError):
                             run.execute_build(
                                 [config],
@@ -240,6 +244,7 @@ class BrowserQATests(unittest.TestCase):
             },
             {"status": "FAIL", "summary": "Could not start"},
         ):
+            # [utest~im-browser_qa-BrowserQATests-pass_requires_actual_checks_and_named_evidence~1->req~im-browser-evidence~1]
             with self.assertRaises(ValidationError):
                 browser_qa.BrowserResult.model_validate(body)
         with self.assertRaises(ValidationError):
@@ -345,6 +350,7 @@ class BrowserQATests(unittest.TestCase):
                         captures,
                         root / str(mutation),
                     )
+                # [utest~im-browser_qa-BrowserQATests-qa_runs_on_retained_commit_and_rejects_source_mutation~1->req~im-browser-evidence~1]
                 self.assertEqual(result["status"], "BLOCKED" if mutation else "PASS")
                 self.assertEqual(result["commit"], commit)
 

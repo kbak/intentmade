@@ -22,6 +22,7 @@ class AgentStartupError(RuntimeError):
         super().__init__(f"{details['code']}: {details['detail']}")
 
 
+# [impl->req~im-startup-retry~1]
 def run_with_startup_recovery(conversation, transcript=None):
     """Retry one proven startup timeout, before any agent turn can do work."""
     for attempt in range(2):

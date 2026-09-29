@@ -34,6 +34,7 @@ def timestamp(value):
         raise RuntimeError("GitHub approval history is unavailable; no work authorized") from None
 
 
+# [impl->req~im-approval-snapshot~1]
 def approved_issue(config, number, credential, expected=None):
     """Return one verified content snapshot, optionally matching a running task.
 

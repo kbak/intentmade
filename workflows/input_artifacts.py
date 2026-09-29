@@ -28,6 +28,7 @@ def encoded(value):
     ).encode()
 
 
+# [impl->req~im-input-bytes~1]
 def validate(declared):
     if not isinstance(declared, list) or len(declared) > 64:
         raise ValueError("Declare at most 64 input artifacts")
@@ -77,6 +78,7 @@ def validate(declared):
     return sorted(declared, key=lambda item: item["name"])
 
 
+# [impl->req~im-input-bytes~1]
 def copy_verified(root, relative, item, destination=None):
     # Open every component relative to a trusted root, never following links.
     directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
@@ -110,6 +112,7 @@ def copy_verified(root, relative, item, destination=None):
         os.close(directory)
 
 
+# [impl->req~im-input-restart~1]
 def verify_frozen(record):
     root = Path(record["directory"])
     manifest = encoded(record["inputs"])
@@ -127,6 +130,7 @@ def verify_frozen(record):
         copy_verified(root, item["name"], item)
 
 
+# [impl->req~im-input-restart~1]
 def freeze(selected, sources):
     record = {"inputs": selected, "manifest_sha256": digest(encoded(selected))}
     cache = DATA / "input-artifacts"
@@ -167,6 +171,7 @@ def additional(declared, source_root, receipt):
         CURRENT.reset(token)
 
 
+# [impl->req~im-input-bytes~1]
 @contextmanager
 def prepared(declared, artifact, *, task, bases, request):
     record = {
@@ -198,6 +203,7 @@ def prepared(declared, artifact, *, task, bases, request):
         CURRENT.reset(token)
 
 
+# [impl->req~im-input-restart~1]
 def bind_task(repository, record):
     """Task retries cannot silently change the accepted fixture set."""
     path = Path(repository) / "factory-inputs.json"

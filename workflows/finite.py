@@ -48,6 +48,7 @@ def save(path, record):
     temporary.replace(path)
 
 
+# [impl->req~im-finite-timeout~1]
 def execute(command, timeout):
     # A timed-out recipe must stop its child processes before reporting failure.
     with subprocess.Popen(command, start_new_session=True) as process:
@@ -62,6 +63,7 @@ def execute(command, timeout):
             raise
 
 
+# [impl->req~im-finite-completion~1]
 def run(request, root=Path("/projects/artifacts")):
     run_id = os.environ["AUTOMATION_RUN_ID"]
     path = receipt_path(run_id, root)
@@ -115,6 +117,7 @@ def run(request, root=Path("/projects/artifacts")):
         raise
 
 
+# [impl->req~im-finite-completion~1]
 def inspect_status(automation_id, run_id, root=Path("/projects/artifacts")):
     UUID(automation_id)
     path = receipt_path(run_id, root)

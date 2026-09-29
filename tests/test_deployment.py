@@ -114,6 +114,7 @@ class DeploymentTests(unittest.TestCase):
             ("authorization", {"require_issue_approval": False}),
         ):
             self.write("repositories/example.json", {name: value})
+            # [utest~im-deployment-DeploymentTests-repository_cannot_override_any_deployment_field~1->req~im-deployment-authority~1]
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, "factory-wide"):
                 common.projects(self.config)
 
@@ -156,6 +157,7 @@ class DeploymentTests(unittest.TestCase):
     def test_saved_scheduler_cannot_bypass_new_requirement_or_start_triage(self):
         captured = common.projects(self.config)["example"]
         self.write("deployment.json", OSS)
+        # [utest~im-deployment-DeploymentTests-saved_scheduler_cannot_bypass_new_requirement_or_start_triage~1->req~im-deployment-authority~1]
         with (
             patch.object(monitor.issues, "_kv_get") as state,
             patch.object(monitor, "worker") as worker,
@@ -179,6 +181,7 @@ class DeploymentTests(unittest.TestCase):
 
     def test_captured_issue_build_cannot_reintroduce_unapproved_work(self):
         self.write("deployment.json", OSS)
+        # [utest~im-deployment-DeploymentTests-captured_issue_build_cannot_reintroduce_unapproved_work~1->req~im-deployment-authority~1]
         with (
             patch.object(run, "evidence") as evidence,
             self.assertRaisesRegex(ValueError, "requires issue approval"),
@@ -190,6 +193,7 @@ class DeploymentTests(unittest.TestCase):
         with patch.object(approval.issues, "_get_issue", return_value=ISSUE):
             _, snapshot = approval.approved_issue(CONFIG, 42, "fixture-token")
         self.write("deployment.json", OSS)
+        # [utest~im-deployment-DeploymentTests-personal_issue_snapshot_cannot_publish_after_operator_requires_approval~1->req~im-deployment-authority~1]
         with (
             patch.object(
                 run, "github", return_value={**ISSUE, "assignees": [{"login": "factory-bot"}]}

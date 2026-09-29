@@ -33,6 +33,7 @@ class ImplementationResult(BaseModel):
     title: str | None = None
     questions: list[str] = Field(default_factory=list)
 
+    # [impl->req~im-needs-input~1]
     @model_validator(mode="after")
     def check_questions(self):
         if self.status == "NEEDS_INPUT" and not any(q.strip() for q in self.questions):
@@ -42,6 +43,7 @@ class ImplementationResult(BaseModel):
         return self
 
 
+# [impl->req~im-task-identity~1]
 def task_repository(config, task, base, credential, request=""):
     from urllib.parse import urlsplit
 
@@ -135,6 +137,8 @@ def task_repository(config, task, base, credential, request=""):
     return repository, branch
 
 
+# [impl->req~im-approval-snapshot~1]
+# [impl->req~im-publication-gate~1]
 def publish(
     config,
     task,
@@ -204,6 +208,7 @@ def build(config, task, request, base, credential="", issue=None, publish_draft=
     )
 
 
+# [impl->req~im-repository-locks~1]
 def build_group(
     configs,
     task,
@@ -307,6 +312,7 @@ def task_context(states, path_key="worktree"):
     )
 
 
+# [impl->req~im-bounded-repair~1]
 def stage_test_evidence(configs, artifact, attempt, root):
     """Copy controller-retained logs into the next worker's visible workspace."""
     evidence = {}
@@ -337,6 +343,8 @@ def stage_test_evidence(configs, artifact, attempt, root):
     )
 
 
+# [impl->req~im-failed-work-retention~1]
+# [impl->req~im-needs-input~1]
 def implementation_attempt(configs, states, task, prompt, artifact, attempt):
     results, test_output = {}, []
     contract_path = artifact / "approved-request.md"
@@ -547,6 +555,7 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
     return results, test_output
 
 
+# [impl->req~im-git-transfer~1]
 def review_changes(configs, states, request, results, transcript=None, *, artifact=None, attempt=0):
     # Review a fresh clone of the retained commits after the implementation
     # worker has exited. Its processes and mutable Git configuration are absent.
@@ -596,6 +605,7 @@ def review_changes(configs, states, request, results, transcript=None, *, artifa
             )
 
 
+# [impl->req~im-safe-controller-writes~1]
 def browser_checks(configs, states, request, artifact, attempt):
     selected = [
         c for c in configs if c.get("browser_qa") and browser_qa.selected(c, states[c["project"]])
@@ -660,6 +670,10 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
     return result
 
 
+# [impl->req~im-bounded-repair~1]
+# [impl->req~im-browser-gap-acceptance~1]
+# [impl->req~im-group-publication~1]
+# [impl->req~im-publication-gate~1]
 def _execute_build(configs, task, request, credential, issue, publish_draft, artifact, states):
     repair_context.initialize(artifact, request)
     for state in states.values():

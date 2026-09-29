@@ -59,6 +59,7 @@ class ImmutableComparisonTests(unittest.TestCase):
 
         with patch.object(review_requests, "github", side_effect=github):
             files = review_requests.comparison_files(CONFIG, captured, "fixture")
+        # [utest~im-review_requests-ImmutableComparisonTests-same_size_head_swap_cannot_change_captured_files~1->req~im-immutable-pr-comparison~1]
         self.assertEqual(
             review_requests.snapshot(CONFIG, captured), review_requests.snapshot(CONFIG, live)
         )
@@ -72,6 +73,7 @@ class ImmutableComparisonTests(unittest.TestCase):
             {"base_commit": {"sha": "c" * 40}},
         ):
             with patch.object(review_requests, "github", return_value=response):
+                # [utest~im-review_requests-ImmutableComparisonTests-wrong_base_or_incomplete_inventory_fails_closed~1->req~im-immutable-pr-comparison~1]
                 with self.assertRaises(ValueError):
                     review_requests.comparison_files(CONFIG, {**PR, "changed_files": 1}, "fixture")
         # The compare API's 300-file cap must never lead to a partial approval.

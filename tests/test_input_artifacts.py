@@ -53,6 +53,7 @@ class DeclaredInputsTests(unittest.TestCase):
                     root = self.root / role
                     root.mkdir(exist_ok=True)
                     mounts = sandbox.mounts(root, {})
+                    # [utest~im-input_artifacts-DeclaredInputsTests-restarts_and_both_workers_share_verified_readonly_mount~1->req~im-input-bytes~1]
                     self.assertIn(record["directory"] + ":/factory-inputs:ro", mounts)
                     self.assertNotIn(str(self.source), "\n".join(mounts))
                     self.assertEqual(inputs.directory(root), record["directory"])
@@ -88,6 +89,7 @@ class DeclaredInputsTests(unittest.TestCase):
                     source.symlink_to("/etc/hosts")
                 elif mode == "hardlink":
                     (self.source / "alias").hardlink_to(source)
+                # [utest~im-input_artifacts-DeclaredInputsTests-bad_digest_missing_size_symlink_and_hardlink_rejected_with_receipt~1->req~im-input-bytes~1]
                 with self.assertRaises((ValueError, OSError)):
                     with self.prepared(declared):
                         self.fail("Rejected input became active")
@@ -108,6 +110,7 @@ class DeclaredInputsTests(unittest.TestCase):
         ]:
             bad.append([{**self.declared[0], key: value}])
         for declared in bad:
+            # [utest~im-input_artifacts-DeclaredInputsTests-parent_symlinks_unsafe_names_and_duplicates~1->req~im-input-bytes~1]
             with self.subTest(declared=declared), self.assertRaises((ValueError, OSError)):
                 with self.prepared(declared):
                     self.fail("Invalid declaration was accepted")
@@ -116,6 +119,7 @@ class DeclaredInputsTests(unittest.TestCase):
         with self.prepared() as record:
             frozen = Path(record["directory"]) / "v1.db"
         frozen.write_bytes(b"corruption")
+        # [utest~im-input_artifacts-DeclaredInputsTests-corrupted_cache_and_changed_source_rejected_on_restart~1->req~im-input-restart~1]
         with self.assertRaises(ValueError):
             with self.prepared():
                 self.fail("Corrupted cache reused")
@@ -131,6 +135,7 @@ class DeclaredInputsTests(unittest.TestCase):
         with self.prepared() as record:
             inputs.bind_task(repository, record)
             inputs.bind_task(repository, record)
+            # [utest~im-input_artifacts-DeclaredInputsTests-task_binding_cannot_change_on_a_later_run~1->req~im-input-restart~1]
             with self.assertRaisesRegex(ValueError, "changed"):
                 inputs.bind_task(repository, {"inputs": []})
         self.assertEqual(

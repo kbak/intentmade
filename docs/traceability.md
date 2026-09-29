@@ -135,6 +135,14 @@ coordinator reads its current configuration and requirements guidance with:
 python /opt/factory/configure.py discussion PROJECT
 ```
 
+Capture desired outcomes, rationale and unresolved questions in the project's
+intent document; keep concrete promises and constraints in its specification.
+IntentMade itself uses [intent.md](intent.md) and [spec.md](spec.md), with
+OFT `Covers` links from requirements to intent and existing code/test references
+to requirements. Include both documents in the selected inputs and specification
+paths, and retain `intent` → `req` and `req` → `impl`/`utest` coverage floors.
+Other repositories can keep their existing document names.
+
 This read-only command resolves the same scope as task submission. The
 coordinator inspects existing requirements in the catalog, reuses their IDs,
 and proposes IDs for concrete new requirements using the repository's OFT
@@ -150,8 +158,8 @@ Discussion and drafting do not authorize implementation or add another approval
 step. Conflicts with existing promises need an explicit decision through the
 existing question process.
 
-For example, a discussion can preserve `req~session-expiration~1` and propose
-`req~explicit-logout~1`. Once logout is agreed, both requirements and their
+For example, a discussion can preserve the existing `req~session-expiration~1`
+and propose `req~explicit-logout~1`. Once logout is agreed, both requirements and their
 acceptance criteria go into the same handoff, with `requirements.md` as their
 destination. See the [handoff fixture](../tests/fixtures/traceability-handoff.md).
 Links help the agent compare documentation, implementation, and assertions;
@@ -172,7 +180,9 @@ After implementation, the controller allocates a fresh output path and runs the
 checker. Tests execute once on the captured source. `PROJECT_DIR` points to that
 snapshot; `FACTORY_TESTS`, `FACTORY_WORKSPACE`, and the job's Docker context
 remain available. Snapshots omit Git metadata and ignored local environments,
-reject symlinks/submodules, and leave LFS pointers unexpanded. Test dependencies
+preserve safe relative source symlinks without tracing aliases, reject absolute,
+escaping, cyclic or Git-metadata links and submodules, and leave LFS pointers
+unexpanded. Retained evidence files still reject symlinks. Test dependencies
 must be available in the worker or installed by its test command.
 
 After export and worker teardown, evidence is verified against the retained
@@ -213,8 +223,8 @@ Existing requirements can suffice without new IDs or documentation edits. Change
 outside the selected scope and opted-out repositories keep ordinary review rules.
 
 The controller also resolves every cited `requirement_ids` entry against an OFT
-import of the reviewed source snapshot. Bare complete IDs such as
-`req~session-expiration~1` select the candidate; `base:req~session-expiration~1`
+import of the reviewed source snapshot. Bare complete IDs such as `req~session-expiration~1`
+select the candidate; `base:req~session-expiration~1`
 explicitly selects the baseline. Unknown IDs, wrong revisions, or unavailable
 source indexes leave review incomplete. The index includes specification items
 within the configured specification paths, including intermediate design items.
@@ -269,13 +279,17 @@ first and can read the complete records when needed.
 ## Runtime setup
 
 Build the IntentBond wheel and collect its dependencies in an artifact directory.
-Use the version pinned in
-[docker/traceability.Dockerfile](../docker/traceability.Dockerfile).
-From the IntentBond checkout:
+The source commit and wheel hash are pinned in
+[docker/intentbond-requirements.txt](../docker/intentbond-requirements.txt).
+Version 0.4.6 alone does not distinguish the newer guidance and fixes from older
+builds. From a clean IntentBond checkout at
+`72ff5e32da353664d5f8bab3cb13e01709d18dc6`, use the locked build dependencies and
+the commit timestamp so the wheel matches that hash:
 
 ```sh
 python -m pip install --require-hashes --only-binary=:all: -r requirements/ci.txt
-python -m build --no-isolation --wheel --outdir /path/to/wheels
+SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD) \
+  python -m build --no-isolation --wheel --outdir /path/to/wheels
 ```
 
 Download the locked runtime dependencies and provision the checksum-pinned OFT
@@ -290,7 +304,9 @@ python -m intentbond install-oft --destination /path/to/wheels
 Use an artifact directory containing one wheel per package. The factory verifies
 third-party wheels against `docker/traceability-requirements.txt`; keep it aligned
 with the selected IntentBond release's `requirements/runtime.txt`. The IntentBond
-wheel is a trusted local build input. From the factory checkout:
+wheel must also match its separate hash lock. Updating it requires a deliberate
+commit/hash refresh and a new immutable test image pin in the factory scope.
+From the factory checkout:
 
 ```sh
 docker build -f docker/runtime.Dockerfile -t intentmade:traceability-base .

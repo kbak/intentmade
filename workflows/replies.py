@@ -7,6 +7,7 @@ import reporting
 from common import DATA, api, lock, projects
 
 
+# [impl->req~im-explicit-resume~1]
 def queue_reply(conversation_id):
     for config in projects().values():
         if not config.get("enabled") or not config.get("repository"):

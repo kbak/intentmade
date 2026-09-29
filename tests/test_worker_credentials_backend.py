@@ -50,6 +50,7 @@ class WorkerCredentialTests(unittest.TestCase):
         for failure in (False, True):
             with self.subTest(failure=failure):
                 workspace, parent, store = self.exercise("docker-sandboxes", failure)
+                # [utest~im-worker_credentials_backend-WorkerCredentialTests-native_success_and_failure_never_read_upload_or_sync_real_login~1->req~im-worker-credentials~1]
                 store.assert_not_called()
                 workspace.client.put.assert_not_called()
                 workspace.client.get.assert_not_called()
@@ -59,6 +60,7 @@ class WorkerCredentialTests(unittest.TestCase):
         for failure in (False, True):
             with self.subTest(failure=failure):
                 workspace, parent, _ = self.exercise("docker", failure)
+                # [utest~im-worker_credentials_backend-WorkerCredentialTests-docker_workspace_retains_native_openhands_login_and_refresh~1->req~im-worker-credentials~1]
                 workspace.client.put.assert_called_once_with(
                     "/api/settings/secrets",
                     json={"name": "CODEX_AUTH_JSON", "value": "canvas-login"},

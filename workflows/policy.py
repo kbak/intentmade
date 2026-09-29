@@ -9,6 +9,7 @@ from fnmatch import fnmatchcase
 from common import github, issues
 
 
+# [impl->req~im-issue-ownership~1]
 def issue_eligible(issue, config):
     return (
         issue.get("state") == "open"

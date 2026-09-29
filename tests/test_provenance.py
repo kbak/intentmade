@@ -59,6 +59,7 @@ class ProvenanceTests(unittest.TestCase):
         )
         with patch.object(provenance, "docker_json", side_effect=inspect):
             manifest = provenance.capture(workspace, intended={"worker_image": "mutable:tag"})
+        # [utest~im-provenance-ProvenanceTests-image_comes_from_container_not_retargeted_tag_or_host~1->req~im-execution-provenance~1]
         self.assertEqual(manifest["observed"]["worker_image"]["image_id"], "sha256:actual-worker")
         self.assertEqual(manifest["observed"]["worker_image"]["daemon_id"], "nested-daemon")
         self.assertEqual(manifest["intended"]["worker_image"], "mutable:tag")
@@ -74,6 +75,7 @@ class ProvenanceTests(unittest.TestCase):
             manifest = provenance.capture(
                 SimpleNamespace(_container_id="container"), intended={"worker_image": "known:tag"}
             )
+        # [utest~im-provenance-ProvenanceTests-unknown_required_identity_blocks_without_fallback_to_intent~1->req~im-execution-provenance~1]
         self.assertIsNone(manifest["observed"]["worker_image"]["image_id"])
         provenance.required(manifest, {})
         with self.assertRaisesRegex(RuntimeError, "Required execution identity"):

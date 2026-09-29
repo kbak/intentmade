@@ -58,6 +58,7 @@ def remove_job(root):
         root.rmdir()
 
 
+# [impl->req~im-failed-work-retention~1]
 @contextmanager
 def job_directory(data=None, artifact=None):
     require_disk_space(data or DATA)

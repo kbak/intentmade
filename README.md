@@ -94,6 +94,7 @@ multi-tenant controller boundary.
 
 ## Documentation
 
+- [Intent](docs/intent.md) and [specification](docs/spec.md): outcomes, requirements and supporting code/tests.
 - [Configuration](docs/configuration.md): repositories, test profiles, browser QA, and groups.
 - [Reviews](docs/reviews.md): review policy, evidence, and GitHub verdicts.
 - [Agents](docs/agents.md): models, roles, and skills.

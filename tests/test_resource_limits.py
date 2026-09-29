@@ -75,6 +75,7 @@ class ResourceLimitTests(unittest.TestCase):
             return output.getvalue()
 
         with self.configure(git_memory_mb=128):
+            # [utest~im-resource_limits-ResourceLimitTests-git_children_have_memory_and_time_bounds_and_bounded_diagnostics~1->req~im-bounded-git~1]
             self.assertEqual(
                 run_script("import resource; print(resource.getrlimit(resource.RLIMIT_AS)[0])"),
                 f"{128 * limits.MIB}\n".encode(),
@@ -90,6 +91,7 @@ class ResourceLimitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             retained = Path(temp) / "job-recovery"
             retained.mkdir()
+            # [utest~im-resource_limits-ResourceLimitTests-low_disk_prevents_job_admission_without_deleting_retained_work~1->req~im-disk-admission~1]
             with (
                 patch.object(limits.shutil, "disk_usage", return_value=SimpleNamespace(free=0)),
                 self.assertRaisesRegex(RuntimeError, "disk headroom"),

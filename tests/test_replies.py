@@ -58,6 +58,7 @@ class ReplyDispatchTests(unittest.TestCase):
 
     def test_saved_answer_dispatches_immediately_and_duplicate_notification_is_idempotent(self):
         before = copy.deepcopy(reporting.read_report(CONFIG, "issue-1406"))
+        # [utest~im-replies-ReplyDispatchTests-saved_answer_dispatches_immediately_and_duplicate_notification_is_idempotent~1->req~im-explicit-resume~1]
         self.assertTrue(replies.queue_reply("conversation"))
         self.assertTrue(replies.queue_reply("conversation"))
         dispatches = [call for call in self.api.call_args_list if call.args[0] == "POST"]
@@ -75,6 +76,7 @@ class ReplyDispatchTests(unittest.TestCase):
     def test_paused_schedule_disables_immediate_dispatch(self):
         self.api.side_effect = None
         self.api.return_value = {"enabled": False}
+        # [utest~im-replies-ReplyDispatchTests-paused_schedule_disables_immediate_dispatch~1->req~im-explicit-resume~1]
         self.assertFalse(replies.queue_reply("conversation"))
         self.assertEqual([call.args[0] for call in self.api.call_args_list], ["GET"])
 

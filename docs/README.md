@@ -13,6 +13,8 @@
 
 ## Requirements and evidence
 
+- [Intent](intent.md) — intended outcomes, rationale and conversation guidance.
+- [Specification](spec.md) — the 40 maintained requirements and their code/test links.
 - [Traceability](traceability.md) — configure IntentBond and understand the validation stages.
 - [Traceability agent API](traceability-agent-api.md) — guidance and command helpers.
 - [Scope identity](scope-identity.md) — capture and verify the selected policy.

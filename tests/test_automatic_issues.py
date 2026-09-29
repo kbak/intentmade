@@ -82,6 +82,7 @@ class AutomaticSchedulerTests(unittest.TestCase):
 
     def test_failures_remain_deduplicated_after_history_pruning_and_metadata_changes(self):
         self.build.side_effect = RuntimeError("tests failed")
+        # [utest~im-automatic_issues-AutomaticSchedulerTests-failures_remain_deduplicated_after_history_pruning_and_metadata_changes~1->req~im-issue-deduplication~1]
         with self.assertRaisesRegex(RuntimeError, "tests failed"):
             monitor.poll(CONFIG, "offline-token")
         self.state["done"] = {}

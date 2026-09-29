@@ -104,6 +104,7 @@ class TransferTests(unittest.TestCase):
             common.git(
                 ["bundle", "create", str(bundle), "factory/task", "^" + state["base"]], cwd=source
             )
+            # [utest~im-transfer-TransferTests-amplified_patch_is_rejected_without_losing_imported_work~1->req~im-bounded-git~1]
             self.assertLess(bundle.stat().st_size, 16 * 1024)
             transfer.import_task(state, bundle)
             artifact = root / "artifact"
@@ -216,6 +217,7 @@ class TransferTests(unittest.TestCase):
             source, state = self.seed(root)
             bundle = root / "untrusted.bundle"
             bundle.symlink_to(source / "code.txt")
+            # [utest~im-transfer-TransferTests-reject_symlink_and_fifo_exports_without_reading_them~1->req~im-git-transfer~1]
             with self.assertRaises(OSError):
                 transfer.import_task(state, bundle)
             bundle.unlink()
@@ -230,6 +232,7 @@ class TransferTests(unittest.TestCase):
             bundle = root / "untrusted.bundle"
             common.git(["branch", "other"], cwd=source)
             common.git(["bundle", "create", str(bundle), "other"], cwd=source)
+            # [utest~im-transfer-TransferTests-reject_unexpected_refs_and_rewritten_history~1->req~im-git-transfer~1]
             with self.assertRaisesRegex(RuntimeError, "unexpected refs"):
                 transfer.import_task(state, bundle)
             common.git(["checkout", "--orphan", "unrelated"], cwd=source)
@@ -343,6 +346,7 @@ class TransferTests(unittest.TestCase):
                     artifact,
                     {"example": state},
                 )
+            # [utest~im-transfer-TransferTests-hostile_git_config_stays_in_worker_and_review_uses_fresh_clone~1->req~im-git-transfer~1]
             self.assertEqual(result["status"], "PASSED")
             self.assertEqual(len(builder_roots), 2)
             self.assertTrue(worker_marker.exists())

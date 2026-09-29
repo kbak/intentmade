@@ -71,6 +71,7 @@ class ApprovalHistoryTests(unittest.TestCase):
                 {"lastEditedAt": edited_at},
                 {"timelineItems": {"nodes": [{"createdAt": edited_at}]}},
             ):
+                # [utest~im-approval-ApprovalHistoryTests-title_and_body_edits_after_or_during_approval_second_fail_closed~1->req~im-approval-snapshot~1]
                 with self.subTest(change=change), self.assertRaisesRegex(RuntimeError, "reapply"):
                     self.capture({**CONTENT, **change})
 
@@ -100,6 +101,7 @@ class ApprovalHistoryTests(unittest.TestCase):
             {**CONTENT, "timelineItems": {"nodes": [None]}},
             {**CONTENT, "lastEditedAt": "not a timestamp"},
         ):
+            # [utest~im-approval-ApprovalHistoryTests-missing_or_partial_history_fails_closed~1->req~im-approval-snapshot~1]
             with self.subTest(content=content), self.assertRaisesRegex(RuntimeError, "unavailable"):
                 self.capture(content)
         with (
@@ -150,6 +152,7 @@ class ApprovalWorkflowTests(unittest.TestCase):
 
     def test_publication_requires_unchanged_snapshot_before_any_push(self):
         for config in (CONFIG, {**CONFIG, "issue_approval": {"label_event": "100"}}):
+            # [utest~im-approval-ApprovalWorkflowTests-publication_requires_unchanged_snapshot_before_any_push~1->req~im-approval-snapshot~1]
             with (
                 patch.object(
                     run, "github", return_value={**ISSUE, "assignees": [{"login": "factory-bot"}]}

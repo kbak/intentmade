@@ -129,6 +129,7 @@ def revision(pr):
     return sha + "-" + hashlib.sha256(json.dumps(base(pr), sort_keys=True).encode()).hexdigest()
 
 
+# [impl->req~im-immutable-pr-comparison~1]
 def comparison_files(config, pr, credential):
     """Read the captured comparison, never the PR's mutable current diff."""
     revision(pr)  # Validate both immutable object names before building the URL.

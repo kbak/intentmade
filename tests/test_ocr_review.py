@@ -161,6 +161,7 @@ class CoverageTests(unittest.TestCase):
             cases.append(changed)
         for coverage in cases:
             with self.subTest(coverage=coverage):
+                # [utest~im-ocr_review-CoverageTests-missing_duplicate_wrong_and_unavailable_coverage_block~1->req~im-review-evidence~1]
                 self.assertEqual(self.evaluate(coverage).verdict, "BLOCKED")
 
     def test_legacy_or_extra_reviewers_cannot_satisfy_new_protocol(self):

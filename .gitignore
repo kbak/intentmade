@@ -24,3 +24,6 @@ id_rsa
 id_ed25519
 .netrc
 .pypirc
+
+# Fresh JUnit reports are generated evidence, never candidate source.
+.local-validation/

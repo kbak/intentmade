@@ -59,6 +59,7 @@ def worker_docker_flags():
     ]
 
 
+# [impl->req~im-disk-admission~1]
 def require_disk_space(path):
     minimum = settings()["min_free_disk_mb"] * MIB
     if shutil.disk_usage(path).free < minimum:
@@ -78,6 +79,7 @@ def copy_bounded(source, target, limit, label):
         remaining -= len(chunk)
 
 
+# [impl->req~im-bounded-git~1]
 def stream_git(arguments, target, limit, label, *, timeout=600):
     """Bound both Git's address space and streamed output from untrusted objects."""
     # Set limits in a fresh interpreter, avoiding preexec_fn in a threaded host.

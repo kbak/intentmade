@@ -428,6 +428,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
 
         self.assertEqual(self.invoke(edit)["status"], "PASSED")
         self.assertEqual(self.contexts, [True, True])
+
         self.assertIn("AssertionError", self.attempts[1])
         self.assertTrue((self.artifact / "pilot/traceability-0/test-result.json").is_file())
         self.assertTrue((self.artifact / "pilot/traceability-1/test-result.json").is_file())
@@ -438,6 +439,61 @@ class TraceabilityPipelineTests(unittest.TestCase):
             )
             statuses.append(index["invocations"][0]["bundle"]["status"])
         self.assertEqual(statuses, ["rejected", "passed"])
+
+    def test_required_execution_rejects_skipped_linked_test_before_review_or_publication(self):
+        scope = self.config["traceability_scope"]
+        scope["tests"] = {
+            "format": "junit",
+            "command": [
+                "python",
+                "-m",
+                "intentbond.unittest_junit",
+                "--start",
+                "tests",
+                "--links",
+                "tests/oft-links.json",
+                "--report",
+                ".results/tests.xml",
+            ],
+            "report": ".results/tests.xml",
+            "timeout_seconds": 60,
+            "execution_links": {
+                "format": "junit-properties-v1",
+                "artifact_types": ["utest"],
+                "required_artifacts": ["utest~expiration"],
+            },
+        }
+
+        def edit(root, attempt):
+            path = root / "tests/test_session.py"
+            path.write_text(
+                path.read_text().replace(
+                    "# [utest->req~session-expiration~1]",
+                    "# [utest~expiration~1->req~session-expiration~1]\n    @unittest.skip('not run')",
+                )
+                + "\n    def test_unlinked(self): self.assertTrue(True)\n"
+            )
+            (root / "tests/oft-links.json").write_text(
+                json.dumps(
+                    {
+                        "test_session.SessionTests.test_expiration": ["utest~expiration~1"],
+                    }
+                )
+            )
+
+        # [utest~im-required-execution-gate~1->req~im-trace-source-gate~1]
+        with self.assertRaisesRegex(RuntimeError, "Configured tests failed"):
+            self.invoke(edit)
+        self.assertEqual(self.review_prompts, [])
+        retained = list(self.artifact.rglob("evidence.json"))
+        self.assertTrue(retained)
+        outcomes = [json.loads(path.read_text())["predicate"] for path in retained]
+        self.assertTrue(
+            any(
+                "expected passed observations; got skipped" in str(record["diagnostics"])
+                for record in outcomes
+            )
+        )
 
     def test_successful_test_log_and_report_changes_stay_out_of_review_prompt(self):
         marker = "SUCCESSFUL_TEST_LOG_DETAIL"
@@ -499,6 +555,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
         from traceability import retention
 
         with patch.object(retention, "copy_file", side_effect=OSError("interrupted write")):
+            # [utest~im-traceability-TraceabilityPipelineTests-interrupted_retention_preserves_the_only_workspace_copy~1->req~im-failed-work-retention~1]
             with self.assertRaisesRegex(RuntimeError, "Could not retain task evidence"):
                 self.invoke(feedback=True)
         recovery = Path((self.artifact / "recovery-workspace.txt").read_text())
@@ -517,6 +574,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
             )
             (root / "scope.json").write_text('{"required_coverage":{"req":["impl"]}}')
 
+        # [utest~im-traceability-TraceabilityPipelineTests-candidate_cannot_weaken_the_frozen_floor~1->req~im-trace-source-gate~1]
         with self.assertRaises(RuntimeError):
             self.invoke(edit)
         self.assertEqual(self.states["pilot"]["traceability"]["status"], "rejected")
@@ -540,6 +598,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
             path.write_text(path.read_text() + "\n# changed after checks\n")
             original(workspace, state, destination, task)
 
+        # [utest~im-traceability-TraceabilityPipelineTests-exported_contents_must_match_tested_dirty_contents~1->req~im-trace-source-gate~1]
         with self.assertRaises(RuntimeError):
             self.invoke(export=export)
         self.assertIn(
@@ -552,6 +611,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
         with patch.object(
             traceability, "check", return_value=SimpleNamespace(exit_code=0, stdout="", stderr="")
         ):
+            # [utest~im-traceability-TraceabilityPipelineTests-missing_evidence_cannot_complete_even_with_passing_review~1->req~im-trace-source-gate~1]
             with self.assertRaises(RuntimeError):
                 self.invoke()
         self.assertEqual(self.states["pilot"]["traceability"]["status"], "error")
@@ -576,6 +636,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
             return result
 
         with patch.object(traceability, "check", fail_with_existing_bundle):
+            # [utest~im-traceability-TraceabilityPipelineTests-failed_current_invocation_cannot_reuse_a_passing_bundle~1->req~im-trace-source-gate~1]
             with self.assertRaises(RuntimeError):
                 self.invoke()
         record = self.states["pilot"]["traceability"]
@@ -618,6 +679,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
             paths["worker_scope"].write_text(json.dumps(value))
             return original(workspace, state, paths, env)
 
+        # [utest~im-traceability-TraceabilityPipelineTests-modified_worker_scope_cannot_replace_controller_policy~1->req~im-trace-source-gate~1]
         with patch.object(traceability, "check", changed), self.assertRaises(RuntimeError):
             self.invoke()
         self.assertIn("Scope differs", str(self.states["pilot"]["traceability"]["diagnostics"]))

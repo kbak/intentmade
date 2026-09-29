@@ -50,6 +50,7 @@ class MeasurementTests(unittest.TestCase):
         ):
             result = run.execute_build([config], "task", "spec", "", None, False, self.root, states)
         record = self.record()
+        # [utest~im-measurements-MeasurementTests-repaired_build_retains_both_checks_and_source_versions~1->req~im-measurement-outcomes~1]
         self.assertEqual(result["metrics"], str(self.root / "metrics.json"))
         self.assertEqual(record["status"], "PASSED")
         self.assertEqual([a["status"] for a in record["attempts"]], ["TESTS_FAILED", "PASSED"])
@@ -127,6 +128,7 @@ class MeasurementTests(unittest.TestCase):
 
     def test_metrics_write_failure_preserves_original_error(self):
         with patch.object(measurements, "write", side_effect=OSError("Disk full")):
+            # [utest~im-measurements-MeasurementTests-metrics_write_failure_preserves_original_error~1->req~im-measurement-outcomes~1]
             with self.assertRaisesRegex(ValueError, "original"):
                 with measurements.task(self.root, "task", "feature", {}):
                     raise ValueError("original")
@@ -155,6 +157,7 @@ class MeasurementTests(unittest.TestCase):
                 self.root / "transcript.jsonl",
             )
         usage = self.record()["agents"][0]["usage"][0]
+        # [utest~im-measurements-MeasurementTests-usage_is_a_delta_and_zero_cost_is_unknown~1->req~im-measurement-outcomes~1]
         self.assertEqual(usage["tokens"]["prompt_tokens"], 50)
         self.assertEqual(usage["tokens"]["cache_read_tokens"], 500)
         self.assertIsNone(usage["tokens"]["reasoning_tokens"])
@@ -174,6 +177,7 @@ class MeasurementTests(unittest.TestCase):
                 None,
             )
             measurements.record_agent(conversation, None, time.monotonic(), "review", None)
+        # [utest~im-measurements-MeasurementTests-usage_reset_or_unavailable_baseline_is_not_fabricated~1->req~im-measurement-outcomes~1]
         self.assertIsNone(self.record()["agents"][0]["usage"][0]["tokens"]["prompt_tokens"])
         self.assertIsNone(self.record()["agents"][1]["usage"])
 
