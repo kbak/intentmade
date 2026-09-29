@@ -1,15 +1,78 @@
 """Startup selection and image transfer, with all Docker operations mocked."""
 
+import io
 import json
 import runpy
 import subprocess
+import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 DAEMON_IMAGE = (
     "docker:29.4.1-dind@sha256:c77e5d7912f9b137cc67051fdc2991d8f5ae22c55ddf532bb836dcb693a04940"
 )
+
+
+class ConfigurationTests(unittest.TestCase):
+    def projects(self, *, require_approval, label):
+        with tempfile.TemporaryDirectory() as temporary:
+            config = Path(temporary)
+            (config / "repositories").mkdir()
+            (config / "defaults.json").write_text(
+                json.dumps({"enabled": True, "issue_label": label})
+            )
+            (config / "repositories/example.json").write_text('{"repository":"example/repo"}')
+            (config / "deployment.json").write_text(
+                json.dumps(
+                    {
+                        "worker_runtime": {"backend": "docker-sandboxes", "kit": "/operator/kit"},
+                        "authorization": {"require_issue_approval": require_approval},
+                    }
+                )
+            )
+            compose = {
+                "services": {
+                    "canvas": {
+                        "volumes": [
+                            {
+                                "type": "bind",
+                                "source": "/tmp/factory/workspaces",
+                                "target": "/workspaces",
+                            },
+                            {
+                                "type": "bind",
+                                "source": str(config),
+                                "target": "/opt/factory/config",
+                            },
+                        ]
+                    }
+                }
+            }
+            with (
+                patch("sys.argv", ["factoryctl", "projects"]),
+                patch("subprocess.check_output", return_value=json.dumps(compose)),
+                redirect_stdout(io.StringIO()) as output,
+            ):
+                runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts/factoryctl"))
+            return json.loads(output.getvalue())
+
+    def test_host_project_listing_excludes_operator_settings(self):
+        self.assertEqual(
+            self.projects(require_approval=True, label="factory:approved"),
+            {
+                "example": {
+                    "enabled": True,
+                    "issue_label": "factory:approved",
+                    "repository": "example/repo",
+                }
+            },
+        )
+
+    def test_host_project_loading_rejects_unapproved_issue_intake(self):
+        with self.assertRaisesRegex(ValueError, "requires issue approval"):
+            self.projects(require_approval=True, label=None)
 
 
 class StartupTests(unittest.TestCase):

@@ -6,9 +6,13 @@ import json
 import secrets
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "workflows"))
+import deployment  # noqa: E402
+
 # Ask Compose to resolve .env, exported overrides and relative bind paths.
 # This keeps setup, deployment and image caching on the same configuration.
 DEPLOYMENT = json.loads(
@@ -42,10 +46,15 @@ def native(*args, **kwargs):
 
 def projects():
     defaults = json.loads((CONFIG / "defaults.json").read_text())
-    return {
-        path.stem: {**defaults, **json.loads(path.read_text())}
+    options = deployment.settings(CONFIG)
+    configured = {
+        path.stem: deployment.workflow_settings(defaults, json.loads(path.read_text()))
         for path in (CONFIG / "repositories").glob("*.json")
     }
+    for config in configured.values():
+        if config.get("enabled") and config.get("repository"):
+            deployment.check_issue_authorization(config, options)
+    return configured
 
 
 p = argparse.ArgumentParser(description=__doc__)

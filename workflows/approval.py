@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import json
 
+import deployment
 from common import github, issues
 from policy import issue_snapshot
 
@@ -44,6 +45,7 @@ def approved_issue(config, number, credential, expected=None):
     timestamps have second precision; an edit in the approval's second is
     ambiguous and requires reviewing the content and reapplying the label.
     """
+    deployment.check_issue_authorization(config)
     repo = config["repository"]
     if not config.get("issue_label"):
         current = issues._get_issue(credential, repo, number)

@@ -11,6 +11,7 @@ import urllib.error
 from pathlib import Path
 
 import browser_qa
+import deployment
 import followup
 import measurements
 import reporting
@@ -420,6 +421,7 @@ def implement_issue(config, issue, credential, resume=None):
 
 
 def poll(config, credential, replies_only=False):
+    deployment.check_issue_authorization(config)
     repo = config["repository"]
     identity = issues.normalize_repo(repo).casefold()
     issues.TRIGGER_LABEL = config.get("issue_label")

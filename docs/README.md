@@ -4,6 +4,7 @@
 
 - [Getting started](getting-started.md) — install, authenticate, and open Canvas.
 - [Configuration](configuration.md) — repositories, tests, browser QA, groups, and resource limits.
+- [Deployment choices](deployments.md) — operator settings, personal use and OSS issue approval.
 - [Workflows](workflows.md) — feature builds, issue scheduling, replies, and PR maintenance.
 - [Reviews](reviews.md) — independent review, GitHub verdicts, and optional security audits.
 - [Agents](agents.md) — model selection, roles, and workflow skills.

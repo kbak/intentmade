@@ -8,6 +8,7 @@ import re
 from contextlib import contextmanager
 from pathlib import Path
 
+import deployment
 import httpx
 
 ROOT = Path(os.environ.get("FACTORY_ROOT", "/opt/factory"))
@@ -39,20 +40,14 @@ def identifier(value, max_length=80):
 def projects(config_dir=None):
     directory = Path(config_dir) if config_dir is not None else ROOT / "config"
     defaults = json.loads((directory / "defaults.json").read_text())
-    from docker_sandboxes import validate as validate_runtime
-    from resource_limits import validate
-
-    validate(defaults.pop("resource_limits", {}))
-    validate_runtime(defaults.pop("worker_runtime", {}))
+    options = deployment.settings(directory)
     result = {}
     for file in sorted((directory / "repositories").glob("*.json")):
         name = identifier(file.stem)
         registration = json.loads(file.read_text())
-        if "resource_limits" in registration:
-            raise ValueError("Set factory-wide resource_limits in defaults.json")
-        if "worker_runtime" in registration:
-            raise ValueError("Set factory-wide worker_runtime in defaults.json")
-        config = {**defaults, **registration, "project": name}
+        config = {**deployment.workflow_settings(defaults, registration), "project": name}
+        if config.get("enabled") and config.get("repository"):
+            deployment.check_issue_authorization(config, options)
         if config.get("test_profile"):
             identifier(config["test_profile"])
         if not isinstance(config.get("pr_feedback", False), bool):

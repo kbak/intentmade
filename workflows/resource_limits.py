@@ -1,14 +1,13 @@
 """Small, explicit resource bounds at the factory's worker/import boundaries."""
 
 import gzip
-import json
-import os
 import shutil
 import tarfile
 import tempfile
 import urllib.request
 from contextlib import contextmanager
-from pathlib import Path
+
+import deployment
 
 MIB = 1024 * 1024
 DEFAULTS = {
@@ -34,10 +33,7 @@ def validate(overrides):
 
 
 def settings():
-    # This is the operator's mounted config, never repository-controlled input.
-    path = Path(os.environ.get("FACTORY_ROOT", "/opt/factory")) / "config/defaults.json"
-    config = json.loads(path.read_text()) if path.exists() else {}
-    return validate(config.get("resource_limits", {}))
+    return deployment.settings()["resource_limits"]
 
 
 def worker_docker_flags():

@@ -24,6 +24,8 @@ Coverage includes scheduling and deduplication, task authorization, Git
 transfer, repair and recovery, review verdicts, publication retries, browser
 evidence, maintainer replies, and skill loading. Tests also check credential
 separation, read-only review permissions, and hostile Git configuration.
+Deployment tests cover legacy configuration, operator-only settings, and current
+approval requirements at scheduler, build and publication boundaries.
 Resource tests exercise JSON configuration, Docker update failure before
 credential delivery, low-disk admission and bounded imports through the installed
 upstream archive extractor, including compressed input and sparse-file sizes.

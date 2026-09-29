@@ -45,7 +45,17 @@ for repositories that accept issues from other contributors. Neither mode adds
 an approval prompt to every implementation command. A null daily task limit
 removes the daily cap; per-poll batching and repository locks still apply.
 
+`authorization.require_issue_approval: true` in the operator's
+`config/deployment.json` makes the approval-label gate mandatory for issue work.
+Repository registrations and captured job settings cannot disable this
+requirement. Manual operator submissions retain their existing authority. See
+[deployment choices](docs/deployments.md) for configuration and workflow refresh.
+
 ## Execution boundaries
+
+The container and firewall details below describe the default DockerWorkspace
+deployment. Docker Sandboxes uses its native VM and Kit policy instead; factory
+approval, review, credential and source-transfer checks remain shared.
 
 - The outer Docker daemon uses Unix sockets. Only Canvas has the management
   socket mount and its supplementary group. Job containers receive their own
@@ -98,10 +108,13 @@ removes the daily cap; per-poll batching and repository locks still apply.
   or the host kernel.
 
 Workers still receive the Codex subscription credential needed to run agents.
-Containers, including privileged Docker test daemons, share the Docker host's
-Linux kernel.
-This is not a hostile multi-tenant execution service or a VM security boundary.
-Keep the host, authorized devices, deployment configuration and credentials trusted.
+The default DockerWorkspace backend uses containers, including privileged Docker
+test daemons, that share the Docker host's Linux kernel. The optional
+[Docker Sandboxes backend](docs/docker-sandboxes.md) places each worker and its
+test daemon in a VM; its native Kit owns VM resource and network policy.
+Both use a trusted controller. Neither configuration provides a hostile
+multi-tenant factory service. Keep the host, authorized devices, deployment
+configuration and credentials trusted.
 
 ## Work authorization and retained state
 
@@ -116,11 +129,13 @@ Failed attempts are recorded outside disposable workers under
 same failed specification/approval. Preserve this directory with task branches
 and the native state volume when backing up or moving a deployment.
 
-Factory-wide `resource_limits` in `config/defaults.json` bound worker resources,
-parent bundle/archive imports and new-job disk admission. Docker enforces worker
-CPU, memory and process limits before credentials or work are supplied; applying
-the limits must succeed. These settings do not create a hard disk quota or prune
-failed jobs. Recover retained work before manual cleanup. See the
+Factory-wide `resource_limits` in `config/deployment.json` bound parent
+bundle/archive imports, new-job disk admission and DockerWorkspace worker
+resources. That backend applies Docker CPU, memory and process limits before
+credentials or work are supplied; applying the limits must succeed. The VM
+backend uses its native Kit for runtime resources. Import and admission settings
+do not create a hard disk quota or prune failed jobs. Recover retained work
+before manual cleanup. See the
 [resource limits](docs/configuration.md#resource-limits) defaults and storage limitations.
 
 Task stores validate the actual GitHub fetch and push destinations before reuse.

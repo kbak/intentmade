@@ -3,6 +3,11 @@
 Factory behavior is configured in JSON. `.env` selects deployment paths, the
 image, port, and Compose instance name; it does not replace repository policy.
 
+`config/deployment.json` contains installation-wide runtime, resource and
+authorization settings. `config/defaults.json` contains workflow defaults that
+repository registrations can override. See [deployment choices](deployments.md)
+for personal use, OSS issue intake and migration from the combined configuration.
+
 Configure [traceability](traceability.md) to use existing requirements and
 OFT IDs during design discussions, carry agreed requirements into implementation,
 and check references, tests, and requirement changes before completing tasks.
@@ -24,7 +29,8 @@ access to the job's Docker daemon. Use the application's own test command and
 containers where available.
 
 After configuration changes, run `./scripts/factoryctl configure` to refresh
-uploaded workflows. Already submitted tasks keep their captured settings.
+uploaded workflows. Already submitted tasks keep their captured workflow
+settings; deployment requirements are read from the current operator configuration.
 
 For an external test adapter, put its files under `profiles/NAME/` and set
 `test_profile` to `NAME`. A command such as `bash "$FACTORY_TESTS/run.sh" unit`
@@ -33,14 +39,14 @@ repositories can share a profile. A profile is optional.
 
 ### Resource limits
 
-An optional installation-wide `worker_runtime` object selects the experimental
+An optional `worker_runtime` object in `deployment.json` selects the experimental
 [Docker Sandboxes VM backend](docker-sandboxes.md). Omit it to retain the existing
 DockerWorkspace backend. VM resources belong in its native Kit YAML; repository
 registrations cannot select or override the runtime.
 
-The optional `resource_limits` object in `config/defaults.json` sets limits for
+The optional `resource_limits` object in `config/deployment.json` sets limits for
 the whole installation; repository registrations cannot override it. Omitted
-values use the defaults shown in [the example](../examples/config/defaults.json).
+values use the defaults shown in [the example](../examples/config/deployment.json).
 Values are positive integers, with sizes in MiB. They take effect for subsequent
 jobs without rebuilding the image; `factoryctl configure` validates the settings.
 

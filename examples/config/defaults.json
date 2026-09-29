@@ -1,15 +1,4 @@
 {
-  "resource_limits": {
-    "worker_memory_mb": 4096,
-    "worker_cpus": 2,
-    "worker_pids": 512,
-    "test_daemon_pids": 2048,
-    "min_free_disk_mb": 5120,
-    "max_bundle_mb": 256,
-    "max_archive_download_mb": 256,
-    "max_archive_expanded_mb": 1024,
-    "max_archive_members": 100000
-  },
   "schedule": "*/10 * * * *",
   "timezone": "UTC",
   "enabled": false,

@@ -220,6 +220,10 @@ def build_group(
         raise ValueError("A task needs unique repositories")
     if issue is not None and len(configs) != 1:
         raise ValueError("Issue approval applies only to its own repository")
+    if issue is not None:
+        from deployment import check_issue_authorization
+
+        check_issue_authorization(configs[0])
     artifact = evidence(job_id() + "-" + task)
     with ExitStack() as locks:
         for config in sorted(configs, key=lambda c: c["project"]):

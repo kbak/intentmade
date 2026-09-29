@@ -46,7 +46,8 @@ and network settings there. The example allows common GitHub, OpenAI and Docker
 endpoints; application-specific registries still need explicit configuration.
 The effective policy also depends on the operator's global Docker policy.
 
-Add this installation-wide object to `config/defaults.json`:
+Set `worker_runtime` in `config/deployment.json`, keeping any existing resource
+and authorization settings:
 
 ```json
 {

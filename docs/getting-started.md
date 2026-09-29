@@ -16,7 +16,7 @@ not need a separate Git repository. For example:
 ```text
 intentmade/              # Tooling, generic examples and tests
 my-factory/             # Operator-chosen directory
-  config/               # Repository registrations, groups and scheduling policy
+  config/               # Deployment settings, repositories and workflow policy
   profiles/             # Optional application test adapters
   .factory/             # Ignored credentials, catalogs, task branches and artifacts
 ```
@@ -36,7 +36,9 @@ checkout. The example settings use the layout above. For an existing
 installation, keep its current paths to preserve access to its data.
 
 Replace the example repositories and groups with your own. Set each repository's
-test command and required CI checks, and review `config/defaults.json`. Examples
+test command and required CI checks, and review `config/defaults.json`. Choose
+the runtime and issue-approval requirement in `config/deployment.json`; see
+[deployment choices](deployments.md) before accepting public issues. Examples
 have scheduling disabled; set `enabled: true` for repositories you want polled.
 
 Authenticate `gh`, then initialize the deployment and start the services:

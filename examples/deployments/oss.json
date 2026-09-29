@@ -1,0 +1,5 @@
+{
+  "authorization": {
+    "require_issue_approval": true
+  }
+}

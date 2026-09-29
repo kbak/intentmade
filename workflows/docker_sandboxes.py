@@ -11,6 +11,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
+import deployment
+
 
 def validate(value):
     if not isinstance(value, dict):
@@ -42,9 +44,7 @@ def validate(value):
 
 
 def settings():
-    path = Path(os.environ.get("FACTORY_ROOT", "/opt/factory")) / "config/defaults.json"
-    defaults = json.loads(path.read_text()) if path.exists() else {}
-    return validate(defaults.get("worker_runtime", {}))
+    return deployment.settings()["worker_runtime"]
 
 
 def mount_arguments(volumes, options):
