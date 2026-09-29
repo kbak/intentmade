@@ -15,54 +15,34 @@ from traceability.openhands import (
 
 @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional IntentBond package")
 class ContextTests(unittest.TestCase):
-    def test_model_guide_survives_serialization_and_language_replacement(self):
-        directory = files("intentbond") / "skills/model-checking"
-        original = AgentContext(skills=[Skill(name="task", content="Model the selected claims.")])
-        context = with_model_checking(original, language="python")
-        context = with_model_checking(context, language="daml")
-        restored = ACPAgent.model_validate_json(
-            ACPAgent(acp_command=["codex-acp"], agent_context=context).model_dump_json()
-        )
-        prompt = restored.agent_context.to_acp_prompt_context()
-        self.assertIn("Model the selected claims.", prompt)
-        self.assertEqual(len(context.skills), 2)
-        for name in ("execution", "daml"):
-            self.assertEqual(
-                prompt.count((directory / "references" / (name + ".md")).read_text()), 1
-            )
-        self.assertNotIn((directory / "references/python.md").read_text(), prompt)
-        self.assertEqual(len(original.skills), 1)
-        with self.assertRaises(ValueError):
-            with_model_checking(language="../setup")
-
-    def test_z3_guide_replaces_alloy_and_survives_serialization(self):
+    def test_model_guides_replace_previous_selection_and_survive_serialization(self):
         directory = files("intentbond") / "skills/model-checking/references"
-        context = with_model_checking(language="python")
-        context = with_model_checking(context, language="daml", backend="z3")
-        restored = ACPAgent.model_validate_json(
-            ACPAgent(acp_command=["codex-acp"], agent_context=context).model_dump_json()
-        )
-        prompt = restored.agent_context.to_acp_prompt_context()
-        for name in ("smt", "daml"):
-            self.assertEqual(prompt.count((directory / (name + ".md")).read_text()), 1)
-        for name in ("execution", "python"):
-            self.assertNotIn((directory / (name + ".md")).read_text(), prompt)
-        self.assertEqual(len(context.skills), 1)
-        with self.assertRaises(ValueError):
-            with_model_checking(backend="../setup")
-
-    def test_chc_guide_replaces_smt_and_survives_serialization(self):
-        directory = files("intentbond") / "skills/model-checking/references"
-        context = with_model_checking(language="daml", backend="z3")
-        context = with_model_checking(context, language="daml", backend="chc")
-        restored = ACPAgent.model_validate_json(
-            ACPAgent(acp_command=["codex-acp"], agent_context=context).model_dump_json()
-        )
-        prompt = restored.agent_context.to_acp_prompt_context()
-        for name in ("chc", "daml"):
-            self.assertEqual(prompt.count((directory / (name + ".md")).read_text()), 1)
-        self.assertNotIn((directory / "smt.md").read_text(), prompt)
-        self.assertEqual(len(context.skills), 1)
+        for previous_backend, backend, selected in (
+            ("alloy", "alloy", "execution"),
+            ("alloy", "z3", "smt"),
+            ("z3", "chc", "chc"),
+        ):
+            with self.subTest(previous_backend=previous_backend, backend=backend):
+                original = AgentContext(
+                    skills=[Skill(name="task", content="Model the selected claims.")]
+                )
+                context = with_model_checking(original, language="python", backend=previous_backend)
+                context = with_model_checking(context, language="daml", backend=backend)
+                restored = ACPAgent.model_validate_json(
+                    ACPAgent(acp_command=["codex-acp"], agent_context=context).model_dump_json()
+                )
+                prompt = restored.agent_context.to_acp_prompt_context()
+                self.assertIn("Model the selected claims.", prompt)
+                self.assertEqual(len(context.skills), 2)
+                for name in ("execution", "smt", "chc", "python", "daml"):
+                    self.assertEqual(
+                        prompt.count((directory / (name + ".md")).read_text()),
+                        int(name in (selected, "daml")),
+                    )
+                self.assertEqual(len(original.skills), 1)
+        for options in ({"language": "../setup"}, {"backend": "../setup"}):
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                with_model_checking(**options)
 
     def test_native_serialization_preserves_existing_and_traceability_instructions(self):
         original = AgentContext(skills=[Skill(name="task", content="Implement the selected task.")])

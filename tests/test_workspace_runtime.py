@@ -44,6 +44,7 @@ console.log(JSON.stringify({cwd: request.cwd, config, original: original.cwd}));
         config = result["config"]
         self.assertTrue(config["existing"])
         instructions = config["developer_instructions"]
+        self.assertTrue(instructions.startswith("Keep this guidance"))
         self.assertIn('Selected factory project: "common-defense-app"', instructions)
         self.assertIn("/opt/factory/configure.py submit", instructions)
         self.assertIn("read-only catalog", instructions)
@@ -63,11 +64,6 @@ console.log(JSON.stringify({cwd: request.cwd, config, original: original.cwd}));
                 self.assertEqual(
                     commands, [["python", "/opt/factory/configure.py", "discussion", "pilot"]]
                 )
-
-    def test_existing_instructions_are_preserved(self):
-        self.assertTrue(
-            self.context()["config"]["developer_instructions"].startswith("Keep this guidance")
-        )
 
     def test_workers_and_unrelated_workspaces_keep_their_own_context(self):
         for options in [

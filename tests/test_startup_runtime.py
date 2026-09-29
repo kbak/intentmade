@@ -1,6 +1,5 @@
 """Exercise installed startup patches and the executable that workers actually launch."""
 
-import inspect
 import json
 import os
 import re
@@ -8,8 +7,14 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from openhands.sdk.agent.acp_agent import ACPAgent
+from openhands.sdk.agent.acp_agent import (
+    ACPAgent,
+    ConversationErrorEvent,
+    ConversationExecutionStatus,
+)
 
 
 class StartupRuntimeTests(unittest.TestCase):
@@ -55,11 +60,22 @@ catch(error) { console.log(JSON.stringify({code:error.code,message:error.message
                     self.assertTrue(result["result"])
 
     def test_error_event_precedes_terminal_state(self):
-        source = inspect.getsource(ACPAgent.init_state)
-        self.assertLess(
-            source.index("code=_classify_acp_init_error"),
-            source.index("state.execution_status = ConversationExecutionStatus.ERROR"),
+        agent = ACPAgent(acp_command=["fixture-acp"])
+        state = SimpleNamespace(
+            agent_state={}, secret_registry=None, execution_status=ConversationExecutionStatus.IDLE
         )
+        observed = []
+        with (
+            patch.object(ACPAgent, "_render_suffix", return_value=""),
+            patch.object(ACPAgent, "_start_acp_server", side_effect=RuntimeError("startup failed")),
+            self.assertRaisesRegex(RuntimeError, "startup failed"),
+        ):
+            agent.init_state(state, lambda event: observed.append((event, state.execution_status)))
+        self.assertEqual(len(observed), 1)
+        event, status_when_emitted = observed[0]
+        self.assertIsInstance(event, ConversationErrorEvent)
+        self.assertEqual(status_when_emitted, ConversationExecutionStatus.IDLE)
+        self.assertEqual(state.execution_status, ConversationExecutionStatus.ERROR)
 
     def test_actual_launcher_uses_patched_python_module_and_preserves_arguments(self):
         launcher = Path("/usr/local/bin/openhands-agent-server")

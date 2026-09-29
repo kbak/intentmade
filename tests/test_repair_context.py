@@ -205,6 +205,19 @@ class RepairContextTests(unittest.TestCase):
         # [utest~im-repair_context-RepairContextTests-real_pipeline_repairs_with_verified_context_and_fresh_review~1->req~im-repair-context~1]
         self.assertEqual(output["status"], "PASSED")
         self.assertEqual(len(fixture.attempts), 2)
+        self.assertEqual(fixture.contexts, [True, True])
+        statuses = []
+        for attempt in (0, 1):
+            self.assertTrue(
+                (fixture.artifact / f"pilot/traceability-{attempt}/test-result.json").is_file()
+            )
+            index = json.loads(
+                (
+                    fixture.artifact / f"pilot/traceability-invocations-{attempt}/index.json"
+                ).read_text()
+            )
+            statuses.append(index["invocations"][0]["bundle"]["status"])
+        self.assertEqual(statuses, ["rejected", "passed"])
         self.assertEqual(len(fixture.review_prompts), 1)
         self.assertNotIn("source-bound repair record", fixture.review_prompts[0])
         self.assertEqual(

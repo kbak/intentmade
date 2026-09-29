@@ -62,7 +62,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
         edit=lambda root, attempt: None,
         verdict="PASS",
         export=None,
-        feedback=False,
+        feedback=0,
         assessment=None,
         implementation_error=None,
     ):
@@ -86,13 +86,13 @@ class TraceabilityPipelineTests(unittest.TestCase):
             edit(Path(workspace.working_dir), len(self.attempts))
             if feedback:
                 command = re.search(r"```sh\n(.*?)\n```", prompt, re.DOTALL).group(1)
-                for _ in range(2):
+                for _ in range(feedback):
                     result = workspace.execute_command(command, timeout=120)
                     self.assertEqual(result.exit_code, 0, result.stdout + result.stderr)
                 bundles = list(
                     self.root.glob("job-*/traceability/pilot/agent-check-*/evidence/evidence.json")
                 )
-                self.assertEqual(len(bundles), 2)
+                self.assertEqual(len(bundles), feedback)
                 self.assertTrue(
                     all(
                         json.loads(p.read_text())["predicate"]["status"] == "passed"
@@ -286,47 +286,6 @@ class TraceabilityPipelineTests(unittest.TestCase):
             json.loads((self.artifact / "result.json").read_text())["status"], "FAILED"
         )
 
-    def test_scripted_mechanical_change_uses_existing_relationships(self):
-        def edit(root, attempt):
-            path = root / "session.py"
-            path.write_text(path.read_text().replace("1800", "30 * 60"))
-
-        def assessment(expected):
-            return specialist(
-                traceability_assessment=[
-                    assessed(
-                        [
-                            change(
-                                "not_needed",
-                                requirement_ids=[],
-                                documentation=[],
-                                implementation=[],
-                                verification=[],
-                                rationale="The threshold expression is the same value; the existing expiration relationships and boundary tests remain sufficient.",
-                            )
-                        ]
-                    )
-                ]
-            )
-
-        result = self.invoke(edit, assessment=assessment)
-        self.assertEqual(result["status"], "PASSED")
-        state = result["repositories"]["pilot"]
-        requirements = common.git(
-            ["--git-dir", state["repository"], "show", state["commit"] + ":requirements.md"]
-        ).stdout
-        self.assertEqual(requirements, (self.root / "seed/requirements.md").read_text())
-
-    def test_changes_outside_scope_do_not_acquire_traceability_obligations(self):
-        def edit(root, attempt):
-            (root / "unrelated.txt").write_text("Documentation outside the configured inputs.\n")
-
-        def assessment(expected):
-            self.assertEqual(expected["pilot"]["changed_paths"], [])
-            return specialist(traceability_assessment=[assessed([])])
-
-        self.assertEqual(self.invoke(edit, assessment=assessment)["status"], "PASSED")
-
     def test_mixed_review_uses_config_enablement_and_filters_the_git_diff(self):
         seed = self.root / "seed"
         (seed / "session.py").write_text(
@@ -345,6 +304,9 @@ class TraceabilityPipelineTests(unittest.TestCase):
         )
         self.assertEqual(set(selected), {"pilot"})
         self.assertEqual(selected["pilot"]["changed_paths"], ["session.py"])
+        self.assertEqual(
+            traceability.review_scope(self.config, ["outside.txt"])["changed_paths"], []
+        )
         self.assertEqual(selected["pilot"]["scope"], self.config["traceability_scope"])
         self.assertIsNone(selected["pilot"]["evidence_directory"])
         indexed = selected["pilot"]["requirement_index"]
@@ -368,22 +330,6 @@ class TraceabilityPipelineTests(unittest.TestCase):
         # Portable releases differ in whether all symlinks or only unsafe
         # targets are rejected; an absolute target must never become evidence.
         self.assertIn("Symlink", failed["candidate"]["error"])
-
-    def test_ordinary_test_edit_uses_existing_review_without_new_human_approval(self):
-        def edit(root, attempt):
-            path = root / "tests/test_session.py"
-            path.write_text(
-                path.read_text()
-                + "\n    def test_fresh_session(self):\n        self.assertFalse(expired(0))\n"
-            )
-
-        result = self.invoke(edit)
-        record = result["repositories"]["pilot"]["traceability"]
-        self.assertEqual(result["status"], "PASSED")
-        self.assertEqual(record["status"], "review_required")
-        self.assertEqual(record["independent_review"]["verdict"], "PASS")
-        self.assertEqual(record["matched_commit"], result["repositories"]["pilot"]["commit"])
-        self.assertEqual(self.contexts, [True])
 
     def test_approved_design_requirements_are_persisted_in_the_exported_task(self):
         self.request = (
@@ -425,30 +371,6 @@ class TraceabilityPipelineTests(unittest.TestCase):
         record = state["traceability"]
         self.assertEqual(record["matched_commit"], state["commit"])
         self.assertEqual(record["independent_review"]["verdict"], "PASS")
-
-    def test_failing_test_is_repaired_and_rechecked_with_context(self):
-        self.config["repair_attempts"] = 1
-
-        def edit(root, attempt):
-            path = root / "session.py"
-            text = path.read_text()
-            path.write_text(
-                text.replace("1800", "3600") if attempt == 1 else text.replace("3600", "1800")
-            )
-
-        self.assertEqual(self.invoke(edit)["status"], "PASSED")
-        self.assertEqual(self.contexts, [True, True])
-
-        self.assertIn("AssertionError", self.attempts[1])
-        self.assertTrue((self.artifact / "pilot/traceability-0/test-result.json").is_file())
-        self.assertTrue((self.artifact / "pilot/traceability-1/test-result.json").is_file())
-        statuses = []
-        for attempt in (0, 1):
-            index = json.loads(
-                (self.artifact / f"pilot/traceability-invocations-{attempt}/index.json").read_text()
-            )
-            statuses.append(index["invocations"][0]["bundle"]["status"])
-        self.assertEqual(statuses, ["rejected", "passed"])
 
     def test_required_execution_rejects_skipped_linked_test_before_review_or_publication(self):
         scope = self.config["traceability_scope"]
@@ -510,7 +432,11 @@ class TraceabilityPipelineTests(unittest.TestCase):
 
         def edit(root, attempt):
             tests = root / "tests/test_session.py"
-            tests.write_text(tests.read_text() + f'\nprint("{marker}" * 800)\n')
+            tests.write_text(
+                tests.read_text()
+                + "\n    def test_fresh_session(self):\n        self.assertFalse(expired(0))\n"
+                + f'\nprint("{marker}" * 800)\n'
+            )
 
         result = self.invoke(edit)
         record = result["repositories"]["pilot"]["traceability"]
@@ -518,6 +444,10 @@ class TraceabilityPipelineTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASSED")
         self.assertEqual(len(self.attempts), 1)
         self.assertEqual(len(self.review_prompts), 1)
+        self.assertEqual(record["status"], "review_required")
+        self.assertEqual(record["independent_review"]["verdict"], "PASS")
+        self.assertEqual(record["matched_commit"], result["repositories"]["pilot"]["commit"])
+        self.assertEqual(self.contexts, [True])
         self.assertIn(marker, (self.artifact / "pilot/tests-0.log").read_text())
         self.assertNotIn(marker, prompt)
         self.assertTrue(record["changes"])
@@ -533,7 +463,7 @@ class TraceabilityPipelineTests(unittest.TestCase):
             "-c",
             'bash "$FACTORY_TESTS/run.sh"',
         ]
-        result = self.invoke(feedback=True)
+        result = self.invoke(feedback=2)
         self.assertEqual(result["status"], "PASSED")
         frozen = json.loads((self.artifact / "pilot/traceability-scope.json").read_text())
         self.assertEqual(frozen, self.config["traceability_scope"])
@@ -553,11 +483,11 @@ class TraceabilityPipelineTests(unittest.TestCase):
 
     def test_feedback_survives_a_malformed_response_before_controller_check(self):
         with self.assertRaisesRegex(RuntimeError, "malformed response"):
-            self.invoke(feedback=True, implementation_error=RuntimeError("malformed response"))
+            self.invoke(feedback=1, implementation_error=RuntimeError("malformed response"))
         index = json.loads(
             (self.artifact / "pilot/traceability-invocations-0/index.json").read_text()
         )
-        self.assertEqual(index["feedback_iterations"], 2)
+        self.assertEqual(index["feedback_iterations"], 1)
         self.assertEqual(index["controller_checks"], 0)
         self.assertTrue(all(i["bundle"]["status"] == "passed" for i in index["invocations"]))
 
@@ -567,11 +497,11 @@ class TraceabilityPipelineTests(unittest.TestCase):
         with patch.object(retention, "copy_file", side_effect=OSError("interrupted write")):
             # [utest~im-traceability-TraceabilityPipelineTests-interrupted_retention_preserves_the_only_workspace_copy~1->req~im-failed-work-retention~1]
             with self.assertRaisesRegex(RuntimeError, "Could not retain task evidence"):
-                self.invoke(feedback=True)
+                self.invoke(feedback=1)
         recovery = Path((self.artifact / "recovery-workspace.txt").read_text())
         self.assertTrue(recovery.is_dir())
         self.assertEqual(
-            len(list(recovery.glob("traceability/pilot/agent-check-*/evidence/evidence.json"))), 2
+            len(list(recovery.glob("traceability/pilot/agent-check-*/evidence/evidence.json"))), 1
         )
 
     def test_candidate_cannot_weaken_the_frozen_floor(self):
@@ -655,22 +585,6 @@ class TraceabilityPipelineTests(unittest.TestCase):
         self.assertNotIn("matched_commit", record)
         retained = json.loads(Path(record["evidence"]).read_text())["predicate"]
         self.assertEqual(retained["status"], "passed")
-
-    def test_controller_allocates_new_output_for_each_invocation(self):
-        original = traceability.check
-
-        def twice(workspace, state, paths, env):
-            first = original(workspace, state, paths, env)
-            first_output = paths["out"]
-            self.assertEqual(first.exit_code, 0)
-            second = original(workspace, state, paths, env)
-            self.assertEqual(second.exit_code, 0)
-            self.assertNotEqual(paths["out"], first_output)
-            self.assertTrue((first_output / "evidence.json").is_file())
-            return second
-
-        with patch.object(traceability, "check", twice):
-            self.assertEqual(self.invoke()["status"], "PASSED")
 
     def test_opted_out_repository_keeps_its_existing_execution_and_context(self):
         self.config.pop("traceability_scope")

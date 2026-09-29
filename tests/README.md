@@ -117,6 +117,12 @@ A fixture keeps OFT green while a scripted reviewer identifies untraced logout
 behavior, then verifies a fresh assessment after repair. These cases validate
 the gate and handoff, not an actual agent's ability to detect semantic gaps.
 
+Keep review-assessment variants in the focused review tests and use pipeline
+tests for the handoff between checking, export, review, and repair. The retained
+repair-context scenario also checks failed-to-passing traceability evidence;
+the test-edit scenario checks both review acceptance and bounded prompt content.
+Controller output allocation is tested directly without running Git/OFT twice.
+
 The OpenHands helper tests cover serialized context, selected property/formal
 guidance, command quoting, absolute workspace paths, and recovery storage. They
 run in the same regression suite. Pure command-forwarding tests also run without

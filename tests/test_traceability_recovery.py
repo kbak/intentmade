@@ -47,34 +47,30 @@ class RecoveryAdapterTests(unittest.TestCase):
             ],
         )
 
-    def test_check_preserves_pending_review_and_errors(self):
-        for code in (1, 2, 3, 4, 5):
-            with self.subTest(exit_code=code):
-                workspace = Mock()
-                expected = SimpleNamespace(exit_code=code, stdout="result", stderr="diagnostic")
-                workspace.execute_command.return_value = expected
-                result = check_recovery(
-                    workspace, recovery="/recovery", scope="/scope.json", out="/result"
-                )
-                self.assertIs(result, expected)
-                args, kwargs = workspace.execute_command.call_args
-                self.assertEqual(kwargs["cwd"], "/recovery")
-                self.assertEqual(
-                    shlex.split(args[0]),
-                    [
-                        "env",
-                        "python",
-                        "-m",
-                        "intentbond",
-                        "recover-check",
-                        "--recovery",
-                        "/recovery",
-                        "--out",
-                        "/result",
-                        "--scope",
-                        "/scope.json",
-                    ],
-                )
+    def test_check_returns_workspace_result_unchanged(self):
+        workspace = Mock()
+        expected = SimpleNamespace(exit_code=4, stdout="result", stderr="diagnostic")
+        workspace.execute_command.return_value = expected
+        result = check_recovery(workspace, recovery="/recovery", scope="/scope.json", out="/result")
+        self.assertIs(result, expected)
+        args, kwargs = workspace.execute_command.call_args
+        self.assertEqual(kwargs["cwd"], "/recovery")
+        self.assertEqual(
+            shlex.split(args[0]),
+            [
+                "env",
+                "python",
+                "-m",
+                "intentbond",
+                "recover-check",
+                "--recovery",
+                "/recovery",
+                "--out",
+                "/result",
+                "--scope",
+                "/scope.json",
+            ],
+        )
 
     def test_default_mode_uses_the_checkout_and_tool_managed_storage(self):
         workspace = Mock()
