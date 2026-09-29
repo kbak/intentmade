@@ -75,8 +75,8 @@ access to it grants factory control. Workers receive the Codex credential, while
 GitHub publication credentials stay in the parent workflow. Containers share the
 host kernel, including privileged Docker test daemons.
 
-For repositories accepting public issues, configure a maintainer-controlled
-approval label. Review the target repository's CI permissions before enabling
+New installations require a maintainer-controlled `factory:approved` label for
+issue work; scheduling starts disabled. Review the target repository's CI permissions before enabling
 publication. Read the [security model](SECURITY.md) and
 [resource limits](docs/configuration.md#resource-limits) before unattended use.
 

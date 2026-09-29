@@ -14,6 +14,6 @@
     "max_archive_members": 100000
   },
   "authorization": {
-    "require_issue_approval": false
+    "require_issue_approval": true
   }
 }

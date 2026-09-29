@@ -2,7 +2,7 @@
   "schedule": "*/10 * * * *",
   "timezone": "UTC",
   "enabled": false,
-  "issue_label": null,
+  "issue_label": "factory:approved",
   "assignee": "@token-owner",
   "branch_prefix": null,
   "ci_repair_attempts": 3,

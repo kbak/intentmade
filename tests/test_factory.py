@@ -236,7 +236,7 @@ class UpstreamTests(unittest.TestCase):
         self.assertFalse(projects["factory-smoke"]["enabled"])
 
     def test_example_configuration_is_disabled_and_excludes_opt_in_fixtures(self):
-        configured = common.projects()
+        configured = common.projects(Path(__file__).resolve().parents[1] / "examples/config")
         self.assertTrue(configured)
         self.assertTrue(all(item["repository"] for item in configured.values()))
         self.assertTrue(all(not item["enabled"] for item in configured.values()))

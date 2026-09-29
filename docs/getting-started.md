@@ -39,7 +39,9 @@ Replace the example repositories and groups with your own. Set each repository's
 test command and required CI checks, and review `config/defaults.json`. Choose
 the runtime and issue-approval requirement in `config/deployment.json`; see
 [deployment choices](deployments.md) before accepting public issues. Examples
-have scheduling disabled; set `enabled: true` for repositories you want polled.
+have scheduling disabled and require the `factory:approved` label for issue
+work. Set `enabled: true` for repositories you want polled; maintainers apply
+the label after reviewing an issue's current specification.
 
 Authenticate `gh`, then initialize the deployment and start the services:
 
@@ -56,8 +58,7 @@ Connect the factory's Codex account, then install the configured automations:
 ```
 
 `configure` imports your GitHub credential into native secret storage and
-applies the configured schedules. It creates an approval label only if one is
-configured.
+applies the configured schedules. It creates the configured approval label.
 
 `codex-login` shows a device code and saves the completed login directly to
 Canvas's encrypted `CODEX_AUTH_JSON` secret. Its temporary CLI directory is

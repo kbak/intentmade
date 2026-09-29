@@ -26,10 +26,15 @@ review and publication to a particular specification or commit.
 
 ## Personal use
 
-The [example deployment](../examples/config/deployment.json) preserves the
-single-operator behavior: DockerWorkspace workers, existing resource defaults
-and no mandatory issue-approval label. A missing `deployment.json` has the same
-defaults. `issue_label` can still be configured per repository.
+The [example deployment](../examples/config/deployment.json) uses DockerWorkspace
+workers and requires issue approval. Scheduling starts disabled, and the example
+workflow defaults select `factory:approved` as the approval label.
+
+For trusted personal intake, explicitly set
+`authorization.require_issue_approval: false` in `deployment.json` and
+`issue_label: null` in workflow defaults or the repository registration.
+Existing installations without `deployment.json` retain their previous behavior;
+updating the code does not rewrite operator configuration.
 
 With `issue_label: null`, an enabled scheduler accepts open, unassigned issues
 as work requests. Use this only where issue authors are trusted to request work.
@@ -37,8 +42,9 @@ Canvas access grants factory control.
 
 ## Public issue intake
 
-Set the following in `config/deployment.json`, keeping your runtime and resource
-settings:
+New installations copied from the examples already require approval. To enable
+it in an existing installation, set the following in `config/deployment.json`,
+keeping your runtime and resource settings:
 
 ```json
 {

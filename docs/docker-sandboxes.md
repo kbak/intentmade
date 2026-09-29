@@ -46,6 +46,40 @@ and network settings there. The example allows common GitHub, OpenAI and Docker
 endpoints; application-specific registries still need explicit configuration.
 The effective policy also depends on the operator's global Docker policy.
 
+## Network policy
+
+Use explicit trusted destinations and verify the effective policy on your host.
+Docker's [network-policy contract](https://docs.docker.com/reference/cli/sbx/policy/deny/network/)
+does not check an allowed hostname's resolved IP against CIDR denies. Broad
+`allow: ["**"]` plus private-address denies therefore permits private services
+through DNS names. The v2 Kit reference also lists enforcement limitations for
+some pattern types. A valid Kit is not proof of private-network isolation.
+
+The example Kit limits destinations by hostname. Global allow rules can broaden
+it, and an allowed hostname resolving to a private address remains a limitation.
+Trust the selected hosts and DNS resolution. Add required registries explicitly;
+arbitrary web browsing needs a broader policy and accepts a wider boundary.
+
+Run the network probe on the host, using an otherwise unused fixture hostname
+that resolves only to a local private IPv4 address. For example, with a DNS name
+you control (a public wildcard DNS service resolving encoded IPs also works):
+
+```bash
+python3 tests/check_sandbox_network.py --command /absolute/path/to/sbx \
+  --kit /absolute/path/to/sandbox-kit \
+  --host 192.168.1.10 --private-name sandbox-probe.example.org
+```
+
+The probe creates a temporary HTTP server on that address and a fresh VM with
+no workspaces or agent credentials. It tests private IP and DNS access with and
+without proxy environment handling, and allowed GitHub access. A final explicit
+allow, scoped only to that VM, verifies the fixture was reachable; the VM is
+then removed. A failure blocks adoption of that policy. Recheck after changing
+the Kit, global Docker rules or runtime. This probe does not establish denial
+for every protocol, address range or DNS-rebinding scenario.
+
+## Runtime selection
+
 Set `worker_runtime` in `config/deployment.json`, keeping any existing resource
 and authorization settings:
 
@@ -163,6 +197,30 @@ request, verifies refreshed tokens reached Canvas, and logs that test Canvas out
 through the native OpenHands endpoint. It never prints tokens or restores an old
 refresh token. Logout prevents stale writeback; it does not forcibly cancel a
 worker already holding a credential.
+
+### Credential isolation
+
+Successful refresh/logout checks establish lifecycle behavior, not secrecy from
+an implementation worker. The current shared bridge supplies real
+`CODEX_AUTH_JSON` to the worker's OpenHands store; a full-access worker can read
+its own agent credential. VM isolation does not protect a secret delivered into
+that VM.
+
+Docker provides [host-side Codex OAuth](https://docs.docker.com/ai/sandboxes/agents/codex/)
+and [proxy-managed credentials](https://docs.docker.com/ai/sandboxes/configuration/credentials/).
+Those are the preferred integration path. A native credential binding and OAuth
+sentinels could replace real-token delivery for this backend, while OpenHands
+continues to own conversations and role permissions. Avoid OAuth `passthrough`,
+which explicitly places real tokens in the sandbox.
+
+This is not enabled by the current Kit. Before adopting it, verify the pinned
+ACP adapter's credential-specific `CODEX_HOME` works with native placeholders,
+real subscription requests and refresh; then verify concurrent workers,
+replacement login and logout. The native host credential store must become the
+single authority for that backend so stale OpenHands copies cannot restore a
+login. Check that worker files, environment and logs contain only placeholders.
+No custom credential proxy is needed to evaluate this route, and DockerWorkspace
+can retain its existing native OpenHands credential flow.
 
 `factoryctl codex-logout` removes the factory's `CODEX_AUTH_JSON` through the
 native secret API. This login is separate from Canvas's LLM subscription card;

@@ -58,6 +58,21 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(resource_limits.settings(), resource_limits.DEFAULTS)
         deployment.check_issue_authorization(CONFIG)
 
+    def test_public_examples_require_approval_when_scheduling_is_enabled(self):
+        examples = Path(__file__).resolve().parents[1] / "examples/config"
+        for name in ("defaults.json", "deployment.json"):
+            self.write(name, json.loads((examples / name).read_text()))
+        registration = {"repository": "example/repo", "test_command": "make test"}
+        self.write("repositories/example.json", registration)
+        self.assertFalse(common.projects(self.config)["example"]["enabled"])
+        self.write("repositories/example.json", {**registration, "enabled": True})
+        config = common.projects(self.config)["example"]
+        self.assertEqual(config["issue_label"], "factory:approved")
+        self.assertTrue(deployment.settings()["authorization"]["require_issue_approval"])
+        self.write("repositories/example.json", {"enabled": True, "issue_label": None})
+        with self.assertRaisesRegex(ValueError, "requires issue approval"):
+            common.projects(self.config)
+
     def test_runtime_change_does_not_change_captured_workflow_policy(self):
         before = common.projects(self.config)
         runtime = {"backend": "docker-sandboxes", "kit": "/operator/kit"}

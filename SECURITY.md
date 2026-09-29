@@ -38,6 +38,10 @@ blocking findings submit REQUEST_CHANGES. Only the parent has GitHub credentials
 it rechecks the reviewed commit and CI before posting. Incomplete or stale
 reviews cannot approve a PR. Publication does not merge or deploy the change.
 
+The public configuration examples require a maintainer-controlled
+`factory:approved` label and start with scheduling disabled. Existing operator
+configuration is preserved on upgrade.
+
 An enabled scheduler with `issue_label: null` treats open, unassigned issues as
 work requests. Use that mode only for repositories whose issue authors you trust
 to request work. A configured `issue_label` provides an optional approval gate
@@ -112,6 +116,10 @@ The default DockerWorkspace backend uses containers, including privileged Docker
 test daemons, that share the Docker host's Linux kernel. The optional
 [Docker Sandboxes backend](docs/docker-sandboxes.md) places each worker and its
 test daemon in a VM; its native Kit owns VM resource and network policy.
+Use explicit trusted network destinations for this backend: allowing every
+hostname plus denying private CIDRs does not prevent private access through DNS.
+The [network probe and limitations](docs/docker-sandboxes.md#network-policy)
+apply to the effective Kit and global Docker policy.
 Both use a trusted controller. Neither configuration provides a hostile
 multi-tenant factory service. Keep the host, authorized devices, deployment
 configuration and credentials trusted.

@@ -14,7 +14,7 @@ uv run --locked ruff format --check .
 docker build -f docker/runtime.Dockerfile -t intentmade:dev .
 docker run --rm --network none --entrypoint python \
   -e PYTHONPATH=/opt/factory/workflows -e OPENHANDS_SUPPRESS_BANNER=1 \
-  -v "$PWD/tests:/tests:ro" -v "$PWD/examples/config:/opt/factory/config:ro" \
+  -v "$PWD/tests:/tests:ro" -v "$PWD/tests/config:/opt/factory/config:ro" \
   -v "$PWD/examples:/examples:ro" \
   -v "$PWD/scripts:/scripts:ro" -v "$PWD/tests/profiles:/factory-tests:ro" \
   intentmade:dev -m unittest discover -s /tests -p 'test_*.py' -v
@@ -26,6 +26,8 @@ evidence, maintainer replies, and skill loading. Tests also check credential
 separation, read-only review permissions, and hostile Git configuration.
 Deployment tests cover legacy configuration, operator-only settings, and current
 approval requirements at scheduler, build and publication boundaries.
+The suite uses its own trusted-workflow configuration; public-example approval
+defaults are exercised separately by the deployment tests.
 Resource tests exercise JSON configuration, Docker update failure before
 credential delivery, low-disk admission and bounded imports through the installed
 upstream archive extractor, including compressed input and sparse-file sizes.
@@ -98,6 +100,11 @@ rerun after changing the runtime, Codex/ACP pins, or bundled roles.
 The opt-in Docker Sandboxes adapter has an offline native integration probe,
 `check_docker_sandboxes.py`. See [its setup guide](../docs/docker-sandboxes.md)
 for the authenticated local controller, shared paths and Kit requirements.
+
+Run `check_sandbox_network.py` separately on the host to test the selected Kit's
+actual private-IP/private-DNS denials and public access. It creates only its own
+fixture server and VM and changes policy only for that disposable VM. See the
+[network probe instructions](../docs/docker-sandboxes.md#network-policy).
 It uses fixture credentials and removes its VM; it makes no model calls.
 
 ```bash
