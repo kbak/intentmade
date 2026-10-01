@@ -54,9 +54,18 @@ def settings(config_dir=None):
     agent_profile = options.get("worker_agent_profile", "factory-codex")
     if not isinstance(agent_profile, str) or not agent_profile.strip():
         raise ValueError("worker_agent_profile must name a saved OpenHands agent profile")
+    runtime = options.get("worker_runtime", {})
+    if not isinstance(runtime, dict):
+        raise ValueError("worker_runtime must be an object")
+    runtime = dict(runtime)
+    host_directory = Path(os.environ.get("FACTORY_HOST_CONFIG_DIR", str(directory.resolve())))
+    for key in ("kit", "profiles"):
+        path = runtime.get(key)
+        if isinstance(path, str) and path.strip() and not Path(path).is_absolute():
+            runtime[key] = str((host_directory / path).resolve())
     return {
         "worker_agent_profile": agent_profile,
-        "worker_runtime": validate_runtime(options.get("worker_runtime", {})),
+        "worker_runtime": validate_runtime(runtime),
         "resource_limits": validate_limits(options.get("resource_limits", {})),
         "authorization": {"require_issue_approval": required},
     }

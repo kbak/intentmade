@@ -26,6 +26,21 @@ Each `repositories/NAME.json` under `FACTORY_CONFIG_DIR` inherits
 }
 ```
 
+Optional `required_check_overrides` select a different required check set when
+**every** changed path matches a rule's `paths` patterns. For example:
+
+```json
+"required_check_overrides": [
+  {"paths": ["mobile/ios/**"], "required_checks": ["Swift tests", "JS tests"]}
+]
+```
+
+Selection uses the complete immutable base/head comparison, including old paths
+for renames. Mixed changes retain the default requirements. Matching rules combine
+their requirements; empty rules are rejected. Missing/incomplete file inventories
+block review. Every reported check must still have an accepted result, including
+checks outside the selected required set.
+
 `test_command` runs in the task worktree with `PROJECT_DIR` set to that path and
 access to the job's Docker daemon. Use the application's own test command and
 containers where available.
@@ -49,7 +64,10 @@ Accepted intent/spec/plan packages and evidence exports are described in the
 
 An optional `worker_runtime` object in `deployment.json` selects the experimental
 [Docker Sandboxes VM backend](docker-sandboxes.md). Omit it to retain the existing
-DockerWorkspace backend. VM resources belong in its native Kit YAML; repository
+DockerWorkspace backend. Its `kit` and `profiles` paths may be relative to
+the directory containing `deployment.json`; startup resolves their host locations
+and passes that config directory to the controller. Absolute paths remain supported.
+VM resources belong in its native Kit YAML; repository
 registrations cannot select or override the runtime.
 
 The optional `resource_limits` object in `config/deployment.json` sets limits for

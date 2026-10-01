@@ -47,6 +47,9 @@ def projects(config_dir=None):
         name = identifier(file.stem)
         registration = json.loads(file.read_text())
         config = {**deployment.workflow_settings(defaults, registration), "project": name}
+        from policy import validate_check_overrides
+
+        validate_check_overrides(config)
         if config.get("enabled") and config.get("repository"):
             deployment.check_issue_authorization(config, options)
         if config.get("test_profile"):

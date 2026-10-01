@@ -30,6 +30,7 @@ ORIGINAL = {
                 },
                 {"type": "volume", "source": "sandbox-control", "target": "/run/factory-docker"},
                 {"type": "bind", "source": "/operator/workspaces", "target": "/workspaces"},
+                {"type": "bind", "source": "/operator/config", "target": "/opt/factory/config"},
             ],
         },
         "sandboxes": {"privileged": True},
@@ -60,6 +61,7 @@ class ComposeTests(unittest.TestCase):
         self.assertEqual(canvas["ports"], before["services"]["canvas"]["ports"])
         self.assertNotIn("network_mode", canvas)
         self.assertNotIn("DOCKER_HOST", canvas["environment"])
+        self.assertEqual(canvas["environment"]["FACTORY_HOST_CONFIG_DIR"], "/operator/config")
         mounts = {item["target"]: item for item in canvas["volumes"]}
         self.assertEqual(mounts["/home/openhands/.openhands"]["source"], "canvas-state")
         self.assertEqual(mounts["/operator/workspaces"]["source"], "/operator/workspaces")

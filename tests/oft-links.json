@@ -412,5 +412,11 @@
   ],
   "test_deployment.DeploymentTests.test_worker_profile_is_operator_controlled_and_excluded_from_jobs": [
     "utest~im-deployment-DeploymentTests-worker_profile_is_operator_controlled_and_excluded_from_jobs~1"
+  ],
+  "test_ci_paths.PathChecksTests.test_path_override_keeps_ci_fail_closed": [
+    "utest~im-ci-paths~1"
+  ],
+  "test_deployment.DeploymentTests.test_runtime_paths_follow_deployment_location": [
+    "utest~im-runtime-relative-paths~1"
   ]
 }

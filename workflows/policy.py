@@ -7,6 +7,7 @@ from collections import defaultdict
 from fnmatch import fnmatchcase
 
 from common import github, issues
+from review_requests import comparison_files
 
 
 # [impl->req~im-issue-ownership~1]
@@ -123,9 +124,48 @@ def checks_for(token, repo, sha):
     return checks
 
 
+def validate_check_overrides(config):
+    rules = config.get("required_check_overrides", [])
+    if not isinstance(rules, list):
+        raise ValueError("required_check_overrides must be a list")
+    for rule in rules:
+        if not isinstance(rule, dict) or set(rule) != {"paths", "required_checks"}:
+            raise ValueError("Each required check override needs paths and required_checks")
+        for key in ("paths", "required_checks"):
+            if (
+                not isinstance(rule[key], list)
+                or not rule[key]
+                or any(not isinstance(value, str) or not value.strip() for value in rule[key])
+            ):
+                raise ValueError(f"Required check override {key} must contain nonempty patterns")
+    return rules
+
+
+# [impl->req~im-pr-publication~1]
+def required_checks_for(token, pr, config):
+    rules = validate_check_overrides(config)
+    if not rules:
+        return config["required_checks"]
+    files = comparison_files(config, pr, token)
+    paths = []
+    for file in files:
+        paths.append(file["filename"])
+        if file.get("status") == "renamed":
+            # A move into a path must not waive checks for its previous location.
+            paths.append(file["previous_filename"])
+    selected = []
+    for rule in rules:
+        if paths and all(
+            any(fnmatchcase(path, pattern) for pattern in rule["paths"]) for path in paths
+        ):
+            selected.extend(rule["required_checks"])
+    return list(dict.fromkeys(selected)) if selected else config["required_checks"]
+
+
 def pr_eligible(token, pr, config):
     if pr.get("state") != "open" or pr.get("draft"):
         return False
+    config = {**config, "required_checks": required_checks_for(token, pr, config)}
     head = checks_for(token, config["repository"], pr["head"]["sha"])
     merge_sha = pr.get("merge_commit_sha")
     merged = checks_for(token, config["repository"], merge_sha) if merge_sha else {}

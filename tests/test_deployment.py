@@ -87,6 +87,26 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(resource_limits.settings()["max_bundle_mb"], 16)
         self.assertEqual(resource_limits.settings()["worker_pids"], 512)
 
+    def test_runtime_paths_follow_deployment_location(self):
+        # [utest~im-runtime-relative-paths~1->req~im-deployment-authority~1]
+        self.write(
+            "deployment.json",
+            {
+                "worker_runtime": {
+                    "backend": "docker-sandboxes",
+                    "kit": "../runtimes/kit",
+                    "profiles": "../profiles",
+                }
+            },
+        )
+        selected = deployment.settings(self.config)["worker_runtime"]
+        self.assertEqual(selected["kit"], str(self.root / "runtimes/kit"))
+        self.assertEqual(selected["profiles"], str(self.root / "profiles"))
+        with patch.dict(os.environ, {"FACTORY_HOST_CONFIG_DIR": "/moved/deployment/config"}):
+            selected = deployment.settings(self.config)["worker_runtime"]
+        self.assertEqual(selected["kit"], "/moved/deployment/runtimes/kit")
+        self.assertEqual(selected["profiles"], "/moved/deployment/profiles")
+
     def test_worker_profile_is_operator_controlled_and_excluded_from_jobs(self):
         # [utest~im-deployment-DeploymentTests-worker_profile_is_operator_controlled_and_excluded_from_jobs~1->req~im-deployment-authority~1]
         before = common.projects(self.config)
@@ -149,7 +169,7 @@ class DeploymentTests(unittest.TestCase):
             {"authorization": {"require_issue_approval": 1}},
             {"authorization": {"typo": True}},
             {"resource_limits": {"worker_cpus": 0}},
-            {"worker_runtime": {"backend": "docker-sandboxes", "kit": "./untrusted"}},
+            {"worker_runtime": {"backend": "docker-sandboxes", "kit": ""}},
         ):
             self.write("deployment.json", value)
             with self.subTest(value=value), self.assertRaises(ValueError):

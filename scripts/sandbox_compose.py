@@ -73,6 +73,9 @@ def render(original, options, *, command, socket, auth_directory, uid, gid):
         SBX_NO_TELEMETRY="1",
         XDG_CONFIG_HOME=str(config_home),
         FACTORY_DATA=workspaces,
+        FACTORY_HOST_CONFIG_DIR=next(
+            v["source"] for v in volumes if v["target"] == "/opt/factory/config"
+        ),
     )
     result["services"].pop("sandboxes", None)
     for name in ("sandbox-images", "sandbox-control"):

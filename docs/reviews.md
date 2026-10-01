@@ -43,7 +43,8 @@ depend on model judgment and do not establish an absence of defects.
 
 The PR must be open and non-draft, with passing required CI. Accepted conclusions
 default to `success`, `neutral`, and `skipped`; explicit `required_checks` names
-detect missing jobs. Standalone reviews rely on CI rather than rerunning the
+detect missing jobs. [Path overrides](configuration.md) select the appropriate
+required jobs for changes wholly inside a configured component. Standalone reviews rely on CI rather than rerunning the
 application's tests. The reviewed source is the exact PR head archive.
 
 Scheduled reviews additionally require an account/team review request or this

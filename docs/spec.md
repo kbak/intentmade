@@ -434,7 +434,7 @@ Evidence limit: Count and base checks use scripted GitHub responses; real API in
 ### Recheck review identity and CI before posting
 `req~im-pr-publication~1`
 
-Before publishing a standalone review, recheck current scope, PR head, base and required CI against retained review evidence. Stale or incomplete reviews cannot post approval. Saved protocol 2 or older reviews require fresh review.
+Before publishing a standalone review, recheck current scope, PR head, base and required CI against retained review evidence. Stale or incomplete reviews cannot post approval. Saved protocol 2 or older reviews require fresh review. Operator-configured path overrides may select required CI only when every path in the complete immutable comparison matches, including both paths of a rename. Mixed changes retain default requirements; all reported failures and pending checks still block review.
 
 Covers:
 - `intent~im-review-changes~1`
