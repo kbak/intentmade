@@ -215,7 +215,14 @@
         "utest~im-native_harness-ReaderTests-git_diff_disables_external_execution_and_checks_revision_inputs",
         "utest~im-agent_profile-WorkerProfileTests-each_worker_captures_the_saved_model_for_new_and_resumed_conversations",
         "utest~im-agent_profile-WorkerProfileTests-missing_profile_does_not_silently_start_with_another_model",
-        "utest~im-deployment-DeploymentTests-worker_profile_is_operator_controlled_and_excluded_from_jobs"
+        "utest~im-deployment-DeploymentTests-worker_profile_is_operator_controlled_and_excluded_from_jobs",
+        "utest~im-manual-intake-policy",
+        "utest~im-manual-intake-poll",
+        "utest~im-manual-intake-snapshot",
+        "utest~im-manual-intake-build",
+        "utest~im-manual-intake-publication",
+        "utest~im-manual-intake-command",
+        "utest~im-manual-intake-resubmission"
       ]
     }
   },

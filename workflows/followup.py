@@ -467,6 +467,8 @@ def maintain(config, pr, action, credential):
                         "Issue ownership or state changed. Confirm the intended task ownership before continuing PR repairs."
                     )
                 build_config.update(assignee=assignee, issue_approval=approved)
+                if approved.get("authorization") == "operator":
+                    build_config["issue_intake"] = "manual"
                 request = request or content["title"] + "\n\n" + content["body"]
             request += "\n\nMaintainer responses:\n" + "\n\n".join(record.get("answers", []))
             if entries:

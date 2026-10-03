@@ -86,8 +86,9 @@ GitHub publication credentials stay in the parent workflow. The default containe
 share the host kernel, including privileged Docker test daemons. Docker Sandboxes
 places each worker and its test daemon in a separate VM.
 
-New installations require a maintainer-controlled `factory:approved` label for
-issue work; scheduling starts disabled. Review the target repository's CI permissions before enabling
+Issue intake defaults to manual submission; no GitHub label is required.
+Scheduling starts disabled. Trusted repositories can opt into automatic issue intake.
+Review the target repository's CI permissions before enabling
 publication. Read the [security model](SECURITY.md) and
 [resource limits](docs/configuration.md#resource-limits) before unattended use.
 

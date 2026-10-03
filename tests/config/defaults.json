@@ -1,4 +1,5 @@
 {
+  "issue_intake": "automatic",
   "enabled": false,
   "publish_draft": false,
   "branch_prefix": null,

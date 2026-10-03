@@ -244,6 +244,8 @@ def _review_pr(config, pr, credential):
 
 
 def issue_ready(config, issue, resume=None):
+    if resume and resume["snapshot"].get("authorization") == "operator":
+        config = {**config, "issue_intake": "manual"}
     if issue_eligible(issue, config):
         return True
     # A shared GitHub login is not proof this instance owns a human-assigned
@@ -255,7 +257,13 @@ def issue_ready(config, issue, resume=None):
     return bool(
         owner
         and record.get("status") in {"NEEDS_INPUT", "FAILED", "PUBLICATION_FAILED"}
-        and record.get("snapshot") == resume["snapshot"]
+        and (
+            record.get("snapshot") == resume["snapshot"]
+            or (
+                resume.get("submitted") is True
+                and resume["snapshot"].get("authorization") == "operator"
+            )
+        )
         and all(
             resume["snapshot"].get(key) == value
             for key, value in issue_snapshot(config, issue)[1].items()
@@ -296,6 +304,8 @@ def waiting_replies(config, credential, discovered):
 def implement_issue(config, issue, credential, resume=None):
     from approval import approved_issue
 
+    if resume and resume["snapshot"].get("authorization") == "operator":
+        config = {**config, "issue_intake": "manual"}
     repo, number = config["repository"], issue["number"]
     issue = issues._get_issue(credential, repo, number)
     if not issue_ready(config, issue, resume):
@@ -425,6 +435,8 @@ def implement_issue(config, issue, credential, resume=None):
 
 # [impl->req~im-issue-deduplication~1]
 def poll(config, credential, replies_only=False):
+    config = {**config, "issue_intake": deployment.current_issue_intake(config)}
+    automatic = deployment.issue_intake(config) == "automatic"
     deployment.check_issue_authorization(config)
     repo = config["repository"]
     identity = issues.normalize_repo(repo).casefold()
@@ -494,12 +506,16 @@ def poll(config, credential, replies_only=False):
     # Readiness is polled on every tick, independent of PR updated_at.
     candidates = []
     items = (
-        issues._list_labeled_issues(credential, repo)
-        if config.get("issue_label")
-        else issues._github_paginate(
-            credential,
-            f"/repos/{repo}/issues",
-            {"state": "open", "assignee": "none", "sort": "created", "direction": "asc"},
+        []
+        if not automatic or replies_only
+        else (
+            issues._list_labeled_issues(credential, repo)
+            if config.get("issue_label")
+            else issues._github_paginate(
+                credential,
+                f"/repos/{repo}/issues",
+                {"state": "open", "assignee": "none", "sort": "created", "direction": "asc"},
+            )
         )
     )
     items = list(items)
@@ -507,7 +523,10 @@ def poll(config, credential, replies_only=False):
     for item in items:
         resume = item.get("factory_resume") or resume_reply(config, "issue-" + str(item["number"]))
         if issue_ready(config, item, resume):
-            if config.get("issue_label"):
+            operator_submission = bool(
+                resume and resume["snapshot"].get("authorization") == "operator"
+            )
+            if automatic and config.get("issue_label") and not operator_submission:
                 event = issues._latest_trigger_label_event(credential, repo, item["number"])
                 if not event:
                     continue
@@ -520,7 +539,10 @@ def poll(config, credential, replies_only=False):
                 current = issue_snapshot(config, item)[1]
                 expected = resume["snapshot"]
                 if any(expected.get(field) != current[field] for field in current) or (
-                    config.get("issue_label") and expected.get("label_event") != revision
+                    automatic
+                    and not operator_submission
+                    and config.get("issue_label")
+                    and expected.get("label_event") != revision
                 ):
                     # An answer to old requirements cannot consume or keep
                     # retrying the new specification's scheduler receipt.
@@ -531,7 +553,8 @@ def poll(config, credential, replies_only=False):
                 state["done"].pop(key, None)
                 candidates.append(("issue", key, item))
             elif (
-                not replies_only
+                automatic
+                and not replies_only
                 and issue_eligible(item, config)
                 and key not in state["done"]
                 and not attempted(key)
@@ -718,7 +741,13 @@ def poll(config, credential, replies_only=False):
             save()
     # Preserve discussion-first triage without treating every unassigned issue
     # as an implementation request. No approval label means report only.
-    if not replies_only and config.get("issue_label") and remaining > 0 and not candidates:
+    if (
+        automatic
+        and not replies_only
+        and config.get("issue_label")
+        and remaining > 0
+        and not candidates
+    ):
         items = issues._github_paginate(
             credential, f"/repos/{repo}/issues", {"state": "open", "assignee": "none"}
         )

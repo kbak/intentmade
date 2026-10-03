@@ -26,7 +26,9 @@ transfer, repair and recovery, review verdicts, publication retries, browser
 evidence, maintainer replies, and skill loading. Tests also check credential
 separation, read-only review permissions, and hostile Git configuration.
 Deployment tests cover legacy configuration, operator-only settings, and current
-approval requirements at scheduler, build and publication boundaries.
+automatic-intake approval requirements at scheduler, build and publication boundaries.
+Manual-intake tests cover submission snapshots, current registration policy, label
+independence, and rejecting edits before claims and publication.
 The suite uses its own trusted-workflow configuration; public-example approval
 defaults are exercised separately by the deployment tests.
 Resource tests exercise JSON configuration, Docker update failure before

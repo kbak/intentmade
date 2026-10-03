@@ -38,7 +38,8 @@ def timestamp(value):
 def approved_issue(config, number, credential, expected=None):
     """Return one verified content snapshot, optionally matching a running task.
 
-    Without an issue label, the configured scheduler authorizes implementation
+    Manual submissions verify the operator-captured snapshot without labels.
+    For automatic intake without a label, the configured scheduler authorizes implementation
     and the content snapshot protects a running task from specification changes.
     With a label, `updated_at` includes comments, assignments and labels, so it cannot prove
     which specification was approved. GitHub's body-edit and title-rename
@@ -46,6 +47,21 @@ def approved_issue(config, number, credential, expected=None):
     timestamps have second precision; an edit in the approval's second is
     ambiguous and requires reviewing the content and reapplying the label.
     """
+    if (
+        deployment.issue_intake(config) == "manual"
+        or (expected or {}).get("authorization") == "operator"
+    ):
+        if expected is None:
+            raise RuntimeError("Explicit issue submission snapshot required; no work authorized")
+        current = issues._get_issue(credential, config["repository"], number)
+        content, snapshot = issue_snapshot(config, current)
+        if expected.get("authorization") == "operator":
+            snapshot["authorization"] = "operator"
+        if snapshot != expected:
+            raise RuntimeError(
+                "Issue specification changed; submit the current specification again"
+            )
+        return content, snapshot
     deployment.check_issue_authorization(config)
     repo = config["repository"]
     if not config.get("issue_label"):

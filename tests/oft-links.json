@@ -418,5 +418,26 @@
   ],
   "test_deployment.DeploymentTests.test_runtime_paths_follow_deployment_location": [
     "utest~im-runtime-relative-paths~1"
+  ],
+  "test_manual_intake.ManualIntakeTests.test_default_and_live_registration_control_intake": [
+    "utest~im-manual-intake-policy~1"
+  ],
+  "test_manual_intake.ManualIntakeTests.test_manual_poll_never_discovers_or_triages_issues_but_keeps_pr_followup": [
+    "utest~im-manual-intake-poll~1"
+  ],
+  "test_manual_intake.ManualIntakeTests.test_submission_snapshot_is_required_and_edits_block_before_claim": [
+    "utest~im-manual-intake-snapshot~1"
+  ],
+  "test_manual_intake.ManualIntakeTests.test_explicit_submission_ignores_labels_and_preserves_snapshot_during_build": [
+    "utest~im-manual-intake-build~1"
+  ],
+  "test_manual_intake.ManualIntakeTests.test_publication_rejects_changed_manual_specification_before_push": [
+    "utest~im-manual-intake-publication~1"
+  ],
+  "test_manual_intake.SubmissionCommandTests.test_submission_freezes_content_in_dispatched_job_without_github_writes": [
+    "utest~im-manual-intake-command~1"
+  ],
+  "test_manual_intake.ManualIntakeTests.test_resubmission_reuses_only_this_factory_retained_claim": [
+    "utest~im-manual-intake-resubmission~1"
   ]
 }

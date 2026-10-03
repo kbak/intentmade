@@ -24,6 +24,7 @@ CONFIG = {
     "repository": "example/repo",
     "branch": "main",
     "branch_prefix": "factory",
+    "issue_intake": "automatic",
     "issue_label": "factory:approved",
     "assignee": "factory-bot",
     "enabled": False,
@@ -479,6 +480,11 @@ class SchedulerTests(unittest.TestCase):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
         for target, name, replacement in (
+            (
+                monitor.deployment,
+                "current_issue_intake",
+                lambda config: config.get("issue_intake", "manual"),
+            ),
             (monitor, "DATA", self.root),
             (monitor, "job_id", lambda: "offline-run"),
             (monitor, "implement_issue", self.build),

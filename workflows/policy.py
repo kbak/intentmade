@@ -6,6 +6,7 @@ import re
 from collections import defaultdict
 from fnmatch import fnmatchcase
 
+import deployment
 from common import github, issues
 from review_requests import comparison_files
 
@@ -16,7 +17,11 @@ def issue_eligible(issue, config):
         issue.get("state") == "open"
         and not issue.get("pull_request")
         and not issue.get("assignees")
-        and (not config.get("issue_label") or config["issue_label"] in issues._labels(issue))
+        and (
+            deployment.issue_intake(config) == "manual"
+            or not config.get("issue_label")
+            or config["issue_label"] in issues._labels(issue)
+        )
     )
 
 

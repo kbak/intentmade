@@ -15,6 +15,7 @@ CONFIG = {
     "project": "example",
     "repository": "example/repo",
     "branch": "main",
+    "issue_intake": "automatic",
     "issue_label": None,
     "assignee": "@token-owner",
     "daily_tasks": None,
@@ -42,6 +43,11 @@ class PausedOwnershipTests(unittest.TestCase):
         self.login = "fixture-owner"
         self.build = Mock(side_effect=reporting.NeedsInput("Retry explicitly or automatically?"))
         for target, name, value in (
+            (
+                monitor.deployment,
+                "current_issue_intake",
+                lambda config: config.get("issue_intake", "manual"),
+            ),
             (monitor, "DATA", root),
             (reporting, "DATA", root),
             (reporting, "ACTIVE", {"run_id": "offline-run", "tasks": []}),

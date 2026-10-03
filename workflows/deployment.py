@@ -76,12 +76,42 @@ def workflow_settings(defaults, registration):
     """Keep operator settings out of repository overrides and submitted jobs."""
     for name in FIELDS & registration.keys():
         raise ValueError(f"Set factory-wide {name} in deployment.json")
-    return {**{key: value for key, value in defaults.items() if key not in FIELDS}, **registration}
+    config = {
+        **{key: value for key, value in defaults.items() if key not in FIELDS},
+        **registration,
+    }
+    issue_intake(config)
+    return config
+
+
+# [impl->req~im-issue-intake~1]
+def issue_intake(config):
+    mode = config.get("issue_intake", "manual")
+    if mode not in ("manual", "automatic"):
+        raise ValueError("issue_intake must be manual or automatic")
+    return mode
+
+
+def current_issue_intake(config):
+    """A saved scheduler cannot override the current registration's intake mode."""
+    directory = Path(os.environ.get("FACTORY_ROOT", "/opt/factory")) / "config"
+    project = config.get("project", "")
+    if not project or Path(project).name != project:
+        return "manual"
+    registration = directory / "repositories" / (project + ".json")
+    if not registration.is_file():
+        return "manual"
+    current = workflow_settings(read(directory / "defaults.json"), read(registration))
+    if current.get("repository") != config.get("repository"):
+        return "manual"
+    return issue_intake(current)
 
 
 # [impl->req~im-deployment-authority~1]
 def check_issue_authorization(config, options=None):
     """Apply the current operator requirement even to captured job settings."""
+    if issue_intake(config) == "manual":
+        return
     options = settings() if options is None else options
     if options["authorization"]["require_issue_approval"]:
         label = config.get("issue_label")

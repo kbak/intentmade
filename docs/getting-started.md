@@ -39,9 +39,10 @@ Replace the example repositories and groups with your own. Set each repository's
 test command and required CI checks, and review `config/defaults.json`. Choose
 the runtime and issue-approval requirement in `config/deployment.json`; see
 [deployment choices](deployments.md) before accepting public issues. Examples
-have scheduling disabled and require the `factory:approved` label for issue
-work. Set `enabled: true` for repositories you want polled; maintainers apply
-the label after reviewing an issue's current specification.
+have scheduling disabled and use `issue_intake: "manual"`. Set `enabled: true`
+for PR follow-up and retained-task replies. Submit new issues explicitly with
+`./scripts/factoryctl submit-issue PROJECT NUMBER`; no GitHub label is needed.
+Trusted repositories may opt into `issue_intake: "automatic"`; see deployment choices.
 
 Authenticate `gh`, then initialize the deployment and start the services:
 
@@ -58,7 +59,8 @@ Connect the factory's Codex account, then install the configured automations:
 ```
 
 `configure` imports your GitHub credential into native secret storage and
-applies the configured schedules. It creates the configured approval label.
+applies the configured schedules. Only automatic intake with an optional label
+configured creates a GitHub label.
 
 With the default DockerWorkspace backend, `codex-login` shows a device code and saves the completed login directly to
 Canvas's encrypted `CODEX_AUTH_JSON` secret. Its temporary CLI directory is

@@ -15,6 +15,7 @@ import review_requests
 CONFIG = {
     "project": "example",
     "repository": "org/repo",
+    "issue_intake": "automatic",
     "issue_label": None,
     "max_tasks_per_poll": 2,
     "daily_tasks": None,

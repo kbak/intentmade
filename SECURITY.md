@@ -42,22 +42,24 @@ blocking findings submit REQUEST_CHANGES. Only the parent has GitHub credentials
 it rechecks the reviewed commit and CI before posting. Incomplete or stale
 reviews cannot approve a PR. Publication does not merge or deploy the change.
 
-The public configuration examples require a maintainer-controlled
-`factory:approved` label and start with scheduling disabled. Existing operator
-configuration is preserved on upgrade.
+New issue work defaults to explicit operator submission (`issue_intake: "manual"`).
+The operator submits a repository issue through `factoryctl submit-issue`; the
+factory captures its specification before dispatch and rejects changed content
+at build and publication. GitHub labels cannot authorize work in this mode.
+Scheduling PR follow-up and explicit retained-task replies is independent of
+new-issue intake. Public examples start with scheduling disabled.
 
-An enabled scheduler with `issue_label: null` treats open, unassigned issues as
-work requests. Use that mode only for repositories whose issue authors you trust
-to request work. A configured `issue_label` provides an optional approval gate
-for repositories that accept issues from other contributors. Neither mode adds
-an approval prompt to every implementation command. A null daily task limit
-removes the daily cap; per-poll batching and repository locks still apply.
+`issue_intake: "automatic"` explicitly delegates new-work selection to a trusted
+repository. Without `issue_label`, open, unassigned issues can request work. With
+a label, anyone able to apply it can authorize work; the label is not personal
+approval by the factory operator. An automatic scheduler retains task limits,
+repository locks and failed-attempt deduplication.
 
-`authorization.require_issue_approval: true` in the operator's
-`config/deployment.json` makes the approval-label gate mandatory for issue work.
-Repository registrations and captured job settings cannot disable this
-requirement. Manual operator submissions retain their existing authority. See
-[deployment choices](docs/deployments.md) for configuration and workflow refresh.
+`authorization.require_issue_approval: true` in the operator's deployment settings
+requires the label gate for automatic intake at scheduling, build and
+publication. Manual operator submissions have their own content-bound authority.
+Repository registrations cannot disable this factory-wide automatic-intake gate.
+The scheduler checks the current intake registration on each scan. See [deployment choices](docs/deployments.md).
 
 ## Execution boundaries
 
@@ -145,7 +147,7 @@ configuration and credentials trusted.
 ## Work authorization and retained state
 
 The issue title and body are captured before work and checked again before
-publication. With a label gate configured, GitHub edit history must predate
+publication. For automatic tasks with a label gate configured, GitHub edit history must predate
 the label event; edits require removing and reapplying the label after reviewing
 the new specification. An edit in the same timestamp second is ambiguous and is
 rejected. Comments are context and do not approve a different specification.

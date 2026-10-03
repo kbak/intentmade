@@ -20,6 +20,7 @@ CONFIG = {
     "repository": "example/repo",
     "branch": "main",
     "enabled": True,
+    "issue_intake": "automatic",
     "issue_label": None,
     "assignee": "factory-bot",
     "test_command": "make test",
@@ -58,19 +59,21 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(resource_limits.settings(), resource_limits.DEFAULTS)
         deployment.check_issue_authorization(CONFIG)
 
-    def test_public_examples_require_approval_when_scheduling_is_enabled(self):
+    def test_public_examples_use_manual_intake_even_when_scheduling_is_enabled(self):
         examples = Path(__file__).resolve().parents[1] / "examples/config"
         for name in ("defaults.json", "deployment.json"):
             self.write(name, json.loads((examples / name).read_text()))
-        registration = {"repository": "example/repo", "test_command": "make test"}
-        self.write("repositories/example.json", registration)
-        self.assertFalse(common.projects(self.config)["example"]["enabled"])
-        self.write("repositories/example.json", {**registration, "enabled": True})
+        self.write(
+            "repositories/example.json",
+            {"repository": "example/repo", "enabled": True, "test_command": "make test"},
+        )
         config = common.projects(self.config)["example"]
-        self.assertEqual(config["issue_label"], "factory:approved")
+        self.assertEqual(config["issue_intake"], "manual")
+        self.assertIsNone(config["issue_label"])
         self.assertTrue(deployment.settings()["authorization"]["require_issue_approval"])
         self.write(
-            "repositories/example.json", {**registration, "enabled": True, "issue_label": None}
+            "repositories/example.json",
+            {"repository": "example/repo", "enabled": True, "issue_intake": "automatic"},
         )
         with self.assertRaisesRegex(ValueError, "requires issue approval"):
             common.projects(self.config)

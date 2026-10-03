@@ -80,7 +80,7 @@ implementation links and assertion links collectively support review.
 ### Keep deployment authority separate
 `req~im-deployment-authority~1`
 
-Repository registrations must not override deployment runtime, resource limits or authorization. Current operator approval requirements apply to captured issue jobs at scheduling, build and publication boundaries.
+Repository registrations must not override deployment runtime, resource limits or factory-wide authorization requirements. Current operator label-approval requirements apply to automatic issue jobs at scheduling, build and publication boundaries. Explicit operator submissions carry their own content-bound authority and do not require a repository label.
 
 Covers:
 - `intent~im-authorized-work~1`
@@ -93,10 +93,34 @@ Implementation: [workflow_settings](../workflows/deployment.py), [check_issue_au
 
 Existing assertions: [test_repository_cannot_override_any_deployment_field](../tests/test_deployment.py), [test_saved_scheduler_cannot_bypass_new_requirement_or_start_triage](../tests/test_deployment.py), [test_captured_issue_build_cannot_reintroduce_unapproved_work](../tests/test_deployment.py), [test_personal_issue_snapshot_cannot_publish_after_operator_requires_approval](../tests/test_deployment.py).
 
+### Select new issue intake explicitly
+`req~im-issue-intake~1`
+
+Issue intake defaults to `manual`; only `manual` and `automatic` are valid modes.
+Manual mode admits new issue work only through an explicit operator submission,
+without discovering or triaging new issues or creating approval labels. A saved
+scheduler must use the current registration's mode; missing or repointed
+registrations do not authorize automatic intake. Explicit `automatic` mode polls eligible issues with optional label policy,
+ownership checks and deduplication.
+PR maintenance, requested reviews and explicit replies to retained tasks remain
+available under the configured schedule in either mode.
+
+Covers:
+- `intent~im-authorized-work~1`
+
+Needs: impl, utest
+
+Implementation: [intake policy](../workflows/deployment.py),
+[poll and implement_issue](../workflows/monitor.py),
+[submit-issue](../scripts/configure.py).
+
+Assertions: [manual intake regressions](../tests/test_manual_intake.py),
+[automatic intake regressions](../tests/test_automatic_issues.py).
+
 ### Bind issue approval to content
 `req~im-approval-snapshot~1`
 
-With an approval label configured, capture the issue title, body and latest label event. Title/body edits at or after the approval timestamp, including the same second, require renewed approval; unavailable approval history must stop work. Publication must match the captured specification and approval.
+Manual submissions capture the repository, issue number and title/body digest before dispatch. Build and publication must match that snapshot; missing snapshots or changed content stop work. Labels do not authorize or invalidate an explicit submission. In automatic intake with an approval label configured, capture the issue title, body and latest label event. Title/body edits at or after the approval timestamp, including the same second, require renewed approval; unavailable approval history must stop work. Publication must match the captured specification and approval.
 
 Covers:
 - `intent~im-authorized-work~1`
@@ -112,7 +136,7 @@ Existing assertions: [test_title_and_body_edits_after_or_during_approval_second_
 ### Claim eligible issues and preserve prior ownership
 `req~im-issue-ownership~1`
 
-New issue work selects open, unassigned issues subject to configured approval. Claim the configured assignee before building. A failed run releases only an assignment it acquired; a retained assignment is preserved.
+New issue work selects open, unassigned issues subject to the selected intake authority. Explicit resubmission may reuse a retained claim belonging to this factory; it cannot adopt another owner's assignment. Claim the configured assignee before building. A failed run releases only an assignment it acquired; a retained assignment is preserved.
 
 Covers:
 - `intent~im-authorized-work~1`

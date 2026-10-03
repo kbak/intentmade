@@ -14,7 +14,18 @@ import httpx
 
 os.environ.setdefault("OH_SESSION_API_KEYS_0", Path("/run/secrets/canvas-key").read_text().strip())
 sys.path.insert(0, "/opt/factory/workflows")
-from common import ROOT, api, factories, git, github, identifier, projects, token  # noqa: E402
+import deployment  # noqa: E402
+from common import (  # noqa: E402
+    ROOT,
+    api,
+    factories,
+    git,
+    github,
+    identifier,
+    issues,
+    projects,
+    token,
+)
 
 
 def records():
@@ -180,7 +191,9 @@ def configure(paused=False):
     for project, config in configured.items():
         if not config["repository"]:
             continue
-        label = config.get("issue_label")
+        label = (
+            config.get("issue_label") if deployment.issue_intake(config) == "automatic" else None
+        )
         if label:
             try:
                 from urllib.parse import quote
@@ -366,8 +379,8 @@ def review(project, number):
     print("Native review run:", result["id"])
 
 
-def retry_issue(project, number, answer=None):
-    """Resume one issue without clearing scheduler history or changing its spec."""
+def retry_issue(project, number, answer=None, *, initial=False):
+    """Submit a captured issue or resume its existing specification."""
     from approval import approved_issue
     from common import lock
     from reporting import read_report
@@ -377,13 +390,39 @@ def retry_issue(project, number, answer=None):
     # build. Execution takes the repository locks before touching task stores.
     with lock(project + ".queue"):
         record = read_report(config, "issue-" + str(number))
-        _, snapshot = approved_issue(
-            config, number, token(), expected=record.get("snapshot") if record else None
-        )
+        if initial or deployment.issue_intake(config) == "manual":
+            from policy import issue_snapshot
+
+            config = {**config, "issue_intake": "manual"}
+            if (
+                initial
+                and record
+                and record.get("status") not in {"FAILED", "NEEDS_INPUT", "PUBLICATION_FAILED"}
+            ):
+                raise RuntimeError(
+                    "Issue already has a task; inspect its report before resubmitting"
+                )
+            current = issues._get_issue(token(), config["repository"], number)
+            if current.get("state") != "open" or current.get("pull_request"):
+                raise ValueError("Submit an open GitHub issue, not a pull request")
+            _, snapshot = issue_snapshot(config, current)
+            snapshot["authorization"] = "operator"
+            if not initial and record and record.get("snapshot") != snapshot:
+                raise RuntimeError(
+                    "Issue specification changed; use submit-issue to approve it again"
+                )
+        else:
+            _, snapshot = approved_issue(
+                config, number, token(), expected=record.get("snapshot") if record else None
+            )
         response = (
             (sys.stdin.read() if answer == "-" else Path(answer).read_text())
             if answer
-            else "Retry the retained task after the factory repair."
+            else (
+                "Operator submitted this issue specification."
+                if initial
+                else "Retry the retained task after the factory repair."
+            )
         )
         name = f"Continue — {project} — issue {number}"
         previous = next((x for x in records() if x["name"] == name), None)
@@ -409,13 +448,13 @@ def retry_issue(project, number, answer=None):
                 {
                     "config": config,
                     "retry_issue": number,
-                    "resume": {"snapshot": snapshot, "answer": response},
+                    "resume": {"snapshot": snapshot, "answer": response, "submitted": initial},
                 }
             ),
             previous["id"] if previous else None,
         )
         result = api("POST", "/api/automation/v1/" + result["id"] + "/dispatch")
-        print("Native continuation run:", result["id"])
+        print("Native issue run:" if initial else "Native continuation run:", result["id"])
 
 
 if __name__ == "__main__":
@@ -444,6 +483,9 @@ if __name__ == "__main__":
     review_command = sub.add_parser("review")
     review_command.add_argument("project")
     review_command.add_argument("number", type=int)
+    submission = sub.add_parser("submit-issue")
+    submission.add_argument("project")
+    submission.add_argument("number", type=int)
     retry = sub.add_parser("retry-issue")
     retry.add_argument("project")
     retry.add_argument("number", type=int)
@@ -500,6 +542,8 @@ if __name__ == "__main__":
         configure(args.paused)
     elif args.action == "review":
         review(args.project, args.number)
+    elif args.action == "submit-issue":
+        retry_issue(args.project, args.number, initial=True)
     elif args.action == "retry-issue":
         retry_issue(args.project, args.number, args.answer_file)
     else:

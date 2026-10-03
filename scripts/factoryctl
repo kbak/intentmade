@@ -102,6 +102,7 @@ p.add_argument(
         "export",
         "review",
         "retry-issue",
+        "submit-issue",
         "refresh",
         "projects",
         "factories",
@@ -299,7 +300,7 @@ elif a.action in {"codex-login", "codex-logout"}:
         run(command, "secret", *operation, env={**os.environ, "SBX_NO_TELEMETRY": "1"})
     else:
         native(a.action)
-elif a.action == "review":
+elif a.action in {"review", "submit-issue"}:
     native(a.action, *a.args)
 elif a.action == "retry-issue":
     if "--answer-file" in a.args:

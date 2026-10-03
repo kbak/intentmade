@@ -21,7 +21,7 @@ class ConfigurationTests(unittest.TestCase):
             config = Path(temporary)
             (config / "repositories").mkdir()
             (config / "defaults.json").write_text(
-                json.dumps({"enabled": True, "issue_label": label})
+                json.dumps({"enabled": True, "issue_intake": "automatic", "issue_label": label})
             )
             (config / "repositories/example.json").write_text('{"repository":"example/repo"}')
             (config / "deployment.json").write_text(
@@ -64,6 +64,7 @@ class ConfigurationTests(unittest.TestCase):
             {
                 "example": {
                     "enabled": True,
+                    "issue_intake": "automatic",
                     "issue_label": "factory:approved",
                     "repository": "example/repo",
                 }

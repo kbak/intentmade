@@ -24,6 +24,7 @@ CONFIG = {
     "project": "example",
     "repository": "example/repo",
     "branch": "trunk",
+    "issue_intake": "automatic",
     "issue_label": "factory:approved",
     "assignee": "factory-bot",
     "required_checks": ["unit", "integration"],

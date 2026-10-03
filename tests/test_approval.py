@@ -12,6 +12,7 @@ import run
 
 CONFIG = {
     "repository": "example/repo",
+    "issue_intake": "automatic",
     "issue_label": "factory:approved",
     "assignee": "factory-bot",
     "branch": "main",

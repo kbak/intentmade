@@ -32,6 +32,10 @@ Operators need the factory to act on eligible, approved work for the intended
 repository. A later edit, retry or reply should not silently change what was
 authorized or cause the same failed issue to be picked up repeatedly.
 
+Operators need direct control over which issues consume their factory's resources,
+with automatic intake available for repositories they trust. PR follow-up should
+run independently of how new work is submitted.
+
 Needs: req
 
 Rationale: automation remains useful only while its authority and retained task

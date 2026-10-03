@@ -17,6 +17,7 @@ CONFIG = {
     "project": "example",
     "repository": "example/repo",
     "branch": "main",
+    "issue_intake": "automatic",
     "issue_label": None,
     "daily_tasks": None,
     "max_tasks_per_poll": 2,
@@ -46,6 +47,11 @@ class AutomaticSchedulerTests(unittest.TestCase):
         self.items = [copy.deepcopy(ISSUE)]
         self.build = Mock(return_value={"status": "PASSED"})
         for target, name, replacement in (
+            (
+                monitor.deployment,
+                "current_issue_intake",
+                lambda config: config.get("issue_intake", "manual"),
+            ),
             (monitor, "DATA", self.root),
             (monitor, "job_id", lambda: "offline-run"),
             (monitor, "implement_issue", self.build),

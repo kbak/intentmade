@@ -31,71 +31,42 @@ Docker's host-side proxy with placeholders in the VM. Canvas keeps its separate
 OpenHands login. IntentMade retains the checks that bind approval, review and
 publication to a particular specification or commit.
 
-## Personal use
+## Manual intake (default)
 
-The [example deployment](../examples/config/deployment.json) uses DockerWorkspace
-workers and requires issue approval. Scheduling starts disabled, and the example
-workflow defaults select `factory:approved` as the approval label.
+New issue work requires an explicit operator submission:
 
-For trusted personal intake, explicitly set
-`authorization.require_issue_approval: false` in `deployment.json` and
-`issue_label: null` in workflow defaults or the repository registration.
-Existing installations without `deployment.json` retain their previous behavior;
-updating the code does not rewrite operator configuration.
-
-With `issue_label: null`, an enabled scheduler accepts open, unassigned issues
-as work requests. Use this only where issue authors are trusted to request work.
-Canvas access grants factory control.
-
-## Public issue intake
-
-New installations copied from the examples already require approval. To enable
-it in an existing installation, set the following in `config/deployment.json`,
-keeping your runtime and resource settings:
-
-```json
-{
-  "authorization": {
-    "require_issue_approval": true
-  }
-}
+```sh
+./scripts/factoryctl submit-issue PROJECT NUMBER
 ```
 
-A minimal [OSS deployment example](../examples/deployments/oss.json) contains
-this setting. In `defaults.json` or each enabled repository registration, also
-set a nonempty `issue_label`, such as `factory:approved`. Run
-`./scripts/factoryctl configure` to validate configuration and refresh the native
-automations. Maintainers apply that label after reviewing the issue specification.
+`issue_intake` defaults to `manual` when omitted. Submission captures the issue's
+current title and body; later edits require resubmission. Manual intake ignores
+`issue_label` and does not create GitHub labels. Use `submit` for file-based
+specifications. Canvas access grants factory control.
 
-Enabled GitHub schedulers without a label are rejected. The current deployment
-requirement is also checked when polling, starting issue work, checking approval
-and publishing issue-derived changes. A captured configuration with
-`issue_label: null` cannot disable the requirement. The existing approval check
-still rejects specifications edited at or after label approval.
+`enabled: true` schedules PR maintenance, requested reviews and explicit
+replies to retained tasks. It does not enable automatic new-issue intake.
 
-Repositories with scheduling disabled can keep `issue_label: null` for manual
-tasks. Explicit operator submissions and PR reviews use their existing authority
-and validation checks; this setting governs issue-derived implementation.
+## Automatic intake for trusted repositories
+
+Set `"issue_intake": "automatic"` in the chosen repository registration. For
+unlabeled intake, set `authorization.require_issue_approval: false` in the
+operator's `deployment.json` and omit `issue_label` or set it to `null`.
+This authorizes eligible open, unassigned issues to request work. Only enable it
+where you trust issue authors to spend your factory's resources.
+
+Automatic intake supports a label gate. With
+`authorization.require_issue_approval: true`, each enabled automatic repository
+must configure a nonempty `issue_label`. Maintainers apply that label after
+reviewing the specification; edits at or after that approval require relabeling.
+This delegates authorization to repository label editors. Manual submissions do
+not require this label, even when the factory-wide automatic-intake gate is on.
 
 Worker isolation is a separate choice. Either deployment can use DockerWorkspace
 or [Docker Sandboxes](docker-sandboxes.md). The VM backend takes its environment
 policy from a native Kit; approval settings do not imply a particular runtime.
 The controller remains a trusted single-operator service. See
 [security assumptions](../SECURITY.md) for GitHub Actions and credential boundaries.
-
-## Existing installations
-
-Move `worker_runtime` and `resource_limits` from `defaults.json` into
-`deployment.json` when convenient. Legacy definitions remain supported and are
-excluded from job configuration. Defining the same section in both files is an
-error, including identical definitions. `authorization` belongs only in
-`deployment.json`.
-
-After updating the factory code, rebuild and refresh workflows as described in
-[operations](operations.md#update-the-runtime-and-workflows). Already uploaded
-automation bundles contain their own workflow code; finish or pause old runs
-before relying on newly installed enforcement. Changing JSON cannot update code
-already running from an older bundle.
 
 ## Extending the shared factory
 

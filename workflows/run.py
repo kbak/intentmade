@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 import browser_qa
+import deployment
 import input_artifacts
 import measurements
 import repair_context
@@ -169,7 +170,11 @@ def publish(
         current = github(credential, "GET", f"/repos/{config['repository']}/issues/{issue}")
         if (
             current["state"] != "open"
-            or (config.get("issue_label") and config["issue_label"] not in issues._labels(current))
+            or (
+                deployment.issue_intake(config) == "automatic"
+                and config.get("issue_label")
+                and config["issue_label"] not in issues._labels(current)
+            )
             or {a["login"] for a in current.get("assignees", [])} != {config["assignee"]}
         ):
             raise RuntimeError(

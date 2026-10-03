@@ -40,8 +40,8 @@ Work is serialized per repository; unrelated repositories can run concurrently.
 | Published PR maintenance | PRs with this instance's publication receipt, including drafts. Handles eligible feedback, CI failures, and updated base branches. |
 | Requested PR review | Open, non-draft PRs requested from the connected GitHub account or its active teams, with passing CI and no submitted human review of the current commit. |
 | Follow-up review | A new eligible commit after this factory's outstanding changes request. Approval or dismissal ends automatic follow-up. |
-| Issue implementation | Open, unassigned issues, oldest first, subject to the configured approval label. |
-| Issue proposals | With an approval label configured, changed unassigned issues without the label may receive Canvas proposals when capacity is available. |
+| Issue implementation | Automatic intake only: open, unassigned issues, oldest first, subject to any configured label policy. |
+| Issue proposals | Automatic intake only: with an approval label configured, changed unassigned issues without the label may receive Canvas proposals when capacity is available. |
 
 Maintenance takes priority over requested reviews and new issues. The scheduler
 does not independently review its own published PRs; repairs still pass the
@@ -49,11 +49,24 @@ normal tests and independent review before pushing.
 
 ### Issue authorization
 
-`issue_label: null` authorizes work on open, unassigned issues as soon as the
-schedule is enabled. Use it only where you trust issue authors to request work.
-For public contributions, set `issue_label` to a maintainer-applied approval label.
-Remove and reapply that label after reviewing an edited specification or a failed
-attempt. See the [security model](../SECURITY.md#work-authorization-and-retained-state).
+New issue intake defaults to `issue_intake: "manual"`. Submit a reviewed issue:
+
+```sh
+./scripts/factoryctl submit-issue PROJECT NUMBER
+```
+
+This captures the current title and body before dispatching the task. No label is
+created or checked. An edit before execution or publication blocks the task;
+resubmit to authorize the updated specification. `retry-issue` continues only the
+same specification. `enabled` controls scheduled PR follow-up and retained-task
+replies independently of manual submission.
+
+Set `issue_intake: "automatic"` explicitly for trusted repositories. With
+`issue_label: null` and the deployment's `require_issue_approval: false`, an enabled
+scheduler accepts open, unassigned issues. Optional labels provide maintainer-controlled filtering and approval-history
+checks. They delegate
+selection to repository label editors, not exclusively to the factory operator.
+See the [deployment choices](deployments.md).
 
 The workflow claims the issue for the configured assignee and captures its title
 and body as the specification. Publication requires that specification to remain
