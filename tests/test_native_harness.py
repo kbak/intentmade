@@ -49,6 +49,8 @@ class NativeHarnessTests(unittest.TestCase):
         self.assertIsInstance(builder, Agent)
         self.assertEqual(builder.llm.model, LLM["model"])
         self.assertIn("terminal", [tool.name for tool in builder.tools])
+        self.assertNotIn("SwitchLLMTool", builder.include_default_tools)
+        self.assertNotIn("switch_llm", [tool.name for tool in builder.tools])
         reviewer = agent.worker_agent("read-only", "factory-review", {"untrusted": {}})
         # [utest~im-native_harness-NativeHarnessTests-profile_resolution_preserves_model_but_stage_overrides_tools_and_credentials-2~1->req~im-native-read-only~1]
         self.assertEqual([tool.name for tool in reviewer.tools], ["factory_reader"])
@@ -60,6 +62,22 @@ class NativeHarnessTests(unittest.TestCase):
         self.assertNotIn("CODEX_AUTH_JSON", str(reviewer.model_dump()))
         # Stage overrides must not mutate the captured profile for later builders.
         self.assertTrue(selected.settings.enable_sub_agents)
+
+    def test_native_builder_disables_switching_for_default_and_explicit_tool_lists(self):
+        from openhands.sdk import Tool
+
+        selected = self.select()
+        for tools in (None, [], [Tool(name="terminal"), Tool(name="SwitchLLMTool")]):
+            with self.subTest(tools=tools):
+                selected.settings.tools = tools
+                builder = agent.worker_agent("agent-full-access")
+                self.assertNotIn("SwitchLLMTool", builder.include_default_tools)
+                self.assertNotIn("switch_llm", [tool.name for tool in builder.tools])
+                self.assertEqual(selected.settings.tools, tools)
+                if tools == []:
+                    self.assertEqual(builder.tools, [])
+                else:
+                    self.assertIn("terminal", [tool.name for tool in builder.tools])
 
     def test_native_worker_never_opens_codex_store_and_captures_profile_once(self):
         workspace = Mock()

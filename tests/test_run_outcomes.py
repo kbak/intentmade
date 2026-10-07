@@ -15,7 +15,9 @@ class NativeOutcomeTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(status=status):
                 record = SimpleNamespace(
                     id=uuid4(),
-                    automation=SimpleNamespace(id=uuid4(), user_id="operator", org_id=None),
+                    automation=SimpleNamespace(
+                        id=uuid4(), user_id="operator", org_id=None, name="Fixture", trigger={}
+                    ),
                     run_metadata={"existing": "retained"},
                     sandbox_id=None,
                     status_detail=None,
@@ -49,7 +51,7 @@ class NativeOutcomeTests(unittest.IsolatedAsyncioTestCase):
                     await router.complete_run(
                         record.id,
                         body,
-                        Mock(),
+                        SimpleNamespace(headers={}),
                         user=SimpleNamespace(user_id="operator", org_id=None),
                         session=session,
                     )

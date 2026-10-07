@@ -1,4 +1,4 @@
-FROM ghcr.io/openhands/agent-canvas:1.24.0@sha256:ad0829a7082a71ddfd2d16c1fae5a2172e4ca5a34eba7f03b69bd5b9b1bc54d7
+FROM ghcr.io/openhands/agent-canvas:1.25.0@sha256:10190cdede885f74853567f4aa44b33de094139a940df75f4b204a2b6df73c57
 USER root
 # OCR delegation performs no model calls. Pin its executable and matching skill.
 ADD --checksum=sha256:4d2c4f39a98d3e26ac0b76d5f0af304c661f5dad12937c39b2cba4e8e92adeaf --chmod=755 https://github.com/alibaba/open-code-review/releases/download/v1.12.4/opencodereview-linux-amd64 /usr/local/bin/ocr
@@ -42,8 +42,6 @@ RUN python /opt/factory/patch_native_harness.py
 COPY --chmod=755 runtime/agent-server /usr/local/bin/openhands-agent-server
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py
 RUN python /opt/factory/patch_run_outcomes.py
-COPY runtime/patch_download_filename.py /opt/factory/patch_download_filename.py
-RUN python /opt/factory/patch_download_filename.py
 COPY runtime/reply_hook.py /opt/agent-canvas/tools/factory_reply_hook.py
 RUN python - <<'PY'
 from pathlib import Path

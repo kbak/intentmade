@@ -160,8 +160,13 @@ def worker_agent(mode, skill=None, mcp_config=None, traceability=False):
             # Remote event decoding needs the native tool classes registered on
             # the controller too, not just on the worker executing the tools.
             import openhands.tools  # noqa: F401
+            from openhands.sdk.tool.defaults import canonical_tool_name, resolve_tool_specs
 
-            settings.enable_switch_llm_tool = False
+            settings.tools = [
+                tool
+                for tool in resolve_tool_specs(settings.tools)
+                if canonical_tool_name(tool.name) != "switch_llm"
+            ]
             settings.enable_classify_and_switch_llm_tool = False
             settings.verification.critic_enabled = False
             settings.verification.enable_iterative_refinement = False
@@ -171,7 +176,6 @@ def worker_agent(mode, skill=None, mcp_config=None, traceability=False):
                 settings.tools = [
                     Tool(name=FactoryReaderTool.name, params={"roots": selected.read_roots})
                 ]
-                settings.enable_sub_agents = False
                 settings.mcp_config = {}
                 if skill == "factory-review":
                     role = tomllib.loads(
