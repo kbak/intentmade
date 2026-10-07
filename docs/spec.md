@@ -442,6 +442,8 @@ Evidence limit: Bounded tools constrain available operations; they do not measur
 
 Standalone PR review obtains changed-file evidence from the captured immutable base/head comparison. Mismatched or incomplete inventories must stop review; the mutable PR-files endpoint must not substitute another comparison.
 
+Operator-configured `review_repositories` may supply other registered GitHub repositories as supporting context. The controller resolves each registered branch once, downloads its bounded archive at that immutable commit, and supplies its identity and associated pull-request metadata to the read-only reviewer. Missing references stop preparation. These sources do not expand the changed-file inventory or grant reviewer network access; their identities remain in the review artifacts.
+
 Covers:
 - `intent~im-review-changes~1`
 
@@ -449,9 +451,9 @@ Needs: impl, utest
 
 Documentation: [docs/reviews.md](../docs/reviews.md).
 
-Implementation: [comparison_files](../workflows/review_requests.py), [_review_pr](../workflows/monitor.py).
+Implementation: [comparison_files](../workflows/review_requests.py), [_review_pr](../workflows/monitor.py), [reference sources](../workflows/review_sources.py).
 
-Existing assertions: [test_same_size_head_swap_cannot_change_captured_files](../tests/test_review_requests.py), [test_wrong_base_or_incomplete_inventory_fails_closed](../tests/test_review_requests.py).
+Existing assertions: [test_same_size_head_swap_cannot_change_captured_files](../tests/test_review_requests.py), [test_wrong_base_or_incomplete_inventory_fails_closed](../tests/test_review_requests.py), [reference snapshot and unavailable-source checks](../tests/test_review_sources.py).
 
 Evidence limit: Count and base checks use scripted GitHub responses; real API inventory semantics remain an external dependency.
 

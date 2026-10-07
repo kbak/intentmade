@@ -439,5 +439,11 @@
   ],
   "test_manual_intake.ManualIntakeTests.test_resubmission_reuses_only_this_factory_retained_claim": [
     "utest~im-manual-intake-resubmission~1"
+  ],
+  "test_review_sources.ReferenceSourcesTests.test_reference_archive_and_metadata_use_captured_commit": [
+    "utest~im-review-reference-commit~1"
+  ],
+  "test_review_sources.ReferenceSourcesTests.test_invalid_registration_or_unavailable_source_stops_preparation": [
+    "utest~im-review-reference-unavailable~1"
   ]
 }

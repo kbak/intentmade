@@ -355,6 +355,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
             self.assertEqual(retained["traceability_context"]["example"]["scope"], scope)
 
     def test_manual_reviews_save_reports_and_recheck_pr_revision(self):
+        references = {"dependency": {"commit": "d" * 40, "source": "/job/reference"}}
         for stale, blocked in (
             (None, False),
             ("head", False),
@@ -388,12 +389,22 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                     (source / "file.py").write_text("pass\n")
                     return source
 
+                def reviewed(workspace, context, **kwargs):
+                    captured = json.loads(
+                        (kwargs["input_path"].parent / "review-context.json").read_text()
+                    )
+                    self.assertEqual(captured["reference_repositories"], references)
+                    self.assertIn("supporting sources", context)
+                    self.assertEqual(set(kwargs["sources"]), {"example"})
+                    return result
+
                 with (
                     patch.object(monitor, "DATA", root),
                     patch.object(monitor, "job_id", return_value="fixture"),
                     patch.object(monitor, "evidence", return_value=artifact),
                     patch.object(monitor, "lock", return_value=nullcontext()),
                     patch.object(monitor.reviews, "_prepare_repository", side_effect=checkout),
+                    patch.object(monitor.review_sources, "prepare", return_value=references),
                     patch.object(monitor.reviews, "_load_repo_review_guide", return_value=""),
                     patch.object(monitor.issues, "_github_paginate", return_value=[]),
                     patch.object(
@@ -405,7 +416,7 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                         },
                     ),
                     patch.object(monitor, "worker", return_value=nullcontext(Mock())),
-                    patch.object(monitor, "review_code", return_value=result) as reviewers,
+                    patch.object(monitor, "review_code", side_effect=reviewed) as reviewers,
                     patch.object(
                         monitor.reviews,
                         "_get_pr",
@@ -440,6 +451,9 @@ class ManualSpecialistReviewTests(unittest.TestCase):
                                 args[0], args[1], result, "token", artifact
                             )
                 self.assertIn("exact commit " + pr["head"]["sha"], reviewers.call_args.args[1])
+                self.assertEqual(
+                    json.loads((artifact / "review-sources.json").read_text()), references
+                )
                 source = reviewers.call_args.kwargs["sources"]["example"]
                 self.assertEqual(source["base"], pr["base"]["sha"])
                 self.assertEqual(source["candidate"], pr["head"]["sha"])

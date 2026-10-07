@@ -164,6 +164,18 @@ After adding repositories, run `init` and `configure` from the tooling checkout.
 Use `refresh NAME` to update the local code catalog used in discussions. Build
 submissions resolve the remote base commit independently of that catalog.
 
+For standalone PR reviews that need another repository's source, set
+`"review_repositories": ["registered-dependency"]` in the reviewed repository's
+registration. Each entry must name another registered GitHub repository (up to
+16 unique entries). The controller captures that registration's branch at an
+immutable commit and supplies its source plus associated PR metadata in
+`review-context.json`. `review-sources.json` retains the captured identities.
+Unavailable sources stop review. References remain read-only context and are not
+added to the changed-file inventory. This does not enable network access for the
+reviewer or automatically discover dependencies from PR text. A dependency can
+use `enabled: false` and `issue_intake: "manual"` to remain available without
+starting its own scheduled work. Refresh workflows with `configure` after changes.
+
 ### Repository groups
 
 A `config/factories/NAME.json` groups registered repositories for one task:

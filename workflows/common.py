@@ -124,6 +124,10 @@ def projects(config_dir=None):
         if not config["required_checks"]:
             raise ValueError(f"{name}: required_checks must not be empty")
         result[name] = config
+    from review_sources import validate
+
+    for config in result.values():
+        validate(config, result)
     return result
 
 
