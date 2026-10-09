@@ -1,11 +1,11 @@
 # Runtime patch review
 
-The runtime pins Canvas 1.25.0 by image digest, with OpenHands SDK/Workspace/Agent
+The runtime pins Canvas 1.26.0 by image digest, with OpenHands SDK/Workspace/Agent
 Server 1.53.0 and Automation 1.19.0. Review patches against the installed source
 when updating that pin; version guards and exact source matches deliberately
 stop the build on drift.
 
-| Integration | Decision for Canvas 1.25.0 | Reason |
+| Integration | Decision for Canvas 1.26.0 | Reason |
 | --- | --- | --- |
 | Unicode automation downloads | Removed | Automation now sanitizes names, supplies an ASCII fallback and encodes Unicode with `filename*`. The regression exercises the installed upstream route, including compatibility characters. |
 | Review permissions and project trust | Retained | SDK's ACP bridge still auto-approves permission requests. The pinned ACP read-only mode still permits workspace writes and trusts project roots. Factory reviews require no writes or escalation, and repository configuration must not replace explicit factory MCP configuration. |

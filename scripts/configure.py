@@ -39,8 +39,8 @@ def records():
 
 
 def persisted(path, expected):
-    # The native FastAPI dependency commits after returning its response. Wait
-    # for readback before dependent writes; never repeat a creation or dispatch.
+    # Native upload/create dependencies commit after sending their responses.
+    # Wait before dependent writes; never repeat a creation or dispatch.
     deadline = time.monotonic() + 10
     while True:
         try:
@@ -67,17 +67,11 @@ def install(definition, files, existing=None):
     persisted("/api/automation/v1/uploads/" + upload["id"], {"status": "COMPLETED"})
     definition = {**definition, "tarball_path": upload["tarball_path"]}
     if not existing:
-        initial = {key: value for key, value in definition.items() if key != "enabled"}
-        initial["trigger"] = {
-            "type": "event",
-            "source": "custom",
-            "on": "factory.setup",
-            "filter": "`false`",
-        }
+        initial = {**definition, "enabled": False}
         existing = api("POST", "/api/automation/v1", json=initial)["id"]
         persisted("/api/automation/v1/" + existing, {"id": existing})
+        definition.setdefault("enabled", True)
     result = api("PATCH", "/api/automation/v1/" + existing, json=definition)
-    persisted("/api/automation/v1/" + existing, {key: result[key] for key in definition})
     print("Native automation:", result["id"], "—", result["name"])
     return result
 

@@ -75,8 +75,6 @@ class ConfigurationTests(unittest.TestCase):
             pending,
             {"id": "automation"},
             saved,
-            {**saved, "trigger": {"on": "old"}},
-            saved,
         ]
         with (
             patch.object(self.configure, "api", side_effect=responses) as api,
@@ -85,8 +83,11 @@ class ConfigurationTests(unittest.TestCase):
             self.configure.install({"name": "Fixture", "trigger": trigger}, {"job.py": b"pass"})
         self.assertEqual(
             [c.args[0] for c in api.call_args_list],
-            ["POST", "GET", "GET", "POST", "GET", "GET", "PATCH", "GET", "GET"],
+            ["POST", "GET", "GET", "POST", "GET", "GET", "PATCH"],
         )
+        self.assertEqual(api.call_args_list[3].kwargs["json"]["trigger"], trigger)
+        self.assertFalse(api.call_args_list[3].kwargs["json"]["enabled"])
+        self.assertTrue(api.call_args_list[-1].kwargs["json"]["enabled"])
 
     def test_native_readback_is_bounded_and_does_not_hide_permission_errors(self):
         for status in (404, 403):

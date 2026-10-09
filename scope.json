@@ -66,7 +66,7 @@
       "python3",
       "scripts/check_factory.py",
       "--image",
-      "sha256:b994fb88ac29f866bbbcce525575b9272fa6cd2c670a09f015813fd8ff0169e3"
+      "sha256:74faf07e8a0a27e25eface0bfe11438827dcd953749a764b69a8a9941861365a"
     ],
     "report": ".local-validation/factory.xml",
     "timeout_seconds": 900,
