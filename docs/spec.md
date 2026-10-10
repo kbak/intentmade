@@ -51,7 +51,7 @@ operational evidence is safe to publish; follow the
 [sharing procedure](portable-workflow.md#continue-elsewhere).
 
 JUnit records named test-method outcomes, and explicit `oft_id` metadata connects
-125 linked test artifacts to execution observations. The scope requires every
+linked test artifacts to execution observations. The scope requires every
 listed artifact to pass and rejects skipped cases. These associations identify
 executed assertions; they do not establish that the assertions adequately verify
 every clause. Approval, structural coverage and runtime evidence remain distinct.
@@ -824,6 +824,59 @@ Documentation: [docs/reviews.md](../docs/reviews.md).
 Implementation: [run_with_startup_recovery](../workflows/agent.py).
 
 Existing assertions: [test_temporary_startup_timeout_retries_once_and_retains_reason](../tests/test_startup_recovery.py), [test_repeated_timeout_is_bounded](../tests/test_startup_recovery.py), [test_auth_spawn_and_unknown_initialization_failures_are_not_retried](../tests/test_startup_recovery.py), [test_timeout_after_agent_activity_does_not_replay](../tests/test_startup_recovery.py).
+
+### Preserve provider failures before decision parsing
+`req~im-agent-failure-reporting~1`
+
+When a Codex adapter returns a final response beginning with its HTTP 4xx/5xx
+failure diagnostic, report the provider failure before JSON validation and stop
+without a format-repair turn. HTTP 401 identifies rejected authentication and
+provides reconnect guidance. Retain the raw response in artifacts and the safe
+classification in the failed task result and measurements. Provider diagnostics
+mentioned inside a valid decision or ordinary prose must not be classified as
+execution failures; genuine malformed decisions retain their bounded format retry.
+
+Covers:
+- `intent~im-operate-reliably~1`
+
+Needs: impl, utest
+
+Documentation: [docs/operations.md](operations.md#observe-runs).
+
+Implementation: [check_agent_response](../workflows/agent.py), [_execute_build](../workflows/run.py).
+
+Existing assertions: [test_provider_http_failure_stops_without_format_retry](../tests/test_response_protocol.py), [test_provider_diagnostics_inside_decisions_are_not_failures](../tests/test_response_protocol.py), [test_terminal_build_record_preserves_provider_failure](../tests/test_response_protocol.py).
+
+Evidence limit: The compatibility classifier recognizes the adapter's diagnostic
+prefix. It does not infer arbitrary provider failures from model prose or replace
+native typed startup/prompt errors. If response storage fails, preserve the
+provider classification and mark the artifact unavailable.
+
+### Keep report assistant state separate from task state
+`req~im-report-status~1`
+
+Generated task updates and questions must not start the report assistant. Record
+its observed execution status separately from the task result and identify an
+observed assistant error in the update without changing the task status or
+consumed answers. If its status cannot be fetched, record it as unknown and
+preserve the task update. Explicit resume replies retain their existing
+authorization and dispatch behavior. Explain that worker phases belong in
+Automate and the report terminal does not show isolated worker output.
+
+Covers:
+- `intent~im-operate-reliably~1`
+
+Needs: impl, utest
+
+Documentation: [docs/operations.md](operations.md#observe-runs).
+
+Implementation: [TaskReport.update](../workflows/reporting.py).
+
+Existing assertions: [test_updates_keep_task_and_assistant_states_separate](../tests/test_report_status.py), [test_unavailable_assistant_state_does_not_lose_report](../tests/test_report_status.py), [test_generated_questions_do_not_start_a_healthy_assistant](../tests/test_report_status.py), [test_only_new_explicit_user_reply_can_resume_same_snapshot](../tests/test_recovery.py).
+
+Evidence limit: Status is a bounded API observation, not continuous monitoring.
+Existing assistant errors are not cleared or automatically retried. Canvas's
+terminal loading display is outside this wrapper's control.
 
 ### Runtime test image matches candidate patch inputs
 `req~im-runtime-build-inputs~1`

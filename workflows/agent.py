@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import time
 import tomllib
 from pathlib import Path
@@ -92,6 +93,54 @@ class StructuredResponseError(RuntimeError):
             f"diagnostics: {json.dumps(details['validation_errors'])}; "
             f"retained response: {details['response_artifact'] or 'see native conversation'}"
         )
+
+
+class AgentExecutionError(RuntimeError):
+    def __init__(self, details):
+        self.details = details
+        super().__init__(
+            f"{details['stage']}: {details['code']} — {details['detail']}; "
+            f"retained response: {details['response_artifact'] or 'see native conversation'}"
+        )
+
+
+# [impl->req~im-agent-failure-reporting~1]
+def check_agent_response(text, title, attempt, conversation_id, transcript):
+    # Older Codex adapters stream HTTP failures as a completed assistant turn.
+    # Match the provider's diagnostic prefix, not mentions inside valid JSON or
+    # ordinary prose, and never replay that turn to repair a provider failure.
+    status = re.match(r"unexpected status ([45]\d\d)\b", text.lstrip(), re.IGNORECASE)
+    if not status:
+        return
+    http_status = int(status[1])
+    auth = http_status == 401
+    detail = (
+        "Codex authentication was rejected. Run factoryctl codex-login, then explicitly resume the task."
+        if auth
+        else f"The agent provider returned HTTP {http_status}. Resolve the provider failure, then explicitly resume the task."
+    )
+    artifact = (
+        transcript.with_name(f"{transcript.stem}.failure-{conversation_id}-{uuid4().hex[:12]}.json")
+        if transcript
+        else None
+    )
+    details = {
+        "kind": "agent_execution_failure",
+        "stage": title,
+        "code": "ACPAuthRequired" if auth else "ACPProviderError",
+        "http_status": http_status,
+        "detail": detail,
+        "response_attempt": attempt + 1,
+        "conversation_id": str(conversation_id),
+        "response_artifact": str(artifact) if artifact else None,
+    }
+    if artifact:
+        try:
+            artifact.write_text(json.dumps({**details, "raw_response": text}, indent=2) + "\n")
+        except OSError as exc:
+            details.update(response_artifact=None, retention_error=type(exc).__name__)
+    measurements.response_validation(details)
+    raise AgentExecutionError(details)
 
 
 def response_failure(exc, text, model, title, attempt, conversation_id, transcript):
@@ -245,6 +294,7 @@ def converse(
             if conversation.state.execution_status.value != "finished":
                 raise RuntimeError(f"Agent stopped with {conversation.state.execution_status}")
             text = get_agent_final_response(conversation.state.events)
+            check_agent_response(text, title, attempt, conversation.id, transcript)
             if not response_model:
                 if execution_receipt is not None:
                     execution_receipt.update(

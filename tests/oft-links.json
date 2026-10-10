@@ -460,5 +460,23 @@
   ],
   "test_progress.ProgressTests.test_question_keeps_review_and_publication_waiting": [
     "utest~im-canvas-progress-question~1"
+  ],
+  "test_response_protocol.ProtocolTests.test_provider_http_failure_stops_without_format_retry": [
+    "utest~im-protocol-provider-failure~1"
+  ],
+  "test_response_protocol.ProtocolTests.test_provider_diagnostics_inside_decisions_are_not_failures": [
+    "utest~im-protocol-provider-text~1"
+  ],
+  "test_response_protocol.ProtocolTests.test_terminal_build_record_preserves_provider_failure": [
+    "utest~im-protocol-provider-outcome~1"
+  ],
+  "test_report_status.ReportStatusTests.test_updates_keep_task_and_assistant_states_separate": [
+    "utest~im-report-task-status~1"
+  ],
+  "test_report_status.ReportStatusTests.test_unavailable_assistant_state_does_not_lose_report": [
+    "utest~im-report-unavailable-state~1"
+  ],
+  "test_report_status.ReportStatusTests.test_generated_questions_do_not_start_a_healthy_assistant": [
+    "utest~im-report-no-auto-start~1"
   ]
 }

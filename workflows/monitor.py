@@ -111,7 +111,6 @@ def review_pr(config, pr, credential):
                 else "FAILED",
                 str(exc),
                 metrics=metrics,
-                wake_assistant=not isinstance(exc, NeedsInput),
             )
         raise
 

@@ -228,6 +228,8 @@ class TaskReport:
                 "An explicit resume message queues the continuation immediately. "
                 "If the repository is busy, it waits for the current work to finish. "
                 "The report assistant is read-only; native automation runs the continuation. "
+                "Factory updates do not start the report assistant. This report's terminal "
+                "does not show the isolated worker; use Automate for its current phase. "
                 "Only report that it has started when its RUNNING or REVIEWING update appears.",
             )
         if ACTIVE:
@@ -241,7 +243,8 @@ class TaskReport:
                 ACTIVE["conversation_id"] = current
         write_report(config, task, self.record)
 
-    def update(self, status, message, *, metrics=None, wake_assistant=True, **details):
+    # [impl->req~im-report-status~1]
+    def update(self, status, message, *, metrics=None, **details):
         metrics = metrics or details.get("result", {}).get("metrics")
         if metrics:
             details["metrics"] = str(metrics)
@@ -250,10 +253,34 @@ class TaskReport:
                 message += "\n\n" + measurements.render(measured) + f"\n\nMetrics: `{metrics}`"
             except (OSError, ValueError, KeyError, TypeError):
                 message += "\n\nFactory measurements unavailable; validation outcome is unchanged."
+        # Persist the task before even a read-only UI request can fail or stall.
         self.record.update(status=status, updated_at=now(), **details)
+        self.record["assistant_execution_status"] = "unknown"
         write_report(self.config, self.task, self.record)
-        # Durable result comes first. An unavailable UI must not lose work.
         phase(f"{self.task}: {status} — {message}")
+        # The report reader can fail independently of the task. Inspect only its
+        # status; raw provider diagnostics may contain secrets and stay native.
+        try:
+            conversation = api(
+                "GET", f"/api/conversations/{self.record['conversation_id']}", timeout=5
+            )
+            assistant_status = conversation.get("execution_status")
+            if not isinstance(assistant_status, str):
+                assistant_status = "unknown"
+        except Exception:
+            assistant_status = "unknown"
+        self.record["assistant_execution_status"] = assistant_status
+        try:
+            write_report(self.config, self.task, self.record)
+        except OSError as exc:
+            print(f"Report assistant status unavailable: {type(exc).__name__}", flush=True)
+        if assistant_status == "error":
+            message += (
+                "\n\nThe report assistant is unavailable after an agent error. "
+                "The Factory task status above is separate; its worker runs independently. "
+                "Use Automate for the worker's current phase. "
+                "Explicit `resume:` replies still continue eligible failed or waiting tasks."
+            )
         try:
             api(
                 "PATCH",
@@ -263,7 +290,7 @@ class TaskReport:
             post(
                 self.record["conversation_id"],
                 f"**{status}**\n\n{message}",
-                run=status == "NEEDS_INPUT" and wake_assistant,
+                run=False,
             )
         except Exception as exc:
             print(f"Canvas report update unavailable: {type(exc).__name__}", flush=True)

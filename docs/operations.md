@@ -76,6 +76,20 @@ reports. [Measurements](measurements.md) explain timing, usage, and outcome
 records. [Repair context](repair-context.md) describes what carries into a retry;
 [execution provenance](execution-provenance.md) describes recorded runtime identity.
 
+The task conversation is a report; implementation and review run in isolated
+workers. Its Terminal tab does not display worker output. Use **Automate** for
+the current worker phase. Generated updates and questions do not launch the
+report assistant. If that assistant previously failed, later updates identify
+its error separately from the task status. Explicit `resume:` replies still
+continue eligible failed or waiting tasks through native automation.
+
+Provider HTTP failures are reported before structured-response validation. A
+Codex HTTP 401 requires `./scripts/factoryctl codex-login`, followed by an
+explicit retry. Other HTTP failures require resolving the provider problem
+before retrying. Raw diagnostics remain in retained artifacts; the report shows
+the failure classification and recovery guidance. Genuine malformed decisions
+still receive one request to restate the decision as JSON.
+
 ## Dependency pins
 
 The runtime base image and Docker test daemons use immutable registry digests.

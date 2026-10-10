@@ -229,7 +229,13 @@
         "utest~im-canvas-progress-routing",
         "utest~im-canvas-progress-outage",
         "utest~im-canvas-progress-pipeline",
-        "utest~im-canvas-progress-question"
+        "utest~im-canvas-progress-question",
+        "utest~im-protocol-provider-failure",
+        "utest~im-protocol-provider-text",
+        "utest~im-protocol-provider-outcome",
+        "utest~im-report-task-status",
+        "utest~im-report-unavailable-state",
+        "utest~im-report-no-auto-start"
       ]
     }
   },
