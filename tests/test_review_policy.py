@@ -4,6 +4,7 @@ import ast
 import asyncio
 import inspect
 import json
+import os
 import re
 import subprocess
 import textwrap
@@ -15,6 +16,27 @@ from openhands.sdk.agent.acp_agent import ACPAgent, _OpenHandsACPBridge
 
 
 class InstalledReviewPolicyTests(unittest.TestCase):
+    def test_launcher_uses_native_explicit_mcp_precedence_even_with_an_inherited_override(self):
+        source = Path(
+            "/acp-node/lib/node_modules/@agentclientprotocol/codex-acp/dist/index.js"
+        ).read_text()
+        native = re.search(r"function shouldDeduplicateMcpConflicts\(\).*?\n}", source, re.S)
+        self.assertIsNotNone(native)
+        launcher = Path("/opt/factory/codex-acp").read_text().rsplit("\nexec ", 1)[0]
+        subprocess.run(
+            [
+                "/bin/sh",
+                "-c",
+                launcher + '\nexec /acp-node/bin/node --input-type=module -e "$1"',
+                "mcp-policy-probe",
+                native.group()
+                + "\nimport assert from 'node:assert/strict';"
+                + "\nassert.equal(shouldDeduplicateMcpConflicts(), false);",
+            ],
+            env={**os.environ, "DISABLE_MCP_CONFIG_FILTERING": "false"},
+            check=True,
+        )
+
     def mode(self, name, coordinator=False):
         source = Path(
             "/acp-node/lib/node_modules/@agentclientprotocol/codex-acp/dist/index.js"

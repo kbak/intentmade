@@ -29,69 +29,83 @@ class ACPUsageTests(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertEqual(source.count("this.buildPromptUsage(factoryPromptUsage(sessionState))"), 4)
+        self.assertNotIn("factoryPromptUsage", source)
         self.assertIn('factoryFreshSession: operation === "new"', source)
         self.assertIn("await endFactoryUsage(sessionState,", source)
         with self.assertRaisesRegex(RuntimeError, "lifecycle changed"):
             patch.patch_adapter(source)
-        functions = []
-        for name in ("toTokenCount", "toPromptUsage"):
-            functions.append(re.search(r"function " + name + r"\(.*?\n}", source, re.S).group())
+        # Exercise the published native token accumulator, not a factory copy.
+        token_source = source.split("// src/TokenCount.ts\n", 1)[1].split(
+            "// src/CommandUtils.ts", 1
+        )[0]
         methods = []
         for name in (
             "handleTokenUsageUpdated",
             "buildQuotaMeta",
             "buildPromptUsage",
+            "beginPromptTokenUsage",
             "cancelledPromptResponse",
         ):
             methods.append(re.search(r"  " + name + r"\(.*?\n  }", source, re.S).group())
         script = f"""
 import assert from 'node:assert/strict';
-import {{beginFactoryUsage, observeFactoryUsage, factoryPromptUsage, factoryUsageSnapshot, endFactoryUsage}} from {json.dumps((RUNTIME / "factory-usage.mjs").as_uri())};
-{chr(10).join(functions)}
+import {{beginFactoryUsage, observeFactoryUsage, factoryUsageSnapshot, endFactoryUsage}} from {json.dumps((RUNTIME / "factory-usage.mjs").as_uri())};
+{token_source}
 class Adapter {{ {chr(10).join(methods)} }}
-const counters = (input, output, cache=0, thought=0) => ({{totalTokens:input+output, inputTokens:input, outputTokens:output, cachedInputTokens:cache, reasoningOutputTokens:thought}});
-const state = {{sessionId:'root', currentModelId:'test-model[high]', factoryFreshSession:true}};
+const counters = (input, output, cache=0, thought=0) => ({{totalTokens:input+output, inputTokens:input, outputTokens:output, cachedInputTokens:cache, reasoningOutputTokens:thought, cacheWriteInputTokens:0}});
+const state = {{sessionId:'root', currentModelId:'test-model[high]', factoryFreshSession:true, threadHasHistory:false}};
 const adapter = new Adapter(); adapter.sessionState = state;
 const notify = (total, last=counters(2,7)) => adapter.handleTokenUsageUpdated({{threadId:'root', tokenUsage:{{total,last,modelContextWindow:10000}}}});
 const response = () => adapter.cancelledPromptResponse(state);
-beginFactoryUsage(state);
+const begin = () => {{ beginFactoryUsage(state); adapter.beginPromptTokenUsage(state); }};
+begin();
 notify(counters(100,30,20,10)); notify(counters(500,200,100,50));
-assert.deepEqual(response().usage, {{totalTokens:700,inputTokens:400,cachedReadTokens:100,outputTokens:200,thoughtTokens:50}});
+assert.deepEqual(response().usage, {{totalTokens:700,inputTokens:400,cachedReadTokens:100,cachedWriteTokens:0,outputTokens:200,thoughtTokens:50}});
 assert.equal(response()._meta.quota.token_count.outputTokens, 200);
 let evidence; await endFactoryUsage(state, async e => evidence=e, false);
 assert.equal(evidence.rawOutput.last.outputTokens, 7);
 assert.equal(evidence.rawOutput.delta.outputTokens, 200);
 assert.equal(evidence.rawOutput.delegated_usage, null);
 // Second prompt includes a duplicate notification and two more model requests.
-beginFactoryUsage(state); notify(counters(500,200,100,50)); notify(counters(650,230,120,60)); notify(counters(700,270,130,70));
+begin(); notify(counters(500,200,100,50)); notify(counters(650,230,120,60)); notify(counters(700,270,130,70));
 assert.equal(response().usage.outputTokens,70);
 assert.equal(response().usage.inputTokens,170);
 await endFactoryUsage(state, async e=>evidence=e, true);
 assert.equal(evidence.rawOutput.cancelled,true);
 // A resumed or forked adapter with no baseline cannot count historical tokens.
-const resumed={{sessionId:'resumed',currentModelId:'model'}};
+const resumed={{sessionId:'resumed',currentModelId:'model',threadHasHistory:true}};
+const resumedAdapter = new Adapter(); resumedAdapter.sessionState=resumed;
 beginFactoryUsage(resumed);
-observeFactoryUsage(resumed,{{threadId:'resumed',tokenUsage:{{total:counters(4000,800),last:counters(100,10)}}}});
-assert.equal(factoryPromptUsage(resumed),null);
+resumedAdapter.beginPromptTokenUsage(resumed);
+resumed.promptTokenUsage.observeModelOutput();
+resumedAdapter.handleTokenUsageUpdated({{threadId:'resumed',tokenUsage:{{total:counters(4000,800),last:counters(100,10)}}}});
+// Native fallback usage is deliberately not promoted to a verified delta.
+assert.equal(resumed.promptTokenUsage.usage().outputTokens,10);
+assert.equal(resumedAdapter.cancelledPromptResponse(resumed).usage,null);
+assert.equal(resumedAdapter.buildQuotaMeta(resumed).quota.token_count,null);
 assert.equal(factoryUsageSnapshot(resumed).reason,'missing_baseline');
 await endFactoryUsage(resumed,async()=>{{}},false);
 beginFactoryUsage(resumed);
-observeFactoryUsage(resumed,{{threadId:'resumed',tokenUsage:{{total:counters(4200,820),last:counters(200,20)}}}});
-assert.equal(factoryPromptUsage(resumed).outputTokens,20);
+resumedAdapter.beginPromptTokenUsage(resumed);
+resumedAdapter.handleTokenUsageUpdated({{threadId:'resumed',tokenUsage:{{total:counters(4200,820),last:counters(200,20)}}}});
+assert.equal(resumedAdapter.cancelledPromptResponse(resumed).usage.outputTokens,20);
 // Counter reset or invalid fields invalidate that prompt rather than fabricate a delta.
 await endFactoryUsage(state,async()=>{{}},false);
-beginFactoryUsage(state); notify(counters(10,3));
+begin(); notify(counters(10,3));
 assert.equal(response().usage,null); assert.equal(factoryUsageSnapshot(state).reason,'counter_reset');
 await endFactoryUsage(state,async()=>{{}},false);
-beginFactoryUsage(state); notify(counters(20,8));
+begin(); notify(counters(20,8));
 assert.equal(response().usage.outputTokens,5);
 await endFactoryUsage(state,async()=>{{}},false);
-beginFactoryUsage(state); notify({{...counters(30,10),outputTokens:-1}});
+begin(); notify({{...counters(30,10),outputTokens:-1}});
 assert.equal(response().usage,null);
 // Commands/cancellations without notifications never reuse the previous prompt.
-await endFactoryUsage(state,async()=>{{}},false); beginFactoryUsage(state);
+await endFactoryUsage(state,async()=>{{}},false); begin();
 assert.equal(response().usage,null);
+// Native cache-write accounting excludes both read and write caches from fresh input.
+const native = new PromptTokenUsage(ZERO_TOKEN_COUNT);
+native.observe(toTokenCount({{...counters(100,20,30),cacheWriteInputTokens:10}}), toTokenCount(counters(100,20,30)));
+assert.deepEqual(toPromptUsage(native.usage()), {{totalTokens:120,inputTokens:60,cachedReadTokens:30,cachedWriteTokens:10,outputTokens:20,thoughtTokens:0}});
 // Child notifications are not blindly added or attributed to the parent.
 const fresh={{sessionId:'a',factoryFreshSession:true}}; beginFactoryUsage(fresh);
 observeFactoryUsage(fresh,{{threadId:'b',tokenUsage:{{total:counters(999,999)}}}});

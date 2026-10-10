@@ -18,8 +18,8 @@ def replace_once(source, old, new):
 def main():
     if version("openhands-sdk") != "1.53.0":
         raise RuntimeError("Workspace runtime patch requires OpenHands SDK 1.53.0")
-    if json.loads((ADAPTER / "package.json").read_text())["version"] != "1.10.0":
-        raise RuntimeError("Workspace runtime patch requires Codex ACP 1.10.0")
+    if json.loads((ADAPTER / "package.json").read_text())["version"] != "2.2.2":
+        raise RuntimeError("Workspace runtime patch requires Codex ACP 2.2.2")
     from openhands.workspace.docker import workspace
 
     docker = Path(workspace.__file__)
@@ -49,30 +49,33 @@ def main():
             f"  async {method}(params) {{\n",
             f"  async {method}(params) {{\n    params = factorySessionRequest(params);\n",
         )
+        signature = f"  async {method}(request"
+        signature += ", onSubscribed" if method in ("resumeSession", "loadSession") else ""
+        # Fork has a native cleanup callback in this version.
+        if method == "forkSession":
+            signature += ", releaseFailedFork = (threadId) => this.closeSession(threadId)"
+        signature += ") {\n"
         source = replace_once(
-            source,
-            f"  async {method}(request"
-            + (", onSubscribed" if method in ("resumeSession", "loadSession") else "")
-            + ") {\n    const additionalDirectories = readAdditionalDirectories(",
-            f"  async {method}(request"
-            + (", onSubscribed" if method in ("resumeSession", "loadSession") else "")
-            + ") {\n    request = factorySessionRequest(request);\n    const additionalDirectories = readAdditionalDirectories(",
+            source, signature, signature + "    request = factorySessionRequest(request);\n"
         )
-    for call, count in (
-        (
-            "this.createSessionConfig(request.cwd, additionalDirectories, request.mcpServers ?? [])",
-            2,
-        ),
-        ("this.createSessionConfig(request.cwd, additionalDirectories, request.mcpServers)", 1),
-    ):
-        old = f"config: await {call},"
-        if source.count(old) != count:
-            raise RuntimeError("Pinned ACP session configuration changed")
-        source = source.replace(old, f"config: factorySessionConfig(await {call}, request),")
+    # Native configuration also returns skipped MCP metadata; modify only config.
+    marker = "    const sessionConfig = await this.createSessionConfig(request.cwd, additionalDirectories, request.mcpServers"
+    if source.count(marker) != 3:
+        raise RuntimeError("Pinned ACP session configuration changed")
+    for suffix in (" ?? []", ""):
+        old = marker + suffix + ");\n"
+        source = source.replace(
+            old,
+            old
+            + "    sessionConfig.config = factorySessionConfig(sessionConfig.config, request);\n",
+        )
     source = replace_once(
         source,
         "createSessionConfig: (cwd, directories, mcpServers) => this.createSessionConfig(cwd, directories, mcpServers),",
-        "createSessionConfig: async (cwd, directories, mcpServers) => factorySessionConfig(await this.createSessionConfig(cwd, directories, mcpServers), request),",
+        """createSessionConfig: async (cwd, directories, mcpServers) => {
+        const result = await this.createSessionConfig(cwd, directories, mcpServers);
+        return { ...result, config: factorySessionConfig(result.config, request) };
+      },""",
     )
     subprocess.run(
         ["/acp-node/bin/node", "--input-type=module", "--check"],

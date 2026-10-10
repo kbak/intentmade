@@ -23,37 +23,52 @@ class StartupRuntimeTests(unittest.TestCase):
             "/acp-node/lib/node_modules/@agentclientprotocol/codex-acp/dist/index.js"
         ).read_text()
         method = re.search(r"  async authenticateWithChatGpt\(\) \{.*?\n  \}", source, re.S).group()
+        method += re.search(r"  async hasWorkingChatGptLogin\(\) \{.*?\n  \}", source, re.S).group()
+        account_errors = source.split("var INTERNAL_ERROR_CODE =", 1)[1].split(
+            "// src/SessionIndexMutations.ts", 1
+        )[0]
         script = """
 const RequestError = {authRequired: (_data, message) => Object.assign(new Error(message), {code:-32000})};
+const logger = {log:()=>{}};
+const errorText = error => error.message;
+var INTERNAL_ERROR_CODE = ACCOUNT_ERRORS
 let loginCalls = 0;
+let refreshed = false;
 const open_default = async () => {};
 class Client { METHOD }
 const client = new Client();
-client.codexClient = {accountRead: async () => ({account: ACCOUNT}), accountLogin: async () => {loginCalls++; return {type:'chatgpt', authUrl:'fixture'};}};
+client.codexClient = {accountRead: async params => {refreshed=params.refreshToken; if(FIXTURE_ERROR) throw FIXTURE_ERROR; return {account:FIXTURE_ACCOUNT};}, accountLogin: async () => {loginCalls++; return {type:'chatgpt', authUrl:'fixture'};}};
 client.awaitNextLoginCompleted = () => Promise.resolve({success:true});
-try { console.log(JSON.stringify({result:await client.authenticateWithChatGpt(),loginCalls})); }
-catch(error) { console.log(JSON.stringify({code:error.code,message:error.message,loginCalls})); }
-""".replace("METHOD", method)
-        for headless, account, expected_logins in (
-            ("1", None, 0),
-            ("1", {"type": "chatgpt"}, 0),
-            ("", None, 1),
+try { console.log(JSON.stringify({result:await client.authenticateWithChatGpt(),loginCalls,refreshed})); }
+catch(error) { console.log(JSON.stringify({code:error.code,message:error.message,loginCalls,refreshed})); }
+""".replace("METHOD", method).replace("ACCOUNT_ERRORS", account_errors)
+        unauthorized = {"code": -32603, "message": "workspace routing discovery unauthorized (401)"}
+        unavailable = {"code": -32603, "message": "workspace routing discovery timed out"}
+        for headless, account, error, expected_logins in (
+            ("1", None, None, 0),
+            ("1", {"type": "chatgpt"}, None, 0),
+            ("", None, None, 1),
+            ("1", None, unauthorized, 0),
+            ("1", None, unavailable, 0),
         ):
-            with self.subTest(headless=headless, account=account):
+            with self.subTest(headless=headless, account=account, error=error):
                 result = json.loads(
                     subprocess.check_output(
                         [
                             "/acp-node/bin/node",
                             "--input-type=module",
                             "-e",
-                            script.replace("ACCOUNT", json.dumps(account)),
+                            script.replace("FIXTURE_ACCOUNT", json.dumps(account)).replace(
+                                "FIXTURE_ERROR", json.dumps(error)
+                            ),
                         ],
                         env={**os.environ, "FACTORY_HEADLESS": headless},
                         text=True,
                     )
                 )
                 self.assertEqual(result["loginCalls"], expected_logins)
-                if headless and account is None:
+                self.assertTrue(result["refreshed"])
+                if headless and account is None and error != unavailable:
                     self.assertEqual(result["code"], -32000)
                     self.assertIn("factoryctl codex-login", result["message"])
                 else:

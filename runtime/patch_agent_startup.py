@@ -7,11 +7,11 @@ from importlib.metadata import version
 from pathlib import Path
 
 ADAPTER = Path("/acp-node/lib/node_modules/@agentclientprotocol/codex-acp")
-AUTH_OLD = """    if (accountResponse.account?.type === "chatgpt") {
+AUTH_OLD = """    if (await this.hasWorkingChatGptLogin()) {
       return true;
     }
     const loginCompletedPromise = this.awaitNextLoginCompleted();"""
-AUTH_NEW = """    if (accountResponse.account?.type === "chatgpt") {
+AUTH_NEW = """    if (await this.hasWorkingChatGptLogin()) {
       return true;
     }
     if (process.env.FACTORY_HEADLESS === "1") {
@@ -65,8 +65,8 @@ def patch_sdk(source):
 def main():
     if version("openhands-sdk") != "1.53.0":
         raise RuntimeError("Startup patch requires OpenHands SDK 1.53.0")
-    if json.loads((ADAPTER / "package.json").read_text())["version"] != "1.10.0":
-        raise RuntimeError("Startup patch requires Codex ACP 1.10.0")
+    if json.loads((ADAPTER / "package.json").read_text())["version"] != "2.2.2":
+        raise RuntimeError("Startup patch requires Codex ACP 2.2.2")
     from openhands.sdk.agent import acp_agent
 
     sdk = Path(acp_agent.__file__)

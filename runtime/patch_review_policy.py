@@ -1,6 +1,6 @@
 """Make the pinned Codex read-only mode non-escalating for factory reviews.
 
-The adapter's mode name otherwise means "ask for approval", and the SDK's
+The adapter's native read-only sandbox still permits escalation, and the SDK's
 default permission bridge automatically grants those requests. Preserve the
 native builder/coordinator modes and fail the image build on upstream drift.
 """
@@ -14,30 +14,21 @@ from pathlib import Path
 ADAPTER = Path("/acp-node/lib/node_modules/@agentclientprotocol/codex-acp")
 ADAPTER_OLD = """  static ReadOnly = new _AgentMode(
     "read-only",
-    "Ask for approval",
-    "Always ask to edit external files and use the internet",
+    "Read-only",
+    "Requires approval to edit files and access the internet.",
     "standard",
     "on-request",
     "user",
     {
-      type: "workspaceWrite",
-      writableRoots: [],
-      networkAccess: false,
-      excludeTmpdirEnvVar: false,
-      excludeSlashTmp: false
+      type: "readOnly",
+      networkAccess: false
     },
-    "workspace-write"
-  );"""
-ADAPTER_NEW = """  static ReadOnly = new _AgentMode(
-    "read-only",
-    "Read-only",
-    "Read files without edits, network access, or permission escalation",
-    "standard",
-    "never",
-    "user",
-    { type: "readOnly", networkAccess: false },
     "read-only"
   );"""
+ADAPTER_NEW = ADAPTER_OLD.replace('"on-request"', '"never"').replace(
+    "Requires approval to edit files and access the internet.",
+    "Read files without edits, network access, or permission escalation",
+)
 BRIDGE_OLD = '''        """Auto-approve all permission requests from the ACP server."""
         # Pick the first option (usually "allow once")'''
 BRIDGE_NEW = '''        """Deny escalation in read-only conversations; retain native builder behavior."""
@@ -53,14 +44,14 @@ CLIENT_NEW = (
 PROJECT_TRUST_OLD = """    const sessionRoots = [projectPath, ...additionalDirectories];
 """
 PROJECT_CONFIG_OLD = """    const mergedConfig = {
-      ...mergeGatewayConfig(this.config, this.gatewayConfig),
+      ...forceGitRootTurnDiffPaths(mergeGatewayConfig(this.config, this.gatewayConfig)),
       projects: Object.fromEntries(sessionRoots.map((root) => [root, {
         trust_level: "trusted"
       }]))
     };"""
 PROJECT_CONFIG_NEW = """    // Opening source is not an operator decision to trust its startup config.
     // Keep Codex's native project trust gate, including for child threads.
-    const mergedConfig = mergeGatewayConfig(this.config, this.gatewayConfig);"""
+    const mergedConfig = forceGitRootTurnDiffPaths(mergeGatewayConfig(this.config, this.gatewayConfig));"""
 
 
 def replace_once(source, old, new):
@@ -73,14 +64,7 @@ def patch_adapter(source):
     source = replace_once(source, ADAPTER_OLD, ADAPTER_NEW)
     source = replace_once(source, PROJECT_TRUST_OLD, "")
     source = replace_once(source, PROJECT_CONFIG_OLD, PROJECT_CONFIG_NEW)
-    # Ignored project layers must not suppress a factory-provided MCP server
-    # with the same name. Native thread configuration gives ACP entries priority.
-    return replace_once(
-        source,
-        '  const disabledByEnv = process.env["DISABLE_MCP_CONFIG_FILTERING"] === "true";\n'
-        "  return !disabledByEnv;",
-        "  return false; // Factory MCP configuration is explicit and authoritative.",
-    )
+    return source
 
 
 def patch_sdk(source):
@@ -93,8 +77,8 @@ def patch_sdk(source):
 def main():
     if version("openhands-sdk") != "1.53.0":
         raise RuntimeError("Review-policy patch requires the pinned OpenHands SDK 1.53.0")
-    if json.loads((ADAPTER / "package.json").read_text())["version"] != "1.10.0":
-        raise RuntimeError("Review-policy patch requires the pinned Codex ACP 1.10.0")
+    if json.loads((ADAPTER / "package.json").read_text())["version"] != "2.2.2":
+        raise RuntimeError("Review-policy patch requires the pinned Codex ACP 2.2.2")
     from openhands.sdk.agent import acp_agent
 
     sdk = Path(acp_agent.__file__)

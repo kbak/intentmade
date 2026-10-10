@@ -8,20 +8,23 @@ stop the build on drift.
 | Integration | Decision for Canvas 1.26.0 | Reason |
 | --- | --- | --- |
 | Unicode automation downloads | Removed | Automation now sanitizes names, supplies an ASCII fallback and encodes Unicode with `filename*`. The regression exercises the installed upstream route, including compatibility characters. |
-| Review permissions and project trust | Retained | SDK's ACP bridge still auto-approves permission requests. The pinned ACP read-only mode still permits workspace writes and trusts project roots. Factory reviews require no writes or escalation, and repository configuration must not replace explicit factory MCP configuration. |
+| Review permissions and project trust | Reduced | ACP 2.2.2 supplies the native read-only sandbox; the patch only disables escalation and automatic project trust. SDK's permission bridge still needs its read-only denial. The launcher uses ACP's `DISABLE_MCP_CONFIG_FILTERING=true` option so ignored repository configuration cannot suppress explicit factory MCP servers. |
 | Startup failures | Retained | SDK still classifies a ChatGPT authentication timeout as rejected credentials and sets terminal error state before emitting its reason. ACP still starts interactive login unless the factory's headless check rejects it. |
 | Native agent plugin isolation | Retained | SDK still loads user and project plugins for local conversations. Factory workers and report readers require only explicitly selected tools. |
 | Workspace runtime | Retained | DockerWorkspace still needs the factory seccomp profile; ACP session entry points still need factory path mapping and explicit session configuration. |
-| Specialist review evidence | Retained | The pinned ACP prompt lifecycle does not emit the factory's role-bound final review receipt. |
-| ACP usage accounting | Retained | The pinned ACP still reports retained session usage; factory measurement needs per-prompt deltas and explicit unavailable/reset evidence. |
+| Specialist review evidence | Retained | ACP's native history reader supplies legacy or paginated thread history. The factory still needs its role-bound final review receipt. |
+| ACP usage accounting | Reduced | ACP 2.2.2 supplies whole-prompt accumulation, cache accounting and response conversion. The factory retains raw provider evidence and an unknown-value guard for missing baselines, resets and invalid counters; native fallback counts alone do not establish a measured delta. |
 | Automation outcomes | Retained | Callback schema still accepts only COMPLETED/FAILED, drops task outcome metadata and cannot associate a conversation with phase updates. Native SKIPPED rendering alone does not supply that callback contract. |
 | PR archive bounds | Retained | This patches the separately pinned Extensions downloader, which still reads the response and archive member list without the factory's resource bounds. The Canvas update does not change its pinned source. |
 | Python Agent Server launcher | Retained | Canvas still invokes `openhands-agent-server`; the factory wrapper ensures both controller and workers execute the patched Python packages and register the read-only report tool. |
 | Canvas reply hook | Retained | The upstream entrypoint imports `canvas_ui_tool`; the factory additionally needs its existing reply dispatcher. |
 
-Codex ACP remains pinned at 1.10.0 in both this Canvas release and the factory's
-npm lock. Codex and Playwright remain controlled by that lock; updating Canvas
-does not implicitly change those separately selected dependencies.
+The factory's npm lock selects Codex ACP 2.2.2 and its compatible Codex 0.160.1,
+independently of Canvas's bundled ACP 1.10.0. Playwright remains pinned at 0.0.80.
+Updating Canvas does not implicitly change these separately selected dependencies.
+SDK 1.53's version diagnostic still compares against its bundled ACP 1.10.0 and
+logs a mismatch for this explicit override. The runtime installs the locked
+adapter during the image build; the warning does not indicate a runtime download.
 
 The [regression suite and native probes](../tests/README.md) check the installed
 runtime. Source matches establish patch applicability, not behavioral correctness.

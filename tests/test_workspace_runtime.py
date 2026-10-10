@@ -108,29 +108,35 @@ console.log(JSON.stringify({cwd: request.cwd, config, original: original.cwd}));
         script = """
 import { factorySessionRequest, factorySessionConfig } from '/opt/factory/factory-context.mjs';
 const readAdditionalDirectories = () => [];
+const airCustomInstructions = () => undefined;
+const noItems = () => [];
 const captures = [];
+const results = [];
 class Launcher { METHODS }
 const launcher = new Launcher();
 const capture = async (params) => { captures.push(params); return {thread:{id:'probe'},model:'fixture'}; };
 Object.assign(launcher, {
   codexClient: {threadStart:capture, threadResume:capture, threadRead:async()=>({thread:{id:'probe'}})},
-  refreshSkills:async()=>{}, createSessionConfig:async()=>({existing:true}),
+  refreshSkills:async()=>{}, createSessionConfig:async()=>({config:{existing:true},skippedMcpServers:['fixture-skip']}),
+  resumeThread:capture,
   getModelProvider:()=>null, getResumeModelProvider:async()=>null,
   fetchAvailableModels:async()=>[{}], createModelId:()=>({toString:()=> 'fixture'}),
   getCollaborationMode:()=>null,
 });
 for (const name of ['newSession','resumeSession','loadSession']) {
-  await launcher[name]({cwd:'/projects/repos/example',sessionId:'probe',mcpServers:[]});
+  results.push(await launcher[name]({cwd:'/projects/repos/example',sessionId:'probe',mcpServers:[]}));
 }
-console.log(JSON.stringify(captures));
+console.log(JSON.stringify({captures, skipped:results.map(result=>result.skippedMcpServers)}));
 """.replace("METHODS", "\n".join(methods))
-        captures = json.loads(
+        result = json.loads(
             subprocess.check_output(
                 ["/acp-node/bin/node", "--input-type=module", "-e", script],
                 env={"FACTORY_COORDINATOR": "1"},
                 text=True,
             )
         )
+        self.assertEqual(result["skipped"], [["fixture-skip"]] * 3)
+        captures = result["captures"]
         self.assertEqual(len(captures), 3)
         for call in captures:
             self.assertEqual(call["cwd"], "/projects")
@@ -152,7 +158,7 @@ let captured;
 class Server { METHOD }
 const server = new Server();
 Object.assign(server, {
-  providerUpdate:null,
+  providerUpdate:null, ensureAppServer:()=>null,
   getOrCreateSession:async request => {captured={cwd:request.cwd,config:factorySessionConfig({},request)};return ['probe',{availableModels:[],currentModelId:'fixture'},{}];},
   getSessionState:()=>({}), createSessionConfigOptionsResponse:()=>({}),
 });

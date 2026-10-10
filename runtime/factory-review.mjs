@@ -9,7 +9,7 @@ export async function emitFactoryReviewEvidence(client, update, threadId, turnId
     rawInput: { version: 2, threadId, turnId },
   };
   try {
-    const root = await client.readSessionThread(threadId);
+    const root = (await client.codexClient.threadReadWithHistory(threadId)).thread;
     // The adapter clears currentTurnId when it receives turn/completed.
     event.rawInput.turnId = root.turns.at(-1)?.id ?? turnId;
     event.toolCallId = `factory-review:${threadId}:${event.rawInput.turnId}`;
@@ -25,7 +25,7 @@ export async function emitFactoryReviewEvidence(client, update, threadId, turnId
       }
     }
     const agents = await Promise.all([...children].map(async (id) => {
-      const child = await client.readSessionThread(id);
+      const child = (await client.codexClient.threadReadWithHistory(id)).thread;
       const turn = child.turns.at(-1);
       const message = turn?.items.filter((item) => item.type === "agentMessage" && item.phase === "final_answer").at(-1);
       return {

@@ -1,4 +1,4 @@
-"""Correct prompt usage in pinned ACP without replacing its lifecycle or SDK."""
+"""Keep factory evidence and unknown guards around native ACP prompt accounting."""
 
 import json
 import subprocess
@@ -17,7 +17,7 @@ def patch_adapter(source):
     source = replace(
         source,
         "#!/usr/bin/env node\n",
-        '#!/usr/bin/env node\nimport { beginFactoryUsage, observeFactoryUsage, factoryPromptUsage, factoryUsageSnapshot, endFactoryUsage } from "/opt/factory/factory-usage.mjs";\n',
+        '#!/usr/bin/env node\nimport { beginFactoryUsage, observeFactoryUsage, factoryUsageSnapshot, endFactoryUsage } from "/opt/factory/factory-usage.mjs";\n',
     )
     source = replace(
         source,
@@ -36,24 +36,23 @@ def patch_adapter(source):
     )
     source = replace(
         source,
-        "this.buildPromptUsage(sessionState.lastTokenUsage)",
-        "this.buildPromptUsage(factoryPromptUsage(sessionState))",
-        4,
-    )
-    source = replace(
-        source,
-        "    const lastTokenUsage = sessionState.lastTokenUsage;\n    const modelName",
-        "    const lastTokenUsage = factoryPromptUsage(sessionState);\n    const modelName",
-    )
-    source = replace(
-        source,
-        "        token_count: sessionState.lastTokenUsage,",
-        "        token_count: lastTokenUsage,",
+        "  buildPromptUsage(sessionState) {\n",
+        """  buildPromptUsage(sessionState) {
+    const snapshot = factoryUsageSnapshot(sessionState);
+    if (sessionState.factoryUsage) sessionState.factoryUsage.response = snapshot;
+    if (snapshot.status !== "observed") return null;
+""",
     )
     source = replace(
         source,
         "        model_usage: modelUsage\n",
         "        model_usage: modelUsage,\n        factory_usage: factoryUsageSnapshot(sessionState)\n",
+    )
+    source = replace(
+        source,
+        "    const promptTokenUsage = sessionState.promptTokenUsage?.usage() ?? null;",
+        '    const promptTokenUsage = factoryUsageSnapshot(sessionState).status === "observed"\n'
+        "      ? sessionState.promptTokenUsage?.usage() ?? null : null;",
     )
     source = replace(
         source,
@@ -70,8 +69,8 @@ def patch_adapter(source):
 
 
 def main():
-    if json.loads((ADAPTER / "package.json").read_text())["version"] != "1.10.0":
-        raise RuntimeError("Usage integration requires Codex ACP 1.10.0")
+    if json.loads((ADAPTER / "package.json").read_text())["version"] != "2.2.2":
+        raise RuntimeError("Usage integration requires Codex ACP 2.2.2")
     bundle = ADAPTER / "dist/index.js"
     patched = patch_adapter(bundle.read_text())
     subprocess.run(

@@ -50,19 +50,6 @@ export function factoryUsageSnapshot(state) {
   };
 }
 
-export function factoryPromptUsage(state) {
-  const snapshot = factoryUsageSnapshot(state);
-  if (state.factoryUsage) state.factoryUsage.response = snapshot;
-  const delta = snapshot.delta;
-  return delta == null ? null : {
-    totalTokens: delta.totalTokens,
-    inputTokens: delta.inputTokens - delta.cachedInputTokens,
-    cachedInputTokens: delta.cachedInputTokens,
-    outputTokens: delta.outputTokens,
-    reasoningOutputTokens: delta.reasoningOutputTokens,
-  };
-}
-
 export async function endFactoryUsage(state, update, cancelled) {
   const snapshot = factoryUsageSnapshot(state);
   const lateCounters = JSON.stringify(snapshot.latest) !== JSON.stringify(state.factoryRawTotal);

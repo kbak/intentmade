@@ -114,7 +114,7 @@ approval, review, credential and source-transfer checks remain shared.
   home/system configuration is trusted input: explicitly trusting a project
   there permits its native configuration and is outside the untrusted-source
   boundary. Do not add such trust to disposable worker homes.
-  Codex 0.153.4 uses its namespace sandbox with the legacy Landlock backend
+  Codex 0.160.1 uses its namespace sandbox with the legacy Landlock backend
   disabled. Canvas and disposable workers use a custom seccomp profile based on
   Moby's default, permitting `clone`, `unshare`, `mount`, `umount2`, and `pivot_root`
   for the unprivileged namespace sandbox. No extra Docker capabilities,

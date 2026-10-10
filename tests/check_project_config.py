@@ -82,7 +82,13 @@ def adapter(cwd, home):
         process = subprocess.Popen(
             ["/opt/factory/codex-acp"],
             cwd=cwd,
-            env={**os.environ, "CODEX_HOME": str(home), "INITIAL_AGENT_MODE": "read-only"},
+            env={
+                **os.environ,
+                "CODEX_HOME": str(home),
+                "INITIAL_AGENT_MODE": "read-only",
+                # The factory launcher must enforce explicit MCP precedence.
+                "DISABLE_MCP_CONFIG_FILTERING": "false",
+            },
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=errors,

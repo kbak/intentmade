@@ -30,8 +30,8 @@ def patch_adapter(source):
 
 
 def main():
-    if json.loads((ADAPTER / "package.json").read_text())["version"] != "1.10.0":
-        raise RuntimeError("Specialist review requires Codex ACP 1.10.0")
+    if json.loads((ADAPTER / "package.json").read_text())["version"] != "2.2.2":
+        raise RuntimeError("Specialist review requires Codex ACP 2.2.2")
     bundle = ADAPTER / "dist/index.js"
     patched = patch_adapter(bundle.read_text())
     subprocess.run(
