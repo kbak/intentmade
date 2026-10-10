@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import re
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -19,11 +20,13 @@ def load_upstream(name):
     filename = "reviews_bounded.py" if name == "reviews" else name + ".py"
     spec = importlib.util.spec_from_file_location(name, ROOT / "upstream" / filename)
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
 
 # Immutable upstream sources, downloaded and verified when building the image.
+github_client = load_upstream("github_client")
 issues = load_upstream("issues")
 reviews = load_upstream("reviews")
 git = issues._git
@@ -180,7 +183,7 @@ def api(method, path, **kwargs):
 
 
 def github(token, method, path, **kwargs):
-    return issues._github_request(token, method, path, **kwargs)[0]
+    return github_client.github_request(token, method, path, **kwargs)[0]
 
 
 def token():

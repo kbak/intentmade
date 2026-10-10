@@ -1,4 +1,4 @@
-# IntentBond source: 5a1200a40cf76d18ab4ec725cc4b1e687004735d
+# IntentBond source: d16af5ced4a5ee67907c1abcb8af0aadf5c95f55
 # Build with its locked CI dependencies and SOURCE_DATE_EPOCH from the commit.
 intentbond==0.4.6 \
-    --hash=sha256:8dae6f256a236472f5ada214e14a6b0aa67b6b6cd2735529f6e70d20e7e90e0f
+    --hash=sha256:8de192c305c6fdbbc0ff0bb2404cbc56c9b1efa7f2a460458bfce63d7ecb6169

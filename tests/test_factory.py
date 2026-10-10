@@ -210,6 +210,46 @@ class OwnershipTests(unittest.TestCase):
 
 
 class UpstreamTests(unittest.TestCase):
+    def test_shared_github_transport_handles_requests_pages_and_api_errors(self):
+        import io
+        import urllib.error
+
+        self.assertIs(common.issues._github_request, common.github_client.github_request)
+        self.assertIs(common.reviews._github_request, common.github_client.github_request)
+        self.assertIs(common.issues._github_paginate, common.github_client.github_paginate)
+        self.assertIs(common.reviews._github_paginate, common.github_client.github_paginate)
+        requests = []
+        responses = iter([{"id": 7}, [{"id": 1}, {"id": 2}], [{"id": 3}]])
+
+        def respond(request, timeout):
+            requests.append(request)
+            response = io.BytesIO(json.dumps(next(responses)).encode())
+            response.headers = {"fixture": "response"}
+            return response
+
+        with patch.object(common.github_client, "urlopen", side_effect=respond):
+            self.assertEqual(
+                common.github(
+                    "fixture-token", "POST", "/repos/org/repo/issues", body={"title": "A"}
+                ),
+                {"id": 7},
+            )
+            self.assertEqual(
+                common.issues._github_paginate(
+                    "fixture-token", "/repos/org/repo/issues", {"per_page": 2, "state": "open"}
+                ),
+                [{"id": 1}, {"id": 2}, {"id": 3}],
+            )
+        self.assertEqual(json.loads(requests[0].data), {"title": "A"})
+        self.assertEqual(requests[0].get_header("Authorization"), "Bearer fixture-token")
+        self.assertIn("page=1", requests[1].full_url)
+        self.assertIn("page=2", requests[2].full_url)
+        self.assertTrue(all("state=open" in request.full_url for request in requests[1:]))
+        error = urllib.error.HTTPError("https://api.github.com/fixture", 403, "denied", {}, None)
+        with patch.object(common.github_client, "urlopen", side_effect=error):
+            with self.assertRaises(urllib.error.HTTPError):
+                common.github("fixture-token", "GET", "/repos/org/repo/issues")
+
     def test_concurrent_login_refresh_never_overwrites_newer_binding(self):
         parent = Mock()
         parent.replace_versioned_secret.side_effect = ValueError("credential_version_conflict")

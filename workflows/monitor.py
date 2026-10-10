@@ -464,9 +464,9 @@ def poll(config, credential, replies_only=False):
         outcome("SKIPPED", "Configured daily task limit reached")
         return
 
-    # Native KV is limited to 64 KiB across all keys for an automation. Keep a
+    # Native KV has a per-value limit and belongs to one automation. Keep the
     # durable per-issue watermark outside disposable workers, under the poll
-    # lock, so pruning recent run history cannot authorize another attempt.
+    # lock, so history pruning or schedule replacement cannot authorize a retry.
     attempts = (
         DATA / "issue-attempts" / config["project"] / hashlib.sha256(identity.encode()).hexdigest()
     )

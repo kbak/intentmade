@@ -32,8 +32,8 @@ def patch(source):
 
 
 if __name__ == "__main__":
-    if version("openhands-sdk") != "1.53.0":
-        raise RuntimeError("Native factory policy requires OpenHands SDK 1.53.0")
+    if version("openhands-sdk") != "1.54.0":
+        raise RuntimeError("Native factory policy requires OpenHands SDK 1.54.0")
     from openhands.sdk.conversation.impl import local_conversation
 
     path = Path(local_conversation.__file__)

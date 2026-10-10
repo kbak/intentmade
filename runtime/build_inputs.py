@@ -5,7 +5,15 @@ import hashlib
 import json
 from pathlib import Path
 
-FILES = ("docker/runtime.Dockerfile", "upstream.lock.json", ".dockerignore")
+FILES = (
+    "docker/runtime.Dockerfile",
+    "docker/openhands-requirements.txt",
+    "docker/traceability.Dockerfile",
+    "docker/intentbond-requirements.txt",
+    "docker/traceability-requirements.txt",
+    "upstream.lock.json",
+    ".dockerignore",
+)
 
 
 # [impl->req~im-runtime-build-inputs~1]

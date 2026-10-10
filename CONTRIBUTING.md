@@ -50,7 +50,10 @@ attaching logs or handoff exports.
   evidence consistent. Preserve IDs for continuing promises, including document
   moves. Use the matching packaged IntentBond guidance and the root
   [checking scope](scope.json); ordinary development does not repeat recovery.
-- Check the pinned upstream implementation before adding glue or a runtime patch.
+- Prefer upstream mechanisms and shared helpers. Check both the pinned implementation
+  and released upstream replacements before adding glue or a runtime patch; retain
+  custom behavior only for a concrete requirement gap, and remove it when a
+  compatible upstream implementation is adopted.
 - Keep the single-operator deployment model explicit. Preserve existing authorization,
   credential, source-transfer, and evidence boundaries.
 - Add a regression for changed behavior and run the checks relevant to the affected

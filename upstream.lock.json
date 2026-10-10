@@ -1,14 +1,18 @@
 {
   "repository": "OpenHands/extensions",
-  "revision": "39fc25a91749fe248db391315c2c4eb2c74655a6",
+  "revision": "ba3f165139cd3705c5d56a4ca26293d11a464c7b",
   "files": {
+    "github_client.py": {
+      "path": "skills/github/scripts/github_client.py",
+      "sha256": "7959665555b5178631799f9c8260ffea748e4e589dcc58613befb578255df0f3"
+    },
     "issues.py": {
       "path": "skills/github-issue-to-pr/scripts/main.py",
-      "sha256": "75d15075b678c87f48d42efb78fd9e6705e0d557fdf6d689a2a6175ab89f1ce3"
+      "sha256": "c0b0cdec04df9db9f946efc005f6277ebceb638cd4ad0e71384f6f11582812bc"
     },
     "reviews.py": {
       "path": "skills/github-pr-reviewer/scripts/main.py",
-      "sha256": "d3c38b6f79bb024774c09e1f0600f531a8ca658ba6798c9ba1269d0bca4dcef5"
+      "sha256": "299649fbcd3d9c0b6ec239299a40d25269b2f54699ceeaf95cf7dadfecdba780"
     },
     "LICENSE": {
       "path": "LICENSE",

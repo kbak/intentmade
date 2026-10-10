@@ -1,5 +1,8 @@
 FROM ghcr.io/openhands/agent-canvas:1.26.0@sha256:ce4526401c08b47d74fd0be5ebf97e8219d6a02955cb6710e8cc3335f01291a6
 USER root
+COPY docker/openhands-requirements.txt /opt/factory/openhands-requirements.txt
+RUN python -m pip install --no-cache-dir --no-deps --require-hashes --only-binary=:all: \
+      -r /opt/factory/openhands-requirements.txt && python -m pip check
 # OCR delegation performs no model calls. Pin its executable and matching skill.
 ADD --checksum=sha256:4d2c4f39a98d3e26ac0b76d5f0af304c661f5dad12937c39b2cba4e8e92adeaf --chmod=755 https://github.com/alibaba/open-code-review/releases/download/v1.12.4/opencodereview-linux-amd64 /usr/local/bin/ocr
 ADD --checksum=sha256:2046da3cf30a4b672236c66f707d02383de5792498a8e6d7b9fece6be2c212b9 https://codeload.github.com/alibaba/open-code-review/tar.gz/refs/tags/v1.12.4 /tmp/alibaba-review.tar.gz
@@ -52,9 +55,10 @@ if source.count(old) != 1:
     raise RuntimeError('Pinned Canvas extension loader changed; review reply integration')
 path.write_text(source.replace(old, 'AGENT_SERVER_IMPORT_MODULES="canvas_ui_tool,factory_reply_hook"'))
 PY
-ADD --checksum=sha256:75d15075b678c87f48d42efb78fd9e6705e0d557fdf6d689a2a6175ab89f1ce3 https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/skills/github-issue-to-pr/scripts/main.py /opt/factory/upstream/issues.py
-ADD --checksum=sha256:d3c38b6f79bb024774c09e1f0600f531a8ca658ba6798c9ba1269d0bca4dcef5 https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/skills/github-pr-reviewer/scripts/main.py /opt/factory/upstream/reviews.py
-ADD --checksum=sha256:fe425248fc51d1d1805ab1442ba8add98d770ad8a132051eaac8c93d7eee3ebe https://raw.githubusercontent.com/OpenHands/extensions/39fc25a91749fe248db391315c2c4eb2c74655a6/LICENSE /opt/factory/upstream/LICENSE
+ADD --checksum=sha256:7959665555b5178631799f9c8260ffea748e4e589dcc58613befb578255df0f3 https://raw.githubusercontent.com/OpenHands/extensions/ba3f165139cd3705c5d56a4ca26293d11a464c7b/skills/github/scripts/github_client.py /opt/factory/upstream/github_client.py
+ADD --checksum=sha256:c0b0cdec04df9db9f946efc005f6277ebceb638cd4ad0e71384f6f11582812bc https://raw.githubusercontent.com/OpenHands/extensions/ba3f165139cd3705c5d56a4ca26293d11a464c7b/skills/github-issue-to-pr/scripts/main.py /opt/factory/upstream/issues.py
+ADD --checksum=sha256:299649fbcd3d9c0b6ec239299a40d25269b2f54699ceeaf95cf7dadfecdba780 https://raw.githubusercontent.com/OpenHands/extensions/ba3f165139cd3705c5d56a4ca26293d11a464c7b/skills/github-pr-reviewer/scripts/main.py /opt/factory/upstream/reviews.py
+ADD --checksum=sha256:fe425248fc51d1d1805ab1442ba8add98d770ad8a132051eaac8c93d7eee3ebe https://raw.githubusercontent.com/OpenHands/extensions/ba3f165139cd3705c5d56a4ca26293d11a464c7b/LICENSE /opt/factory/upstream/LICENSE
 COPY runtime/patch_archive_limits.py /opt/factory/patch_archive_limits.py
 RUN python /opt/factory/patch_archive_limits.py
 COPY runtime/entrypoint /opt/factory/entrypoint
@@ -83,11 +87,15 @@ RUN mkdir /tmp/agency-agents && \
 # Retain the exact patch/dependency build inputs, independently of source overlays.
 COPY runtime/ /tmp/factory-build-inputs/runtime/
 COPY docker/runtime.Dockerfile /tmp/factory-build-inputs/docker/runtime.Dockerfile
+COPY docker/openhands-requirements.txt /tmp/factory-build-inputs/docker/openhands-requirements.txt
+COPY docker/traceability.Dockerfile docker/intentbond-requirements.txt docker/traceability-requirements.txt /tmp/factory-build-inputs/docker/
 COPY upstream.lock.json .dockerignore /tmp/factory-build-inputs/
 RUN python /tmp/factory-build-inputs/runtime/build_inputs.py /tmp/factory-build-inputs /opt/factory/runtime-build.json && \
     rm -rf /tmp/factory-build-inputs && chmod a+r /opt/factory/runtime-build.json
 USER openhands
-ENV PYTHONPATH=/opt/factory/workflows
+# Saved automation bundles can still use the earlier helper loader.
+ENV PYTHONPATH=/opt/factory/workflows:/opt/factory/upstream
+RUN python -c 'import issues, reviews_bounded, github_client; assert issues._github_request is reviews_bounded._github_request is github_client.github_request'
 ENV OH_CONVERSATIONS_PATH=/home/openhands/.openhands/conversations
 ENV OH_PERSISTENCE_DIR=/home/openhands/.openhands
 ENV OH_BASH_EVENTS_DIR=/home/openhands/.openhands/bash_events

@@ -75,8 +75,8 @@ def patch_sdk(source):
 
 
 def main():
-    if version("openhands-sdk") != "1.53.0":
-        raise RuntimeError("Review-policy patch requires the pinned OpenHands SDK 1.53.0")
+    if version("openhands-sdk") != "1.54.0":
+        raise RuntimeError("Review-policy patch requires the pinned OpenHands SDK 1.54.0")
     if json.loads((ADAPTER / "package.json").read_text())["version"] != "2.2.2":
         raise RuntimeError("Review-policy patch requires the pinned Codex ACP 2.2.2")
     from openhands.sdk.agent import acp_agent

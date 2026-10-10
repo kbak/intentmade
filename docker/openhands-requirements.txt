@@ -1,0 +1,12 @@
+# OpenHands packages layered over the digest-pinned Canvas image.
+# Install without dependency resolution; pip check verifies the base dependency set.
+openhands-sdk==1.54.0 \
+    --hash=sha256:647bf83c888bc544b0500480aa8a89729f44f6db9f93ea3ba43cfc7fdf070db3
+openhands-tools==1.54.0 \
+    --hash=sha256:ca6957c1bdec127b7858f7596479b0a84389391ffe19c1303106ad457f87e5f6
+openhands-workspace==1.54.0 \
+    --hash=sha256:d16aff20c70c758cb8ae94665a912e8f3410bee7c455f947194c6b9e040cecfd
+openhands-agent-server==1.54.0 \
+    --hash=sha256:e42da397c2c8b1fc6d7ba470da3c887cfaa781e99877dc9bba7ce6dee4fa1af7
+openhands-automation==1.19.3 \
+    --hash=sha256:46f59bad506166ff807bb0f261f4d12a312ff8726619b81739a85132c4200326

@@ -30,6 +30,15 @@ requirements through implementation, tests, and review.
 
 ## GitHub scheduling
 
+GitHub transport, pagination, issue/PR discovery, source downloads, pushes and
+draft PR creation reuse the checksum-pinned OpenHands Extensions helpers in
+`upstream.lock.json`. Both issue and review helpers import the same upstream
+`github_client` module. Native OpenHands provides scheduling and run tracking;
+the factory controller applies authorization, validation and publication policy.
+The complete prebuilt Issue-to-PR workflow gives the implementation conversation
+publication access and reviews the resulting PR afterward. The factory instead
+keeps that credential in the parent and validates before pushing.
+
 An enabled repository has a **Factory — NAME** automation. Defaults poll every
 ten minutes, allow two task attempts per poll, and have no daily cap. Set
 `daily_tasks` to a positive integer for a UTC-day limit, or `null` for no cap.
