@@ -445,5 +445,20 @@
   ],
   "test_review_sources.ReferenceSourcesTests.test_invalid_registration_or_unavailable_source_stops_preparation": [
     "utest~im-review-reference-unavailable~1"
+  ],
+  "test_progress.ProgressTests.test_timing_heartbeat_and_stopped_clock": [
+    "utest~im-canvas-progress-timing~1"
+  ],
+  "test_progress.ProgressTests.test_current_task_routing_parent_auth_and_no_agent_wakeup": [
+    "utest~im-canvas-progress-routing~1"
+  ],
+  "test_progress.ProgressTests.test_reporting_outages_preserve_success_and_original_failure": [
+    "utest~im-canvas-progress-outage~1"
+  ],
+  "test_progress.ProgressTests.test_repair_pipeline_resets_checks_and_reports_real_publication": [
+    "utest~im-canvas-progress-pipeline~1"
+  ],
+  "test_progress.ProgressTests.test_question_keeps_review_and_publication_waiting": [
+    "utest~im-canvas-progress-question~1"
   ]
 }

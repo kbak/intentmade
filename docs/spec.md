@@ -781,6 +781,34 @@ Existing assertions: [test_repaired_build_retains_both_checks_and_source_version
 
 Evidence limit: Measurement collection is not an independent spend ledger or a measure of prevented defects.
 
+### Show task stages and waiting states in Canvas
+`req~im-canvas-progress~1`
+
+Active build and standalone review tasks report the current stage, stage and task
+elapsed time, and repair attempt through Canvas's native run progress. Refresh
+elapsed time every 30 seconds while running; post a stage table to the task's own
+conversation on transitions, without waking an agent for progress updates.
+Use explicit workflow results for passed, failed, blocked, not-required and
+publication states. Unreached stages remain waiting; repairs start a fresh table
+and retain previous attempts. Stopped tasks freeze their timers and show the
+failure or question and the explicit resume action. Progress retention or Canvas
+failures must not alter validation, publication, retry authority or the original
+workflow result. Do not add GitHub statuses or change PR content for this feature.
+
+Covers:
+- `intent~im-operate-reliably~1`
+
+Needs: impl, utest
+
+Documentation: [Canvas progress](workflows.md#see-task-progress-in-canvas).
+
+Implementation: [progress.py](../workflows/progress.py), [reporting.py](../workflows/reporting.py), [run.py](../workflows/run.py), [monitor.py](../workflows/monitor.py).
+
+Existing assertions: [progress timing, routing, repair, questions and reporting outages](../tests/test_progress.py).
+
+Evidence limit: Scripted checks verify content, native API compatibility and
+workflow outcomes; they do not establish browser rendering or live API delivery.
+
 ### Retry only a typed pre-work startup timeout
 `req~im-startup-retry~1`
 

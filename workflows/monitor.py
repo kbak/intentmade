@@ -41,9 +41,13 @@ def review_pr(config, pr, credential):
     if report:
         report.update("REVIEWING", f"Reviewing commit {pr['head']['sha']}.")
     try:
-        with measurements.task(
-            artifact, f"pr-{pr['number']}", "review", {config["project"]: config["repository"]}
+        with (
+            measurements.task(
+                artifact, f"pr-{pr['number']}", "review", {config["project"]: config["repository"]}
+            ),
+            reporting.task_progress(f"pr-{pr['number']}", artifact, ("review", "publication")),
         ):
+            reporting.progress_stage("review")
             previous = review_requests.read(config, pr) or {}
             retry = previous.get(
                 "status"
@@ -71,8 +75,11 @@ def review_pr(config, pr, credential):
                         review.presentation.model_dump_json(indent=2)
                     )
                 measurements.review(review, retained / "review.json")
+                reporting.progress_stage("review", "Reused saved review")
+                reporting.progress_stage("publication")
                 with measurements.stage("publication", config["project"]):
                     publish_review(config, pr, review, credential, retained)
+                reporting.progress_stage("publication", "Published")
                 body = review.report(config["repository"], pr["head"]["sha"])
                 current = True
             else:
@@ -221,6 +228,12 @@ def _review_pr(config, pr, credential):
         (artifact / "review.md").write_text(report)
         (artifact / "review.json").write_text(review.model_dump_json(indent=2))
         measurements.review(review, artifact / "review.json")
+        reporting.progress_stage(
+            "review",
+            {"PASS": "Passed", "BLOCKED": "Blocked", "CHANGES_REQUESTED": "Changes requested"}[
+                review.verdict
+            ],
+        )
         if review.verdict == "BLOCKED":
             if (review.startup_failure or {}).get("code") == "ACPAuthRequired":
                 raise NeedsInput(
@@ -244,9 +257,12 @@ def _review_pr(config, pr, credential):
         }
         (artifact / "result.json").write_text(json.dumps(result, indent=2))
         if current:
+            reporting.progress_stage("publication")
             with measurements.stage("publication", config["project"]):
                 publish_review(config, pr, review, credential, artifact)
+            reporting.progress_stage("publication", "Published")
         else:
+            reporting.progress_stage("publication", "Withheld — PR changed")
             review_requests.remember(config, pr, "STALE")
         print(json.dumps(result) + "\n" + report, flush=True)
         return current

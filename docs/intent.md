@@ -132,6 +132,10 @@ understandable behavior. Completion records and measurements should preserve
 failures and uncertainty so an operator can recover without accidentally replaying
 work or mistaking an incomplete attempt for success.
 
+While work is running, operators should be able to see its current stage, elapsed
+time, repair attempt and any input needed in Canvas. Progress should remain useful
+without opening logs or adding GitHub reporting solely for status visibility.
+
 Needs: req
 
 Rationale: unattended operation needs reliable continuation and observable limits,

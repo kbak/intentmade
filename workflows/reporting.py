@@ -5,7 +5,9 @@ import datetime
 import hashlib
 import json
 import os
+import threading
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 import harness
@@ -13,6 +15,7 @@ import httpx
 import measurements
 from common import DATA, api, identifier, session_api_key
 from openhands.sdk.utils.files import atomic_write_text
+from progress import TaskProgress
 
 
 class NeedsInput(RuntimeError):
@@ -21,6 +24,7 @@ class NeedsInput(RuntimeError):
 
 ACTIVE = None
 _RUN_KEY = None
+_PROGRESS = ContextVar("canvas_task_progress", default=None)
 
 
 def now():
@@ -49,7 +53,7 @@ def write_report(config, task, record):
     atomic_write_text(path, json.dumps(record, indent=2), mode=0o644)
 
 
-def post(conversation_id, message, run=False, images=None):
+def post(conversation_id, message, run=False, images=None, *, session_key=None, timeout=120):
     api(
         "POST",
         f"/api/conversations/{conversation_id}/events",
@@ -61,6 +65,8 @@ def post(conversation_id, message, run=False, images=None):
             + ([{"type": "image", "image_urls": images}] if images else []),
             "run": run,
         },
+        timeout=timeout,
+        **({"headers": {"X-Session-API-Key": session_key}} if session_key else {}),
     )
 
 
@@ -103,19 +109,76 @@ def phase(message):
     print(message, flush=True)
     if not ACTIVE:
         return
+    progress = _PROGRESS.get()
+    if progress:
+        progress.refresh()
+        return
+    publish_phase(message, ACTIVE["run_id"], _RUN_KEY, ACTIVE.get("conversation_id"))
+
+
+def publish_phase(message, run_id, key, conversation_id):
     try:
         api(
             "POST",
-            f"/api/automation/v1/runs/{ACTIVE['run_id']}/phase",
+            f"/api/automation/v1/runs/{run_id}/phase",
             json={
                 "phase": " ".join(message.split())[:200],
-                "conversation_id": ACTIVE.get("conversation_id"),
+                "conversation_id": conversation_id,
             },
-            headers={"X-Session-API-Key": _RUN_KEY},
+            headers={"X-Session-API-Key": key},
             timeout=5,
         )
     except Exception as exc:
         print(f"Progress update unavailable: {type(exc).__name__}", flush=True)
+
+
+# [impl->req~im-canvas-progress~1]
+@contextmanager
+def task_progress(task, artifact, stages, repair_limit=0):
+    emit = None
+    if ACTIVE:
+        run_id, key = ACTIVE["run_id"], _RUN_KEY
+        conversation_id = ACTIVE.get("task_conversation_id", ACTIVE.get("conversation_id"))
+
+        def emit(message, summary):
+            # Capture parent auth before workers replace their environment.
+            publish_phase(message, run_id, key, conversation_id)
+            if summary and conversation_id:
+                post(conversation_id, summary, session_key=key, timeout=5)
+
+    progress = TaskProgress(task, artifact, stages, repair_limit, emit)
+    token = _PROGRESS.set(progress)
+    thread = threading.Thread(target=progress.heartbeat, daemon=True) if emit else None
+    try:
+        progress.refresh(conversation=True)
+        if thread:
+            try:
+                thread.start()
+            except RuntimeError as exc:
+                print(f"Canvas timer unavailable: {type(exc).__name__}", flush=True)
+                thread = None
+        try:
+            yield progress
+        except BaseException as exc:
+            progress.finish(str(exc) or type(exc).__name__, isinstance(exc, NeedsInput))
+            raise
+        else:
+            progress.finish()
+    finally:
+        progress.stop.set()
+        if thread and thread.ident is not None:
+            thread.join(timeout=6)
+        _PROGRESS.reset(token)
+
+
+def progress_stage(name, status="Running", detail=""):
+    if progress := _PROGRESS.get():
+        progress.stage(name, status, detail)
+
+
+def progress_attempt(index):
+    if progress := _PROGRESS.get():
+        progress.begin_attempt(index)
 
 
 # [impl->req~im-agent-profile~1]
@@ -168,6 +231,7 @@ class TaskReport:
                 "Only report that it has started when its RUNNING or REVIEWING update appears.",
             )
         if ACTIVE:
+            ACTIVE["task_conversation_id"] = self.record["conversation_id"]
             self.record["run_id"] = ACTIVE["run_id"]
             previous = ACTIVE.get("conversation_id")
             current = self.record["conversation_id"]

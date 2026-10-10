@@ -224,7 +224,12 @@
         "utest~im-manual-intake-command",
         "utest~im-manual-intake-resubmission",
         "utest~im-review-reference-commit",
-        "utest~im-review-reference-unavailable"
+        "utest~im-review-reference-unavailable",
+        "utest~im-canvas-progress-timing",
+        "utest~im-canvas-progress-routing",
+        "utest~im-canvas-progress-outage",
+        "utest~im-canvas-progress-pipeline",
+        "utest~im-canvas-progress-question"
       ]
     }
   },

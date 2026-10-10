@@ -478,8 +478,10 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                             + "\n\n"
                             + "\n".join(f"- {q}" for q in implementation.questions)
                         )
+                    reporting.progress_stage("implementation", "Complete")
                     for config in configs:
                         project = config["project"]
+                        reporting.progress_stage("tests", detail=project)
                         phase(f"{task}: testing {project} (attempt {attempt + 1})")
                         checkout = states[project]["worktree"]
                         repo_artifact = artifact / project
@@ -675,15 +677,23 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
         local_report = reporting.TaskReport(configs[0], task)
         local_report.update("RUNNING", "Implementing and validating the approved task.")
     try:
-        with measurements.task(
-            artifact,
-            task,
-            "maintenance"
-            if any(c.get("repair_pr") for c in configs)
-            else "issue"
-            if issue
-            else "feature",
-            {c["project"]: c.get("repository", "") for c in configs if "project" in c},
+        with (
+            measurements.task(
+                artifact,
+                task,
+                "maintenance"
+                if any(c.get("repair_pr") for c in configs)
+                else "issue"
+                if issue
+                else "feature",
+                {c["project"]: c.get("repository", "") for c in configs if "project" in c},
+            ),
+            reporting.task_progress(
+                task,
+                artifact,
+                ("implementation", "tests", "browser_qa", "review", "publication"),
+                min(c["repair_attempts"] for c in configs),
+            ),
         ):
             result = _execute_build(
                 configs, task, request, credential, issue, publish_draft, artifact, states
@@ -727,6 +737,8 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
     repair_reason = "pr_maintenance" if any(c.get("repair_pr") for c in configs) else "initial"
     try:
         for attempt in range(min(c["repair_attempts"] for c in configs) + 1):
+            reporting.progress_attempt(attempt)
+            reporting.progress_stage("implementation")
             measurements.begin_attempt(attempt, repair_reason)
             outcome.update(
                 phase="IMPLEMENTING" if attempt == 0 else "REPAIRING",
@@ -741,6 +753,15 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
                     configs, states, task, prompt, artifact, attempt
                 )
             outcome["tests"] = results
+            reporting.progress_stage("implementation", "Complete")
+            reporting.progress_stage(
+                "tests",
+                "Not run"
+                if not results
+                else "Passed"
+                if all(code == 0 for code in results.values())
+                else "Failed",
+            )
             if any(code != 0 for code in results.values()):
                 outcome["phase"] = "TESTS_FAILED"
                 save()
@@ -775,6 +796,7 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
                     + details
                 )
                 continue
+            reporting.progress_stage("browser_qa")
             with measurements.stage("browser_qa"):
                 outcome["browser_qa"] = (
                     browser_checks(configs, states, request, artifact, attempt)
@@ -788,10 +810,25 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
                 if r["status"] == "BLOCKED"
             ]
             if blocked:
+                reporting.progress_stage("browser_qa", "Waiting for input")
                 raise NeedsInput("Browser verification could not complete: " + "\n".join(blocked))
+            qa_status = (
+                "Not run"
+                if not traceability.checks_passed(configs, states)
+                else "Not required"
+                if not outcome["browser_qa"]
+                else "Passed with accepted gaps"
+                if any(r["status"] == "ACCEPTED_GAPS" for r in outcome["browser_qa"].values())
+                and all(browser_qa.passed(r) for r in outcome["browser_qa"].values())
+                else "Passed"
+                if all(browser_qa.passed(r) for r in outcome["browser_qa"].values())
+                else "Failed"
+            )
+            reporting.progress_stage("browser_qa", qa_status)
             outcome.update(phase="REVIEWING", tests=results)
             save()
             phase(f"{task}: independent review (attempt {attempt + 1})")
+            reporting.progress_stage("review")
             with measurements.stage("review"):
                 review = review_changes(
                     configs,
@@ -814,6 +851,12 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
             (artifact / f"review-{attempt}.json").write_text(review.model_dump_json(indent=2))
             measurements.review(review, artifact / f"review-{attempt}.json")
             traceability.record_review(configs, states, review, artifact / f"review-{attempt}.json")
+            reporting.progress_stage(
+                "review",
+                {"PASS": "Passed", "BLOCKED": "Blocked", "CHANGES_REQUESTED": "Changes requested"}[
+                    review.verdict
+                ],
+            )
             if review.verdict == "BLOCKED":
                 raise RuntimeError("Independent review infrastructure blocked: " + review.summary)
             browser_passed = all(browser_qa.passed(r) for r in outcome["browser_qa"].values())
@@ -916,6 +959,7 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
     outcome["status"] = "PASSED"
     try:
         outcome["phase"] = "PUBLISHING"
+        reporting.progress_stage("publication")
         save()
         phase(f"{task}: publishing validated draft PR")
         # Validate the complete group before publishing any draft PRs.
@@ -940,6 +984,17 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
                         browser_result=outcome["browser_qa"].get(config["project"]),
                     )
                 save()
+        reporting.progress_stage(
+            "publication",
+            "Published"
+            if any(s.get("pull_request") for s in states.values())
+            else "No changes"
+            if any(
+                config["publish_draft"] if publish_draft is None else publish_draft
+                for config in configs
+            )
+            else "Not requested",
+        )
     except BaseException as exc:
         outcome["status"] = "PUBLICATION_FAILED"
         outcome["error"] = f"{type(exc).__name__}: {exc}"

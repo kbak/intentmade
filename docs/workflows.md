@@ -28,6 +28,27 @@ fresh worktree. Add `--no-publish` to retain results locally. Failed tasks also
 retain their branches. [Traceability](traceability.md) optionally carries agreed
 requirements through implementation, tests, and review.
 
+## See task progress in Canvas
+
+Open the run in **Automate** to see its current stage, time in that stage, total
+elapsed time and repair attempt. The progress line refreshes every 30 seconds
+while the task is active. Open its linked task conversation for a table of stages
+and their results; the table is posted on stage changes, with elapsed times as of
+that update. Timer refreshes do not add chat messages or start an assistant.
+
+Builds show implementation, project tests, applicable browser QA, independent
+review and publication. Standalone reviews show review and publication. Checks
+that are not needed say **Not required**; stages not reached remain **Waiting**.
+Repairs reset the current table, retaining the previous attempt in the conversation
+and task artifacts. When work stops for a question, the summary identifies the
+needed input and reminds you to reply `resume: YOUR ANSWER`.
+
+Each task retains `stage-progress.json` and `stage-progress.md` alongside its
+other artifacts. These are progress summaries; validation and publication still
+use the existing controller gates. An unavailable Canvas update does not change
+the task result. Previously uploaded workflows need the normal `factoryctl configure`
+refresh to receive this reporting code.
+
 ## GitHub scheduling
 
 GitHub transport, pagination, issue/PR discovery, source downloads, pushes and
