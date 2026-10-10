@@ -13,6 +13,7 @@ from uuid import UUID
 
 import provenance
 from common import api
+from openhands.sdk.utils.files import atomic_write_text
 from reporting import outcome, run_report
 
 
@@ -43,9 +44,7 @@ def receipt_path(run_id, root=Path("/projects/artifacts")):
 
 
 def save(path, record):
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(record, indent=2) + "\n")
-    temporary.replace(path)
+    atomic_write_text(path, json.dumps(record, indent=2) + "\n", mode=0o644)
 
 
 # [impl->req~im-finite-timeout~1]

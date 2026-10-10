@@ -10,6 +10,7 @@ import httpx
 import reporting
 from common import DATA, evidence, git, github, identifier, issues, job_id, lock
 from naming import pull_request_title
+from openhands.sdk.utils.files import atomic_write_text
 from policy import checks_for, checks_pass, latest_check_runs
 from reporting import NeedsInput, TaskReport, resume_reply
 
@@ -41,9 +42,7 @@ def read(config, number):
 def save(config, record):
     path = directory(config) / f"{int(record['number'])}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(record, indent=2))
-    temporary.replace(path)
+    atomic_write_text(path, json.dumps(record, indent=2), mode=0o644)
 
 
 def track(config, task, repository, branch, pr, request, issue=None):

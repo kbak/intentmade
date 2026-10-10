@@ -44,3 +44,22 @@ review publisher are not substitutes for the factory's captured specification,
 head-and-base review identity, independent specialists and formal changes-request
 verdict. Durable receipts also outlive automation replacement; moving them into
 native KV requires a retained shared namespace and a receipt migration.
+
+## Workflow reuse decisions
+
+The factory already uses native SDK conversations and the shared Extensions
+GitHub transport. Similar functionality in a prebuilt workflow does not by itself
+establish a smaller replacement for the remaining policy orchestration.
+
+| Component | Reuse and remaining gap |
+| --- | --- |
+| Receipt and report writes | SDK 1.54's `openhands.sdk.utils.files.atomic_write_text` replaces the seven local temporary-file/write/rename implementations. It supplies unique temporary files, UTF-8 writes, `fsync` and failure cleanup. Calls explicitly use mode `0644` to preserve operator access when controller and host UIDs differ. Receipt locations and JSON schemas remain compatible; repository and polling locks still serialize policy decisions. The measurements writer imports the SDK only when recording runtime metrics, preserving the standard-library-only host show/report/note CLI. |
+| Conversation dispatch | Extensions 0.29's `AgentConversationDispatcher` fetches profile secrets, starts asynchronous turns in its selected workspace and automatically retries errored deliveries. The factory already delegates conversation creation/run/close to the SDK, while retaining stage-specific tools, worker credential isolation, structured results, transcripts and retries limited to proven startup failures. Adopting the dispatcher would require replacing its workspace, credential, retry and completion behavior. |
+| Review publication | The inspected [post-0.29 publisher](https://github.com/OpenHands/extensions/blob/642df1af9444afdc50024ab5eaaa36f5f93ffd09/skills/github-pr-reviewer/scripts/publication.py) combines conversation dispatch, payload validation, KV coordination, publication reconciliation and maintainer handoff in `StructuredReviews._advance`. It exposes no separate publication/reconciliation function accepting the factory's validated payload and comparison. A replacement would need to override that state machine, preserve base and CI rechecks, handle `REQUEST_CHANGES` receipts and retain independent specialist evidence. GitHub requests and pagination already use upstream. |
+| Native KV receipts | The native user-authenticated KV API can access a shared automation namespace with conditional writes. Its namespace is still owned by an automation. A migration needs a deliberately retained namespace, setup and backup ownership, legacy receipt import, failure-safe cutover, and compatibility with existing saved job bundles. The SDK file writer supplies reusable persistence mechanics without that migration; a KV migration is deferred until those additional mechanisms justify their cost. |
+
+The implemented reduction is limited to persistence mechanics. The conversation
+dispatcher, publication state machine and KV backend have been assessed, rather
+than adopted. Revisit publication if upstream exposes a reusable primitive with
+caller-supplied payload validation and comparison guards; revisit KV when a shared
+namespace and a receipt migration are part of the deployment requirements.

@@ -21,6 +21,7 @@ import review_sources
 from agent import converse
 from cleanup import job_directory
 from common import DATA, evidence, github, issues, job_id, lock, reviews, token
+from openhands.sdk.utils.files import atomic_write_text
 from policy import issue_eligible, issue_snapshot, pr_eligible
 from reporting import NeedsInput, TaskReport, outcome, phase, resume_reply, run_report
 from review import review_code
@@ -496,9 +497,7 @@ def poll(config, credential, replies_only=False):
         if previous == record or (previous and previous["event"] > event):
             return
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(record))
-        temporary.replace(path)
+        atomic_write_text(path, json.dumps(record), mode=0o644)
 
     def save():
         # Migrate existing issue records before bounding the native history.

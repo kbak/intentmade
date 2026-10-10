@@ -68,6 +68,15 @@ class AutomaticSchedulerTests(unittest.TestCase):
     def save(self, key, value):
         self.state = copy.deepcopy(value)
 
+    def test_receipt_flush_failure_prevents_starting_implementation(self):
+        from openhands.sdk.utils import files
+
+        with patch.object(files.os, "fsync", side_effect=OSError("fixture I/O failure")):
+            with self.assertRaises(OSError):
+                monitor.poll(CONFIG, "offline-token")
+        self.build.assert_not_called()
+        self.assertEqual(list(self.root.rglob("*.tmp")), [])
+
     def test_unlabeled_issues_start_despite_exhausted_old_daily_budget(self):
         self.items += [{**ISSUE, "number": 1406}, {**ISSUE, "number": 1407}]
         monitor.poll(CONFIG, "offline-token")

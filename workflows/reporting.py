@@ -12,6 +12,7 @@ import harness
 import httpx
 import measurements
 from common import DATA, api, identifier, session_api_key
+from openhands.sdk.utils.files import atomic_write_text
 
 
 class NeedsInput(RuntimeError):
@@ -45,9 +46,7 @@ def read_report(config, task):
 def write_report(config, task, record):
     path = report_path(config, task)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_suffix(".tmp")
-    temp.write_text(json.dumps(record, indent=2))
-    temp.replace(path)
+    atomic_write_text(path, json.dumps(record, indent=2), mode=0o644)
 
 
 def post(conversation_id, message, run=False, images=None):

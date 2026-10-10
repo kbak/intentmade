@@ -25,9 +25,10 @@ def now():
 
 
 def write(path, value):
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value, indent=2) + "\n")
-    temporary.replace(path)
+    # The host show/report/note CLI uses only the standard library.
+    from openhands.sdk.utils.files import atomic_write_text
+
+    atomic_write_text(path, json.dumps(value, indent=2) + "\n", mode=0o644)
 
 
 class Recorder:

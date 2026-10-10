@@ -5,6 +5,7 @@ import json
 
 import reporting
 from common import DATA, api, lock, projects
+from openhands.sdk.utils.files import atomic_write_text
 
 
 # [impl->req~im-explicit-resume~1]
@@ -37,9 +38,9 @@ def queue_reply(conversation_id):
                     "POST", "/api/automation/v1/" + route["automation_id"] + "/dispatch", timeout=10
                 )
                 receipt.parent.mkdir(parents=True, exist_ok=True)
-                temporary = receipt.with_suffix(".tmp")
-                temporary.write_text(json.dumps({"answer_id": reply["id"], "run_id": run["id"]}))
-                temporary.replace(receipt)
+                atomic_write_text(
+                    receipt, json.dumps({"answer_id": reply["id"], "run_id": run["id"]}), mode=0o644
+                )
             # Do not advance the question timestamp or consume the answer here.
             # Execution rechecks it under the repository lock. If the HTTP
             # acknowledgement is lost, even a duplicate run cannot apply it twice.

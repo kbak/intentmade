@@ -39,6 +39,13 @@ The complete prebuilt Issue-to-PR workflow gives the implementation conversation
 publication access and reviews the resulting PR afterward. The factory instead
 keeps that credential in the parent and validates before pushing.
 
+Durable task, review, continuation and maintenance receipts keep their existing
+filesystem locations and JSON records. Writes reuse the SDK's atomic file writer
+for complete replacement, unique temporary files, flush-before-replace and failure
+cleanup. Receipt/report files retain operator-readable permissions. See the
+[component reuse decisions](runtime-patches.md#workflow-reuse-decisions) for the
+remaining conversation, publication and native-KV integration tradeoffs.
+
 An enabled repository has a **Factory — NAME** automation. Defaults poll every
 ten minutes, allow two task attempts per poll, and have no daily cap. Set
 `daily_tasks` to a positive integer for a UTC-day limit, or `null` for no cap.

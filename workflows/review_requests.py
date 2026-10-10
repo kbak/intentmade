@@ -7,6 +7,7 @@ import urllib.error
 from urllib.parse import quote
 
 from common import DATA, github, identifier, issues, job_id
+from openhands.sdk.utils.files import atomic_write_text
 
 
 class ReviewRequests:
@@ -195,8 +196,8 @@ def read(config, pr):
 def remember(config, pr, status, **details):
     path = receipt_path(config, pr)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(
+    atomic_write_text(
+        path,
         json.dumps(
             {
                 **(read(config, pr) or {}),
@@ -209,6 +210,6 @@ def remember(config, pr, status, **details):
                 **details,
             },
             indent=2,
-        )
+        ),
+        mode=0o644,
     )
-    temporary.replace(path)
