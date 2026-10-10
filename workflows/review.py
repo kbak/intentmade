@@ -2,6 +2,8 @@
 
 import json
 import shutil
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated, Literal
 
 import harness
@@ -20,6 +22,10 @@ from review_report import (
 ROLES = ("Alibaba Reviewer",)
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Verdict = Literal["PASS", "CHANGES_REQUESTED", "BLOCKED"]
+
+
+class ReviewContractError(ValueError):
+    pass
 
 
 class Finding(BaseModel):
@@ -124,6 +130,103 @@ class RoleReview(SpecialistReview):
     traceability_assessment: list[TraceabilityAssessment] | None = None
 
 
+@dataclass(frozen=True)
+class ReviewDecision:
+    """The same decision rule is used for evaluation and publication."""
+
+    blockers: int
+    advisory: int
+    gaps: int
+    conflicts: int
+    incomplete: bool
+
+    @classmethod
+    def from_reviews(cls, reviews, errors=()):
+        changes = [
+            change
+            for review in reviews
+            for assessment in getattr(review, "traceability_assessment", None) or []
+            for change in assessment.changes
+        ]
+        alignment = [item for review in reviews for item in review.intent_alignment]
+        return cls(
+            blockers=sum(len(review.blocking_findings) for review in reviews),
+            advisory=sum(len(review.non_blocking_findings) for review in reviews),
+            gaps=sum(change.status == "missing" for change in changes),
+            conflicts=sum(item.status == "conflict" for item in alignment),
+            incomplete=bool(errors)
+            or any(review.verdict == "BLOCKED" or review.infrastructure_error for review in reviews)
+            or any(change.status == "uncertain" for change in changes)
+            or any(item.status == "uncertain" for item in alignment),
+        )
+
+    @property
+    def verdict(self):
+        if self.incomplete:
+            return "BLOCKED"
+        return "CHANGES_REQUESTED" if self.blockers or self.gaps or self.conflicts else "PASS"
+
+
+class ReviewEvidence(BaseModel):
+    """Controller-owned inputs needed to replay either supported harness."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    events: list[dict]
+    execution: dict | None = None
+    traceability: dict[str, dict] = Field(default_factory=dict)
+    review_inputs: dict[str, dict] = Field(default_factory=dict)
+    intent_projects: list[str] = Field(default_factory=list)
+
+    def evaluate(self):
+        return evaluate(
+            self.events,
+            self.traceability,
+            self.review_inputs,
+            self.intent_projects,
+            execution=self.execution,
+        )
+
+    def save(self, transcript):
+        # Provider events stay in the existing JSONL transcript, which portable
+        # handoff exports exclude. The envelope retains only replay context.
+        record = self.model_dump(mode="json", exclude={"events", "execution"})
+        record["execution_source"] = "controller" if self.execution is not None else "acp"
+        transcript.with_name(transcript.stem + "-evidence.json").write_text(
+            json.dumps(record, indent=2) + "\n"
+        )
+
+    @classmethod
+    def load(cls, artifact, stored):
+        artifact = Path(artifact)
+        events = [json.loads(line) for line in (artifact / "review.jsonl").read_text().splitlines()]
+        receipt = artifact / "review-execution.json"
+        execution = json.loads(receipt.read_text()) if receipt.exists() else None
+        path = artifact / "review-evidence.json"
+        if path.exists():
+            record = json.loads(path.read_text())
+            if not isinstance(record, dict):
+                raise ValueError("Saved review inputs must be an evidence context")
+            execution_source = record.pop("execution_source")
+            if (
+                execution_source not in {"controller", "acp"}
+                or (execution_source == "controller") != (execution is not None)
+                or "events" in record
+                or "execution" in record
+            ):
+                raise ValueError("Saved review inputs do not match native specialist evidence")
+            return cls.model_validate({**record, "events": events, "execution": execution})
+        # Older protocol-3 artifacts have the transcript and optional native
+        # receipt, but not the envelope. Their required intent scope was empty.
+        return cls(
+            events=events,
+            execution=execution,
+            traceability=stored.traceability_context,
+            review_inputs=stored.review_inputs,
+        )
+
+
 class ReviewResult(BaseModel):
     review_protocol: Literal[3] = 3
     verdict: Verdict
@@ -137,6 +240,31 @@ class ReviewResult(BaseModel):
 
     def report(self, repository=None, sha=None):
         return render(self, repository, sha)
+
+    def validate_completed(self):
+        if (
+            len(self.reviews) != len(ROLES)
+            or {item.role for item in self.reviews} != set(ROLES)
+            or ReviewDecision.from_reviews(self.reviews, self.infrastructure_errors).incomplete
+            or self.verdict == "BLOCKED"
+        ):
+            raise ReviewContractError(
+                "Alibaba code and security review must complete before publication"
+            )
+        for review in self.reviews:
+            validate_specialist(review, self.review_inputs, self.traceability_context)
+        if self.presentation is None:
+            raise ReviewContractError("A consolidated report is required before publication")
+        validate_report(self, self.presentation)
+        decision = ReviewDecision.from_reviews(self.reviews)
+        if self.verdict != decision.verdict or any(
+            review.verdict != ReviewDecision.from_reviews([review]).verdict
+            for review in self.reviews
+        ):
+            raise ReviewContractError(
+                "Review verdict does not match its findings or required assessments"
+            )
+        return decision
 
     def repair_instructions(self):
         if self.presentation:
@@ -273,6 +401,16 @@ def validate_coverage(coverage, expected):
         raise ValueError("Required source or patch evidence remains unavailable")
 
 
+def validate_specialist(review, review_inputs, traceability=None, intent_projects=()):
+    validate_coverage(review.coverage, review_inputs or {})
+    if traceability:
+        validate_assessments(getattr(review, "traceability_assessment", None) or [], traceability)
+    if intent_projects:
+        projects = [item.project for item in review.intent_alignment]
+        if len(projects) != len(set(projects)) or set(projects) != set(intent_projects):
+            raise ValueError("Intent alignment must cover exactly the requested repositories")
+
+
 # [impl->req~im-review-evidence~1]
 # [impl->req~im-trace-assessment~1]
 def evaluate(events, traceability=None, review_inputs=None, intent_projects=(), *, execution=None):
@@ -345,18 +483,8 @@ def evaluate(events, traceability=None, review_inputs=None, intent_projects=(), 
                 try:
                     schema = TraceableSpecialistReview if traceability else SpecialistReview
                     review = schema.model_validate_json(agent.get("message") or "")
-                    validate_coverage(review.coverage, review_inputs or {})
-                    if isinstance(review, TraceableSpecialistReview):
-                        validate_assessments(review.traceability_assessment, traceability)
                     # [impl->req~im-intent-consistency~1]
-                    if intent_projects:
-                        projects = [item.project for item in review.intent_alignment]
-                        if len(projects) != len(set(projects)) or set(projects) != set(
-                            intent_projects
-                        ):
-                            raise ValueError(
-                                "Intent alignment must cover exactly the requested repositories"
-                            )
+                    validate_specialist(review, review_inputs, traceability, intent_projects)
                 except (ValidationError, TypeError):
                     required = " with the required traceability assessment" if traceability else ""
                     errors.append(f"{role}: final response is not valid specialist JSON{required}.")
@@ -384,11 +512,9 @@ def evaluate(events, traceability=None, review_inputs=None, intent_projects=(), 
                     for a in assessments
                     if any(c.status == "uncertain" for c in a.changes)
                 ]
-                gaps = any(c.status == "missing" for a in assessments for c in a.changes)
                 intent_uncertain = any(
                     item.status == "uncertain" for item in review.intent_alignment
                 )
-                intent_conflict = any(item.status == "conflict" for item in review.intent_alignment)
                 if intent_uncertain:
                     errors.append(f"{role}: product-intent consistency remains uncertain")
                 if uncertain:
@@ -404,7 +530,10 @@ def evaluate(events, traceability=None, review_inputs=None, intent_projects=(), 
                     errors.append(f"{role}: {review.infrastructure_error or 'review incomplete'}")
                     verdict = "BLOCKED"
                 else:
-                    verdict = "CHANGES_REQUESTED" if blocking or gaps or intent_conflict else "PASS"
+                    normalized = review.model_copy(
+                        update={"blocking_findings": blocking, "non_blocking_findings": advisory}
+                    )
+                    verdict = ReviewDecision.from_reviews([normalized]).verdict
                 results.append(
                     RoleReview(
                         **review.model_dump(
@@ -417,29 +546,18 @@ def evaluate(events, traceability=None, review_inputs=None, intent_projects=(), 
                         non_blocking_findings=advisory,
                     )
                 )
-    blockers = sum(len(review.blocking_findings) for review in results)
-    gaps = sum(
-        change.status == "missing"
-        for review in results
-        for assessment in review.traceability_assessment or []
-        for change in assessment.changes
+    decision = ReviewDecision.from_reviews(results, errors)
+    summary = (
+        f"{decision.blockers} blocking finding(s); {decision.advisory} non-blocking finding(s)."
     )
-    advisory = sum(len(review.non_blocking_findings) for review in results)
-    conflicts = sum(
-        item.status == "conflict" for review in results for item in review.intent_alignment
-    )
-    verdict = (
-        "BLOCKED" if errors else "CHANGES_REQUESTED" if blockers or gaps or conflicts else "PASS"
-    )
-    summary = f"{blockers} blocking finding(s); {advisory} non-blocking finding(s)."
     if traceability:
-        summary += f" {gaps} traceability gap(s)."
+        summary += f" {decision.gaps} traceability gap(s)."
     if intent_projects:
-        summary += f" {conflicts} intent conflict(s)."
+        summary += f" {decision.conflicts} intent conflict(s)."
     if errors:
         summary += " " + " ".join(errors)
     return ReviewResult(
-        verdict=verdict,
+        verdict=decision.verdict,
         summary=summary,
         reviews=results,
         infrastructure_errors=errors,
@@ -510,7 +628,16 @@ def review_code(
         failure = f"Review coordinator failed: {type(exc).__name__}: {exc}"
         if isinstance(exc, AgentStartupError):
             startup_failure = exc.details
-    result = evaluate(events, traceability, review_inputs, intent_projects, execution=execution)
+    evidence = ReviewEvidence(
+        events=events,
+        execution=execution,
+        traceability=traceability or {},
+        review_inputs=review_inputs,
+        intent_projects=list(intent_projects),
+    )
+    if transcript:
+        evidence.save(transcript)
+    result = evidence.evaluate()
     result.startup_failure = startup_failure
     if failure:
         result.verdict = "BLOCKED"

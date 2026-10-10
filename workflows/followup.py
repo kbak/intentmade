@@ -9,6 +9,7 @@ import feedback
 import httpx
 import reporting
 from common import DATA, evidence, git, github, identifier, issues, job_id, lock
+from lifecycle import TaskLifecycle
 from naming import pull_request_title
 from openhands.sdk.utils.files import atomic_write_text
 from policy import checks_for, checks_pass, latest_check_runs
@@ -103,13 +104,13 @@ def snapshot(config, record):
     return {"repository": config["repository"], "pr": record["number"], "head": record["head"]}
 
 
-def report_status(config, record, status, message, *, metrics=None):
+def report_status(config, record, status, message, *, metrics=None, **details):
     changed = record.get("status") != status or record.get("message") != message
     record.update(status=status, message=message)
     save(config, record)
     if changed and reporting.ACTIVE:
         TaskReport(config, f"pr-{record['number']}", snapshot(config, record)).update(
-            status, message, metrics=metrics
+            status, message, metrics=metrics, **details
         )
 
 
@@ -413,6 +414,10 @@ def maintain(config, pr, action, credential):
                 f"Updating PR #{pr['number']}: {len(entries)} feedback items; CI: {json.dumps(action['failures'])}; base update needed: {action['behind']}.",
                 answer_id=(action.get("reply") or {}).get("id"),
             )
+        lifecycle = TaskLifecycle(
+            artifact=artifact,
+            failure_hint=f"\n\nEvidence: {artifact}. Reply `resume: YOUR ANSWER` or `resume: retry` to continue.",
+        )
         states = {}
         try:
             if action.get("reruns"):
@@ -505,28 +510,22 @@ def maintain(config, pr, action, credential):
             current_record = read(config, pr["number"])
             feedback.remember(current_record, entries, "COMPLETED")
             save(config, current_record)
-            report_status(
-                config,
-                current_record,
+            lifecycle.report = lambda status, message, **details: report_status(
+                config, current_record, status, message, **details
+            )
+            lifecycle.notify(
                 "WATCHING",
                 f"Updated PR #{pr['number']} after tests and independent review; waiting for GitHub CI.",
-                metrics=artifact / "metrics.json",
+                result=result,
             )
-            if report:
-                current_report = reporting.read_report(config, f"pr-{pr['number']}")
-                current_report["result"] = result
-                reporting.write_report(config, f"pr-{pr['number']}", current_report)
             return True
         except BaseException as exc:
             current_record = read(config, pr["number"])
             feedback.remember(current_record, entries, "FAILED")
-            report_status(
-                config,
-                current_record,
-                "NEEDS_INPUT" if isinstance(exc, NeedsInput) else "FAILED",
-                f"{exc}\n\nEvidence: {artifact}. Reply `resume: YOUR ANSWER` or `resume: retry` to continue.",
-                metrics=artifact / "metrics.json",
+            lifecycle.report = lambda status, message, **details: report_status(
+                config, current_record, status, message, **details
             )
+            lifecycle.fail(exc)
             if isinstance(exc, NeedsInput):
                 return False
             raise

@@ -173,11 +173,9 @@ class RepairContextTests(unittest.TestCase):
 
     @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional IntentBond package")
     def test_real_pipeline_repairs_with_verified_context_and_fresh_review(self):
-        from test_traceability import TraceabilityPipelineTests
+        from pipeline_fixture import TraceabilityScenario
 
-        fixture = TraceabilityPipelineTests()
-        fixture.setUp()
-        self.addCleanup(fixture.doCleanups)
+        fixture = TraceabilityScenario(self, self.root / "pipeline")
         fixture.config["repair_attempts"] = 1
 
         def edit(root, attempt):

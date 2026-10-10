@@ -6,8 +6,7 @@ from unittest.mock import Mock, patch
 
 import review
 import review_report
-from test_specialist_review import evidence, specialist
-from test_traceability_review import EXPECTED, assessed
+from review_fixture import EXPECTED, assessed, evidence, specialist
 
 
 def alignment(status="aligned", **updates):

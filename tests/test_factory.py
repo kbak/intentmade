@@ -2,11 +2,8 @@
 
 import json
 import os
-import shlex
-import subprocess
 import tempfile
 import unittest
-from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -19,6 +16,8 @@ import run
 import sandbox
 from openhands.sdk import Message, TextContent
 from openhands.sdk.event import MessageEvent
+from pipeline_fixture import PipelineScenario, seed_repository
+from pipeline_fixture import execute_local as local_git_command
 
 CONFIG = {
     "project": "example",
@@ -32,11 +31,6 @@ CONFIG = {
     "branch_prefix": "factory",
     "publish_draft": True,
 }
-
-
-def local_git_command(command, cwd):
-    result = subprocess.run(shlex.split(command), cwd=cwd, capture_output=True, text=True)
-    return SimpleNamespace(exit_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
 
 
 ISSUE = {
@@ -480,37 +474,15 @@ class PipelineTests(unittest.TestCase):
                 root = Path(temp)
                 seed, bare, artifact = root / "seed", root / "task.git", root / "artifact"
                 artifact.mkdir()
-                common.git(["init", "-b", "factory/task", str(seed)])
-                common.git(["config", "user.name", "Fixture"], cwd=seed)
-                common.git(["config", "user.email", "fixture@localhost"], cwd=seed)
-                (seed / "code.txt").write_text("base")
-                common.git(["add", "."], cwd=seed)
-                common.git(["commit", "-m", "base"], cwd=seed)
-                base = common.git(["rev-parse", "HEAD"], cwd=seed).stdout.strip()
-                common.git(["clone", "--bare", str(seed), str(bare)])
-
-                @contextmanager
-                def worker(job, config):
-                    yield SimpleNamespace(
-                        working_dir=str(job / "source"),
-                        execute_command=lambda command, cwd, **k: (
-                            local_git_command(command, cwd)
-                            if command.startswith("git ")
-                            else SimpleNamespace(
-                                exit_code=exit_code, stdout="test evidence", stderr=""
-                            )
-                        ),
-                    )
-
-                def worktree(workspace):
-                    source = Path(workspace.working_dir)
-                    checkout = source.parent / "worktree"
-                    common.git(
-                        ["worktree", "add", "-b", "openhands/test", str(checkout), "main"],
-                        cwd=source,
-                    )
-                    workspace.working_dir = str(checkout)
-                    return "unused-by-mocked-agent"
+                state = seed_repository(seed, bare, files={"code.txt": "base"})
+                scenario = PipelineScenario(
+                    root,
+                    executor=lambda command, cwd, **kwargs: (
+                        local_git_command(command, cwd)
+                        if command.startswith("git ")
+                        else SimpleNamespace(exit_code=exit_code, stdout="test evidence", stderr="")
+                    ),
+                )
 
                 def converse(workspace, prompt, mode="read-only", *args, **kwargs):
                     if mode == "agent-full-access":
@@ -531,11 +503,7 @@ class PipelineTests(unittest.TestCase):
 
                 config = {**CONFIG, "repair_attempts": 0, "test_command": "unused"}
                 with (
-                    patch.object(run, "DATA", root),
-                    patch.object(run, "worker", worker),
-                    patch.object(run, "worktree", worktree),
-                    patch.object(run, "converse", converse),
-                    patch.object(run, "review_code", converse),
+                    scenario.activate(implement=converse, review=converse),
                     patch.object(run, "publish") as publish,
                 ):
                     # [utest~im-factory-PipelineTests-failed_tests_or_review_keep_branch_and_never_publish~1->req~im-publication-gate~1]
@@ -548,13 +516,7 @@ class PipelineTests(unittest.TestCase):
                             None,
                             True,
                             artifact,
-                            {
-                                "example": {
-                                    "repository": str(bare),
-                                    "base": base,
-                                    "branch": "factory/task",
-                                }
-                            },
+                            {"example": state},
                         )
                     publish.assert_not_called()
                 self.assertEqual(
@@ -586,14 +548,7 @@ class PipelineTests(unittest.TestCase):
                 configs, states = [], {}
                 for project in ("first", "second"):
                     seed, bare = root / project, root / (project + ".git")
-                    common.git(["init", "-b", "factory/task", str(seed)])
-                    common.git(["config", "user.name", "Fixture"], cwd=seed)
-                    common.git(["config", "user.email", "fixture@localhost"], cwd=seed)
-                    (seed / "code.txt").write_text("base")
-                    common.git(["add", "."], cwd=seed)
-                    common.git(["commit", "-m", "base"], cwd=seed)
-                    base = common.git(["rev-parse", "HEAD"], cwd=seed).stdout.strip()
-                    common.git(["clone", "--bare", str(seed), str(bare)])
+                    state = seed_repository(seed, bare, files={"code.txt": "base"})
                     configs.append(
                         {
                             **CONFIG,
@@ -603,11 +558,7 @@ class PipelineTests(unittest.TestCase):
                             "test_command": "test -f code.txt",
                         }
                     )
-                    states[project] = {
-                        "repository": str(bare),
-                        "base": base,
-                        "branch": "factory/task",
-                    }
+                    states[project] = state
                 tested = []
 
                 def execute(command, cwd, **kwargs):
@@ -620,20 +571,7 @@ class PipelineTests(unittest.TestCase):
                         stderr="",
                     )
 
-                @contextmanager
-                def worker(job, config):
-                    yield SimpleNamespace(working_dir=str(job / "source"), execute_command=execute)
-
-                def worktree(workspace):
-                    source = Path(workspace.working_dir)
-                    checkout = source.parent.parent / "worktrees" / source.name
-                    checkout.parent.mkdir(exist_ok=True)
-                    common.git(
-                        ["worktree", "add", "-b", "openhands/test", str(checkout), "main"],
-                        cwd=source,
-                    )
-                    workspace.working_dir = str(checkout)
-                    return "unused"
+                scenario = PipelineScenario(root, executor=execute)
 
                 def converse(workspace, prompt, mode="read-only", *args, **kwargs):
                     if mode == "agent-full-access":
@@ -655,11 +593,7 @@ class PipelineTests(unittest.TestCase):
                     return "https://example.test/" + config["project"]
 
                 with (
-                    patch.object(run, "DATA", root),
-                    patch.object(run, "worker", worker),
-                    patch.object(run, "worktree", worktree),
-                    patch.object(run, "converse", converse),
-                    patch.object(run, "review_code", converse),
+                    scenario.activate(implement=converse, review=converse),
                     patch.object(run, "publish", side_effect=publish) as published,
                 ):
 

@@ -6,13 +6,10 @@ from pathlib import Path
 
 import review_requests
 from common import github, issues, lock
+from lifecycle import PublicationError  # noqa: F401 (public import for retained workflows)
 from policy import pr_eligible
-from review import ROLES, ReviewResult, evaluate, validate_assessments, validate_coverage
+from review import ROLES, ReviewContractError, ReviewEvidence, ReviewResult, validate_assessments
 from review_report import ReviewReport, traceability_items, validate_report
-
-
-class PublicationError(RuntimeError):
-    pass
 
 
 def current_protocol(artifact):
@@ -53,25 +50,11 @@ def validate_traceability(config, review):
 # [impl->req~im-review-retry~1]
 def publish(config, pr, review, credential):
     validate_traceability(config, review)
-    if (
-        len(review.reviews) != len(ROLES)
-        or {item.role for item in review.reviews} != set(ROLES)
-        or review.infrastructure_errors
-        or any(item.infrastructure_error or item.verdict == "BLOCKED" for item in review.reviews)
-        or review.verdict == "BLOCKED"
-    ):
-        raise PublicationError("Alibaba code and security review must complete before publication")
-    validate_coverage(review.reviews[0].coverage, review.review_inputs)
-    if review.presentation is None:
-        raise PublicationError("A consolidated report is required before publication")
-    validate_report(review, review.presentation)
-    blocked = any(item.blocking_findings for item in review.reviews) or any(
-        change.status == "missing" for _, change in traceability_items(review)
-    )
-    if review.verdict != ("CHANGES_REQUESTED" if blocked else "PASS"):
-        raise PublicationError(
-            "Review verdict does not match its blocking findings or traceability obligations"
-        )
+    try:
+        decision = review.validate_completed()
+    except ReviewContractError as exc:
+        raise PublicationError(str(exc)) from exc
+    blocked = decision.verdict == "CHANGES_REQUESTED"
     validate_comparison(config, pr, review)
     repo, number, sha = config["repository"], pr["number"], pr["head"]["sha"]
     event = "REQUEST_CHANGES" if blocked else "APPROVE"
@@ -142,11 +125,12 @@ def load_saved(config, pr, artifact):
     stored = ReviewResult.model_validate_json((artifact / "review.json").read_text())
     validate_traceability(config, stored)
     validate_comparison(config, pr, stored)
-    review = evaluate(
-        [json.loads(line) for line in (artifact / "review.jsonl").read_text().splitlines()],
-        stored.traceability_context,
-        stored.review_inputs,
-    )
+    try:
+        review = ReviewEvidence.load(artifact, stored).evaluate()
+    except (ValueError, TypeError, KeyError) as exc:
+        raise PublicationError(
+            "Saved report does not match native specialist execution evidence"
+        ) from exc
     if review.model_dump(exclude={"presentation"}) != stored.model_dump(exclude={"presentation"}):
         raise PublicationError("Saved report does not match native specialist execution evidence")
     legacy_presentation = artifact / "review-presentation.json"

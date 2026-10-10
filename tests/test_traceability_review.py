@@ -8,39 +8,7 @@ from unittest.mock import patch
 
 import review
 import review_report
-from test_specialist_review import evidence, finding, specialist
-
-EXPECTED = {
-    "pilot": {
-        "changed_paths": ["session.py"],
-        "requirement_index": {
-            "candidate": {"ids": ["req~session-expiration~1"]},
-            "base": {"ids": ["req~session-expiration~0"]},
-        },
-    }
-}
-
-
-def change(status="covered", **updates):
-    return {
-        "changed_paths": ["session.py"],
-        "behavior": "Session inactivity expiration",
-        "status": status,
-        "requirement_ids": ["req~session-expiration~1"],
-        "documentation": ["requirements.md: Session expiration"],
-        "implementation": ["session.py: expired and its impl reference"],
-        "verification": ["tests/test_session.py: test_expiration checks both sides of 1800"],
-        "rationale": "The existing requirement and boundary assertions support the changed threshold expression.",
-        **updates,
-    }
-
-
-def assessed(changes=None, project="pilot"):
-    return {
-        "project": project,
-        "summary": "Scripted assessment fixture.",
-        "changes": [change()] if changes is None else changes,
-    }
+from review_fixture import EXPECTED, assessed, change, evidence, finding, specialist
 
 
 def result(changes=None, expected=None, **specialist_fields):

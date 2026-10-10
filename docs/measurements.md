@@ -13,6 +13,12 @@ and references to the detailed evidence. Failed attempts remain in the record
 after successful repairs. Each subsequent automation run has its own artifact
 directory; the stable task name connects those runs.
 
+Builds and reviews share task lifecycle handling for saved outcomes, measurements,
+and terminal reports. Issue and maintenance adapters preserve an inner build's
+`PUBLICATION_FAILED` outcome rather than changing it to a generic failure. Reports
+render after the instrumented task finishes so their durations include teardown.
+The original exception and detailed review evidence remain available for recovery.
+
 ## Timing and usage
 
 UTC timestamps identify events; elapsed durations use a monotonic clock. Task

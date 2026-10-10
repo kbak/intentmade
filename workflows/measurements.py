@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from lifecycle import FAILURES, failure_status
+
 CURRENT = ContextVar("factory_measurements", default=None)
 TOKENS = (
     "prompt_tokens",
@@ -82,11 +84,8 @@ def task(directory, name, kind, repositories):
     try:
         yield recorder
     except BaseException as exc:
-        if recorder.data["status"] not in {"FAILED", "NEEDS_INPUT", "PUBLICATION_FAILED"}:
-            recorder.data["status"] = {
-                "NeedsInput": "NEEDS_INPUT",
-                "PublicationError": "PUBLICATION_FAILED",
-            }.get(type(exc).__name__, "FAILED")
+        if recorder.data["status"] not in FAILURES:
+            recorder.data["status"] = failure_status(exc)
         recorder.data["error_type"] = type(exc).__name__
         raise
     finally:

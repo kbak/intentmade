@@ -120,6 +120,9 @@
   "test_measurements.MeasurementTests.test_repaired_build_retains_both_checks_and_source_versions": [
     "utest~im-measurements-MeasurementTests-repaired_build_retains_both_checks_and_source_versions~1"
   ],
+  "test_lifecycle.LifecycleTests.test_publication_failure_survives_nested_task_adapters": [
+    "utest~im-task-outcome-propagation~1"
+  ],
   "test_measurements.MeasurementTests.test_metrics_write_failure_preserves_original_error": [
     "utest~im-measurements-MeasurementTests-metrics_write_failure_preserves_original_error~1"
   ],
@@ -191,6 +194,12 @@
   ],
   "test_review_publication.PublicationTests.test_lost_response_is_reconciled_without_duplicate_post": [
     "utest~im-review_publication-PublicationTests-lost_response_is_reconciled_without_duplicate_post~1"
+  ],
+  "test_review_publication.PublicationTests.test_intent_conflict_uses_the_evaluated_verdict_at_publication": [
+    "utest~im-review-intent-publication~1"
+  ],
+  "test_review_publication.PublicationRecoveryTests.test_replay_preserves_both_harnesses_and_rejects_changed_receipts": [
+    "utest~im-review-harness-replay~1"
   ],
   "test_review_publication.PublicationTests.test_retargeted_or_advanced_base_cannot_publish_or_reuse_old_review": [
     "utest~im-review_publication-PublicationTests-retargeted_or_advanced_base_cannot_publish_or_reuse_old_review~1"

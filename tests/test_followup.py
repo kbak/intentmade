@@ -2,12 +2,9 @@
 
 import copy
 import json
-import subprocess
 import tempfile
 import unittest
-from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import common
@@ -15,6 +12,7 @@ import followup
 import monitor
 import naming
 import run
+from pipeline_fixture import PipelineScenario
 
 CONFIG = {
     "project": "example",
@@ -295,26 +293,7 @@ class FollowupTests(unittest.TestCase):
             "reply": None,
         }
 
-        def execute(command, cwd, **kwargs):
-            result = subprocess.run(
-                ["bash", "-c", command], cwd=cwd, capture_output=True, text=True
-            )
-            return SimpleNamespace(
-                exit_code=result.returncode, stdout=result.stdout, stderr=result.stderr
-            )
-
-        @contextmanager
-        def worker(root, configs):
-            yield SimpleNamespace(working_dir=str(root), execute_command=execute)
-
-        def worktree(workspace):
-            source = Path(workspace.working_dir)
-            checkout = source.parent / "worktree"
-            common.git(
-                ["worktree", "add", "-b", "openhands/test", str(checkout), "main"], cwd=source
-            )
-            workspace.working_dir = str(checkout)
-            return "fixture"
+        scenario = PipelineScenario(self.root)
 
         def implement(workspace, *args, **kwargs):
             self.assertEqual(
@@ -346,10 +325,7 @@ class FollowupTests(unittest.TestCase):
             patch.object(followup, "failure_context", return_value=""),
             patch.object(run, "github", side_effect=lambda *args, **kwargs: copy.deepcopy(pr)),
             patch.object(run, "task_repository", return_value=(repository, self.record["branch"])),
-            patch.object(run, "git_identity", return_value=("Fixture", "fixture@example.test")),
-            patch.object(run, "worker", worker),
-            patch.object(run, "worktree", worktree),
-            patch.object(run, "converse", implement),
+            scenario.activate(implement=implement),
             patch.object(run, "review_changes", side_effect=review),
             patch.object(run.issues, "_push_branch", side_effect=push) as pushed,
             patch.object(run.issues, "_open_pull_request") as opened,

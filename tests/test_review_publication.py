@@ -13,9 +13,8 @@ import monitor
 import review
 import review_publication
 import review_requests
+from review_fixture import assessed, change, evidence, finding, specialist
 from review_report import draft_report, validate_report
-from test_specialist_review import evidence, finding, specialist
-from test_traceability_review import assessed, change
 
 CONFIG = {"project": "example", "repository": "org/repo"}
 PR = {
@@ -119,6 +118,30 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(posted["state"], "CHANGES_REQUESTED")
         self.assertIn("**Changes requested**", self.posted[0]["body"])
         self.assertEqual(self.calls[-1][2]["body"]["event"], "REQUEST_CHANGES")
+
+    def test_intent_conflict_uses_the_evaluated_verdict_at_publication(self):
+        result = present(
+            [
+                evidence(
+                    specialist(
+                        intent_alignment=[
+                            {
+                                "project": "example",
+                                "status": "conflict",
+                                "references": ["docs/intent.md"],
+                                "summary": "The change clears data promised to survive retries.",
+                            }
+                        ]
+                    )
+                )
+            ]
+        )
+        self.assertEqual(result.reviews[0].blocking_findings, [])
+        # [utest~im-review-intent-publication~1->req~im-intent-consistency~1]
+        self.assertEqual(
+            review_publication.publish(CONFIG, PR, result, "secret")["state"], "CHANGES_REQUESTED"
+        )
+        self.assertIn("clears data", self.posted[0]["body"])
 
     @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
     def test_traceability_gap_requests_changes_without_a_code_or_security_finding(self):
@@ -335,6 +358,103 @@ class PublicationTests(unittest.TestCase):
 
 
 class PublicationRecoveryTests(unittest.TestCase):
+    def test_replay_preserves_both_harnesses_and_rejects_changed_receipts(self):
+        for native in (False, True):
+            for legacy in (False, True):
+                with (
+                    self.subTest(native=native, legacy=legacy),
+                    tempfile.TemporaryDirectory() as temp,
+                ):
+                    artifact = Path(temp)
+                    execution = (
+                        {
+                            "status": "completed",
+                            "review_run_id": "controller-run",
+                            "conversation_id": "review-conversation",
+                            "role": review.ROLES[0],
+                            "response": json.dumps(specialist()),
+                        }
+                        if native
+                        else None
+                    )
+                    captured = review.ReviewEvidence(
+                        events=[] if native else [evidence()],
+                        execution=execution,
+                        review_inputs=comparison(),
+                    )
+                    result = captured.evaluate()
+                    result.presentation = validate_report(result, draft_report(result))
+                    (artifact / "review.json").write_text(result.model_dump_json())
+                    (artifact / "review.jsonl").write_text(
+                        "".join(json.dumps(e) + "\n" for e in captured.events)
+                    )
+                    (artifact / "result.json").write_text(
+                        json.dumps(
+                            {
+                                "repository": CONFIG["repository"],
+                                "pr": PR["number"],
+                                "head": PR["head"]["sha"],
+                                "base": PR["base"],
+                                "status": "REVIEWED",
+                            }
+                        )
+                    )
+                    if execution is not None:
+                        (artifact / "review-execution.json").write_text(json.dumps(execution))
+                    if not legacy:
+                        captured.save(artifact / "review.jsonl")
+                    # [utest~im-review-harness-replay~1->req~im-review-retry~1]
+                    self.assertEqual(review_publication.load_saved(CONFIG, PR, artifact), result)
+                    if native:
+                        (artifact / "review-execution.json").unlink()
+                    else:
+                        (artifact / "review.jsonl").write_text("")
+                    with self.assertRaises(review_publication.PublicationError):
+                        review_publication.load_saved(CONFIG, PR, artifact)
+
+    def test_replay_keeps_the_required_intent_scope(self):
+        with tempfile.TemporaryDirectory() as temp:
+            artifact = Path(temp)
+            captured = review.ReviewEvidence(
+                events=[
+                    evidence(
+                        specialist(
+                            intent_alignment=[
+                                {
+                                    "project": "example",
+                                    "status": "aligned",
+                                    "references": ["supplied request"],
+                                    "summary": "The change preserves the promised retry behavior.",
+                                }
+                            ]
+                        )
+                    )
+                ],
+                review_inputs=comparison(),
+                intent_projects=["example"],
+            )
+            result = captured.evaluate()
+            result.presentation = validate_report(result, draft_report(result))
+            (artifact / "review.json").write_text(result.model_dump_json())
+            (artifact / "review.jsonl").write_text(json.dumps(captured.events[0]) + "\n")
+            (artifact / "result.json").write_text(
+                json.dumps(
+                    {
+                        "repository": CONFIG["repository"],
+                        "pr": PR["number"],
+                        "head": PR["head"]["sha"],
+                        "base": PR["base"],
+                        "status": "REVIEWED",
+                    }
+                )
+            )
+            captured.save(artifact / "review.jsonl")
+            self.assertEqual(review_publication.load_saved(CONFIG, PR, artifact), result)
+            captured.intent_projects = ["other"]
+            captured.save(artifact / "review.jsonl")
+            with self.assertRaises(review_publication.PublicationError):
+                review_publication.load_saved(CONFIG, PR, artifact)
+
     def test_legacy_retry_consolidates_once_and_keeps_original_evidence(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

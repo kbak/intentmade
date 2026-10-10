@@ -90,6 +90,14 @@ Saved results from before immutable comparisons were introduced (review protocol
 2 or earlier) require a fresh review. Current results also validate their
 captured base and head before reuse.
 
+Live evaluation and publication use the same completed-review contract and verdict
+calculation, including required traceability gaps and intent conflicts. New reviews
+retain a `*-evidence.json` context with captured review inputs and required assessment
+scope. Replay reads the original JSONL transcript and, for native OpenHands, the
+controller execution receipt; missing or changed evidence prevents reuse. The context
+does not copy provider events into JSON files exported by portable handoffs. Existing
+protocol-3 artifacts without this context still replay their original evidence.
+
 A rejected Codex login produces `NEEDS_INPUT`. Run `factoryctl codex-login`, then
 reply `resume: retry` or run `factoryctl review` again. A typed startup timeout
 gets one retry before agent work begins; other startup failures require an

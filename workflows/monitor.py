@@ -21,6 +21,7 @@ import review_sources
 from agent import converse
 from cleanup import job_directory
 from common import DATA, evidence, github, issues, job_id, lock, reviews, token
+from lifecycle import TaskLifecycle
 from openhands.sdk.utils.files import atomic_write_text
 from policy import issue_eligible, issue_snapshot, pr_eligible
 from reporting import NeedsInput, TaskReport, outcome, phase, resume_reply, run_report
@@ -32,7 +33,6 @@ from sandbox import worker
 
 def review_pr(config, pr, credential):
     artifact = evidence(job_id() + "-pr-" + str(pr["number"]))
-    metrics = artifact / "metrics.json"
     report = (
         TaskReport(config, f"pr-{pr['number']}", review_requests.snapshot(config, pr))
         if reporting.ACTIVE
@@ -40,79 +40,62 @@ def review_pr(config, pr, credential):
     )
     if report:
         report.update("REVIEWING", f"Reviewing commit {pr['head']['sha']}.")
-    try:
-        with (
-            measurements.task(
-                artifact, f"pr-{pr['number']}", "review", {config["project"]: config["repository"]}
-            ),
-            reporting.task_progress(f"pr-{pr['number']}", artifact, ("review", "publication")),
-        ):
-            reporting.progress_stage("review")
-            previous = review_requests.read(config, pr) or {}
-            retry = previous.get(
-                "status"
-            ) == "PUBLICATION_FAILED" and review_publication.current_protocol(previous["artifact"])
-            measurements.begin_attempt(0, "publication_retry" if retry else "initial")
-            measurements.update(
-                {
-                    "status": "RUNNING",
-                    "repositories": {config["project"]: {"commit": pr["head"]["sha"]}},
-                }
-            )
-            if retry:
-                retained = Path(previous["artifact"])
-                review = review_publication.load_saved(config, pr, retained)
-                if review.presentation is None:
-                    # Upgrade reports saved before consolidation without rewriting
-                    # their native evidence or running the specialists again.
-                    with lock(config["project"] + ".build"), job_directory(DATA, artifact) as root:
-                        (root / "source").mkdir()
-                        with worker(root, config) as workspace:
-                            review.presentation = consolidate(
-                                workspace, review, transcript=artifact / "review-report.jsonl"
-                            )
-                    (retained / "review-presentation.json").write_text(
-                        review.presentation.model_dump_json(indent=2)
-                    )
-                measurements.review(review, retained / "review.json")
-                reporting.progress_stage("review", "Reused saved review")
-                reporting.progress_stage("publication")
-                with measurements.stage("publication", config["project"]):
-                    publish_review(config, pr, review, credential, retained)
-                reporting.progress_stage("publication", "Published")
-                body = review.report(config["repository"], pr["head"]["sha"])
-                current = True
-            else:
-                current = _review_pr(config, pr, credential)
-                body = (artifact / "review.md").read_text()
-            measurements.update(
-                {
-                    "status": "REVIEWED" if current else "STALE",
-                    "repositories": {config["project"]: {"commit": pr["head"]["sha"]}},
-                }
-            )
-        if report:
-            posted = (review_requests.read(config, pr) or {}).get("github_review", {})
-            link = f"\n\n[GitHub review]({posted['html_url']})" if posted else ""
-            report.update(
-                "REVIEWED" if current else "STALE",
-                body + link,
-                metrics=metrics,
-                github_review=posted,
-            )
+    with TaskLifecycle(
+        artifact=artifact,
+        task=f"pr-{pr['number']}",
+        kind="review",
+        repositories={config["project"]: config["repository"]},
+        stages=("review", "publication"),
+        report=report.update if report else None,
+    ) as lifecycle:
+        reporting.progress_stage("review")
+        previous = review_requests.read(config, pr) or {}
+        retry = previous.get(
+            "status"
+        ) == "PUBLICATION_FAILED" and review_publication.current_protocol(previous["artifact"])
+        measurements.begin_attempt(0, "publication_retry" if retry else "initial")
+        measurements.update(
+            {
+                "status": "RUNNING",
+                "repositories": {config["project"]: {"commit": pr["head"]["sha"]}},
+            }
+        )
+        if retry:
+            retained = Path(previous["artifact"])
+            review = review_publication.load_saved(config, pr, retained)
+            if review.presentation is None:
+                # Upgrade reports saved before consolidation without rewriting
+                # their native evidence or running the specialists again.
+                with lock(config["project"] + ".build"), job_directory(DATA, artifact) as root:
+                    (root / "source").mkdir()
+                    with worker(root, config) as workspace:
+                        review.presentation = consolidate(
+                            workspace, review, transcript=artifact / "review-report.jsonl"
+                        )
+                (retained / "review-presentation.json").write_text(
+                    review.presentation.model_dump_json(indent=2)
+                )
+            measurements.review(review, retained / "review.json")
+            reporting.progress_stage("review", "Reused saved review")
+            reporting.progress_stage("publication")
+            with measurements.stage("publication", config["project"]):
+                publish_review(config, pr, review, credential, retained)
+            reporting.progress_stage("publication", "Published")
+            body = review.report(config["repository"], pr["head"]["sha"])
+            current = True
+        else:
+            current = _review_pr(config, pr, credential)
+            body = (artifact / "review.md").read_text()
+        measurements.update(
+            {
+                "status": "REVIEWED" if current else "STALE",
+                "repositories": {config["project"]: {"commit": pr["head"]["sha"]}},
+            }
+        )
+        posted = (review_requests.read(config, pr) or {}).get("github_review", {})
+        link = f"\n\n[GitHub review]({posted['html_url']})" if posted else ""
+        lifecycle.complete("REVIEWED" if current else "STALE", body + link, github_review=posted)
         return current
-    except BaseException as exc:
-        if report:
-            report.update(
-                "NEEDS_INPUT"
-                if isinstance(exc, NeedsInput)
-                else "PUBLICATION_FAILED"
-                if isinstance(exc, review_publication.PublicationError)
-                else "FAILED",
-                str(exc),
-                metrics=metrics,
-            )
-        raise
 
 
 def publish_review(config, pr, review, credential, artifact):
@@ -375,6 +358,19 @@ def implement_issue(config, issue, credential, resume=None):
             assignee=identity,
             answer_id=resume.get("id") if resume else None,
         )
+    lifecycle = TaskLifecycle(
+        report=report.update if report else None,
+        failure_hint=(
+            "\n\nWork/evidence: /projects/artifacts/"
+            + job_id()
+            + "-issue-"
+            + str(number)
+            + "\n\nReply `resume: YOUR ANSWER` to continue, or `resume: retry` "
+            "after an infrastructure fix. No PR has been confirmed by this run."
+        )
+        if report
+        else "",
+    )
     try:
         answers = (
             report.record.get("answers", []) if report else ([resume["answer"]] if resume else [])
@@ -417,27 +413,20 @@ def implement_issue(config, issue, credential, resume=None):
             urls = [
                 s["pull_request"] for s in result["repositories"].values() if s.get("pull_request")
             ]
-            report.update(
+            lifecycle.complete(
                 "PASSED", "\n".join(urls) or "Validated; no new draft was published.", result=result
             )
         return result
     except BaseException as exc:
-        status = "NEEDS_INPUT" if isinstance(exc, NeedsInput) else "FAILED"
-        if report:
-            report.update(
-                status,
-                str(exc)
-                + "\n\nWork/evidence: /projects/artifacts/"
-                + job_id()
-                + "-issue-"
-                + str(number)
-                + "\n\nReply `resume: YOUR ANSWER` to continue, or `resume: retry` "
-                "after an infrastructure fix. No PR has been confirmed by this run.",
-                failure=str(exc),
-                metrics=Path("/projects/artifacts")
-                / (job_id() + "-issue-" + str(number))
-                / "metrics.json",
+        lifecycle.fail(
+            exc,
+            failure=str(exc),
+            metrics=(
+                Path("/projects/artifacts") / (job_id() + "-issue-" + str(number)) / "metrics.json"
             )
+            if report
+            else None,
+        )
         if isinstance(exc, NeedsInput):
             # Waiting for the maintainer is a pause in the same owned task.
             return {"status": "NEEDS_INPUT", "questions": str(exc)}

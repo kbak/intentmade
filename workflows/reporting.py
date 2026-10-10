@@ -14,13 +14,9 @@ import harness
 import httpx
 import measurements
 from common import DATA, api, identifier, session_api_key
+from lifecycle import NeedsInput  # noqa: F401 (public import for retained workflows)
 from openhands.sdk.utils.files import atomic_write_text
 from progress import TaskProgress
-
-
-class NeedsInput(RuntimeError):
-    pass
-
 
 ACTIVE = None
 _RUN_KEY = None

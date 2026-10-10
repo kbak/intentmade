@@ -11,7 +11,7 @@ import common
 import ocr_review
 import review
 from openhands.sdk.workspace import LocalWorkspace
-from test_specialist_review import evidence, specialist
+from review_fixture import evidence, specialist
 
 
 class OCRPreparationTests(unittest.TestCase):

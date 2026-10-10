@@ -20,6 +20,7 @@ import traceability
 from agent import AgentExecutionError, StructuredResponseError, converse, worktree
 from cleanup import job_directory
 from common import DATA, api, evidence, git, github, identifier, issues, job_id, lock, token
+from lifecycle import TaskLifecycle, failure_status
 from naming import branch_name, change_title, pull_request_title
 from openhands.sdk.workspace.repo import RepoSource, clone_repos
 from pydantic import BaseModel, Field, model_validator
@@ -676,48 +677,37 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
     if reporting.ACTIVE and not reporting.ACTIVE.get("conversation_id"):
         local_report = reporting.TaskReport(configs[0], task)
         local_report.update("RUNNING", "Implementing and validating the approved task.")
-    try:
-        with (
-            measurements.task(
-                artifact,
-                task,
-                "maintenance"
-                if any(c.get("repair_pr") for c in configs)
-                else "issue"
-                if issue
-                else "feature",
-                {c["project"]: c.get("repository", "") for c in configs if "project" in c},
-            ),
-            reporting.task_progress(
-                task,
-                artifact,
-                ("implementation", "tests", "browser_qa", "review", "publication"),
-                min(c["repair_attempts"] for c in configs),
-            ),
-        ):
-            result = _execute_build(
-                configs, task, request, credential, issue, publish_draft, artifact, states
-            )
-    except BaseException as exc:
-        if local_report:
-            saved = json.loads((artifact / "result.json").read_text())
-            local_report.update(saved["status"], str(exc), result=saved)
-        raise
-    if local_report:
-        local_report.update(
+    with TaskLifecycle(
+        artifact=artifact,
+        task=task,
+        kind="maintenance"
+        if any(c.get("repair_pr") for c in configs)
+        else "issue"
+        if issue
+        else "feature",
+        repositories={c["project"]: c.get("repository", "") for c in configs if "project" in c},
+        stages=("implementation", "tests", "browser_qa", "review", "publication"),
+        repair_limit=min(c["repair_attempts"] for c in configs),
+        report=local_report.update if local_report else None,
+    ) as lifecycle:
+        result = _execute_build(
+            configs, task, request, credential, issue, publish_draft, artifact, states, lifecycle
+        )
+        lifecycle.complete(
             "PASSED",
             "\n".join(s["pull_request"] for s in states.values() if s.get("pull_request"))
             or "Validated; evidence retained.",
-            result=result,
         )
-    return result
+        return result
 
 
 # [impl->req~im-bounded-repair~1]
 # [impl->req~im-browser-gap-acceptance~1]
 # [impl->req~im-group-publication~1]
 # [impl->req~im-publication-gate~1]
-def _execute_build(configs, task, request, credential, issue, publish_draft, artifact, states):
+def _execute_build(
+    configs, task, request, credential, issue, publish_draft, artifact, states, lifecycle
+):
     repair_context.initialize(artifact, request)
     for state in states.values():
         state["commit_message"] = change_title(request)
@@ -729,9 +719,7 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
     }
 
     def save():
-        (artifact / "result.json").write_text(json.dumps(outcome, indent=2))
-        sdlc.handoff(artifact, outcome)
-        measurements.update(outcome)
+        lifecycle.save(outcome, handoff=True)
 
     prompt = request
     repair_reason = "pr_maintenance" if any(c.get("repair_pr") for c in configs) else "initial"
@@ -924,7 +912,7 @@ def _execute_build(configs, task, request, credential, issue, publish_draft, art
             )
     except BaseException as exc:
         outcome.update(
-            status="NEEDS_INPUT" if isinstance(exc, NeedsInput) else "FAILED",
+            status=failure_status(exc),
             error=f"{type(exc).__name__}: {exc}",
         )
         if isinstance(exc, (AgentExecutionError, StructuredResponseError)):

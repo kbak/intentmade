@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import review
 import review_report
-from test_specialist_review import evidence, finding, specialist
+from review_fixture import evidence, finding, specialist
 
 
 def overlapping_review():

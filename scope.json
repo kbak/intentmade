@@ -76,6 +76,9 @@
         "utest"
       ],
       "required_artifacts": [
+        "utest~im-task-outcome-propagation",
+        "utest~im-review-intent-publication",
+        "utest~im-review-harness-replay",
         "utest~im-approval-ApprovalHistoryTests-title_and_body_edits_after_or_during_approval_second_fail_closed",
         "utest~im-approval-ApprovalHistoryTests-missing_or_partial_history_fails_closed",
         "utest~im-approval-ApprovalWorkflowTests-publication_requires_unchanged_snapshot_before_any_push",

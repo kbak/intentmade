@@ -18,7 +18,7 @@ import sandbox
 from factory_reader import ReadAction, Reader
 from openhands.sdk.agent import Agent
 from pydantic import ValidationError
-from test_specialist_review import specialist
+from review_fixture import specialist
 
 PROFILE = {
     "agent_kind": "openhands",

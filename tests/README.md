@@ -4,6 +4,12 @@ Run commands from the repository root. Regression tests use local fixtures and
 scripted GitHub/agent responses. The live agent smoke test below uses a separate
 Canvas deployment and a Codex login.
 
+Pipeline tests share local Git setup and worker/worktree adapters in
+`pipeline_fixture.py`; traceability scenarios use the same adapters while retaining
+real IntentBond checks. Review event builders live in `review_fixture.py` so tests
+do not depend on other test classes or invoke their setup methods. Individual test
+names and JUnit execution links remain the evidence identities.
+
 ## Lint and regressions
 
 ```bash

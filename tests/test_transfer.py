@@ -13,6 +13,7 @@ import common
 import resource_limits
 import run
 import transfer
+from pipeline_fixture import PipelineScenario, execute_local, seed_repository
 
 
 class TransferTests(unittest.TestCase):
@@ -23,15 +24,8 @@ class TransferTests(unittest.TestCase):
 
     def seed(self, root):
         source, bare = root / "seed", root / "task.git"
-        common.git(["init", "-b", "factory/task", str(source)])
-        common.git(["config", "user.name", "Fixture"], cwd=source)
-        common.git(["config", "user.email", "fixture@localhost"], cwd=source)
-        (source / "code.txt").write_text("base\n")
-        common.git(["add", "."], cwd=source)
-        common.git(["commit", "-m", "base"], cwd=source)
-        base = common.git(["rev-parse", "HEAD"], cwd=source).stdout.strip()
-        common.git(["clone", "--bare", str(source), str(bare)])
-        return source, {"repository": str(bare), "base": base, "branch": "factory/task"}
+        state = seed_repository(source, bare, files={"code.txt": "base\n"})
+        return source, state
 
     def test_agent_branch_rename_retains_current_work_under_the_task_branch(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -41,13 +35,7 @@ class TransferTests(unittest.TestCase):
             common.git(["branch", "-m", "fix/issue-name-from-guidance"], cwd=source)
             (source / "code.txt").write_text("valuable uncommitted fix")
 
-            def execute(command, cwd, **kwargs):
-                result = subprocess.run(
-                    ["bash", "-c", command], cwd=cwd, text=True, capture_output=True
-                )
-                return SimpleNamespace(
-                    exit_code=result.returncode, stdout=result.stdout, stderr=result.stderr
-                )
+            execute = execute_local
 
             bundle = root / "export.bundle"
             transfer.export_task(SimpleNamespace(execute_command=execute), state, bundle, "task")
@@ -75,13 +63,7 @@ class TransferTests(unittest.TestCase):
             )
             state["worktree"] = str(source)
 
-            def execute(command, cwd, **kwargs):
-                result = subprocess.run(
-                    ["bash", "-c", command], cwd=cwd, capture_output=True, text=True
-                )
-                return SimpleNamespace(
-                    exit_code=result.returncode, stdout=result.stdout, stderr=result.stderr
-                )
+            execute = execute_local
 
             with self.assertRaisesRegex(RuntimeError, "Unresolved merge conflicts"):
                 transfer.export_task(
@@ -159,25 +141,11 @@ class TransferTests(unittest.TestCase):
 
             @contextmanager
             def worker(job, configs):
-                def execute(command, cwd, **kwargs):
-                    result = subprocess.run(
-                        ["bash", "-c", command], cwd=cwd, capture_output=True, text=True
-                    )
-                    return SimpleNamespace(
-                        exit_code=result.returncode, stdout=result.stdout, stderr=result.stderr
-                    )
+                execute = execute_local
 
                 yield SimpleNamespace(working_dir=str(job / "source"), execute_command=execute)
 
-            def worktree(workspace):
-                source = Path(workspace.working_dir)
-                checkout = source.parent.parent / "worktrees" / source.name
-                checkout.parent.mkdir(exist_ok=True)
-                common.git(
-                    ["worktree", "add", "-b", "openhands/test", str(checkout), "main"], cwd=source
-                )
-                workspace.working_dir = str(checkout)
-                return "fixture"
+            worktree = PipelineScenario(root).worktree
 
             def converse(workspace, *args, **kwargs):
                 for project in states:
@@ -278,15 +246,7 @@ class TransferTests(unittest.TestCase):
                 finally:
                     active_workers.remove(job)
 
-            def worktree(workspace):
-                source = Path(workspace.working_dir)
-                checkout = source.parent.parent / "worktrees" / "task"
-                checkout.parent.mkdir()
-                common.git(
-                    ["worktree", "add", "-b", "openhands/test", str(checkout), "main"], cwd=source
-                )
-                workspace.working_dir = str(checkout)
-                return "fixture"
+            worktree = PipelineScenario(root).worktree
 
             def converse(workspace, prompt, mode="read-only", *args, **kwargs):
                 checkout = Path(workspace.working_dir)

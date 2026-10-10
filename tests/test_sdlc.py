@@ -7,15 +7,15 @@ import os
 import sys
 import tempfile
 import unittest
-from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import common
+import review
 import run
 import sdlc
-from test_factory import local_git_command
+from pipeline_fixture import PipelineScenario, execute_local, seed_repository
 
 sys.path.insert(0, "/scripts")
 from export_handoff import export  # noqa: E402
@@ -27,13 +27,8 @@ class PortableTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
         self.seed, self.bare = self.root / "seed", self.root / "task.git"
-        common.git(["init", "-b", "factory/task", str(self.seed)])
-        common.git(["config", "user.name", "Fixture"], cwd=self.seed)
-        common.git(["config", "user.email", "fixture@localhost"], cwd=self.seed)
-        (self.seed / "code.txt").write_text("base")
-        self.commit()
-        self.base = common.git(["rev-parse", "HEAD"], cwd=self.seed).stdout.strip()
-        common.git(["clone", "--bare", str(self.seed), str(self.bare)])
+        state = seed_repository(self.seed, self.bare, files={"code.txt": "base"})
+        self.base = state["base"]
         self.package = sdlc.propose(
             "task",
             {"example": self.base},
@@ -84,27 +79,14 @@ class PortableTests(unittest.TestCase):
     def pipeline(self, *, tamper=False, fail=False, plan=None):
         sdlc.bind(self.bare, self.package)
 
-        @contextmanager
-        def worker(root, configs):
-            yield SimpleNamespace(
-                working_dir=str(root),
-                execute_command=lambda command, cwd, **kwargs: (
-                    local_git_command(command, cwd)
-                    if command.startswith("git ")
-                    else SimpleNamespace(
-                        exit_code=1 if fail else 0, stdout="test evidence", stderr=""
-                    )
-                ),
-            )
-
-        def worktree(workspace):
-            source = Path(workspace.working_dir)
-            checkout = source.parent / "worktree"
-            common.git(
-                ["worktree", "add", "-b", "openhands/test", str(checkout), "main"], cwd=source
-            )
-            workspace.working_dir = str(checkout)
-            return "conversation"
+        scenario = PipelineScenario(
+            self.root,
+            executor=lambda command, cwd, **kwargs: (
+                execute_local(command, cwd)
+                if command.startswith("git ")
+                else SimpleNamespace(exit_code=1 if fail else 0, stdout="test evidence", stderr="")
+            ),
+        )
 
         def implement(workspace, prompt, *args, **kwargs):
             root = Path(workspace.working_dir)
@@ -142,16 +124,7 @@ class PortableTests(unittest.TestCase):
             "publish_draft": False,
         }
         with (
-            patch.object(run, "DATA", self.root),
-            patch.object(run, "git_identity", return_value=("Fixture", "fixture@localhost")),
-            patch.object(run, "worker", worker),
-            patch.object(run, "worktree", worktree),
-            patch.object(run, "converse", implement),
-            patch.object(
-                run,
-                "review_code",
-                side_effect=reviewed,
-            ) as review,
+            scenario.activate(implement=implement, review=reviewed) as hooks,
             patch.object(run, "publish") as publish,
         ):
             try:
@@ -168,7 +141,7 @@ class PortableTests(unittest.TestCase):
             finally:
                 publish.assert_not_called()
                 if tamper or fail:
-                    review.assert_not_called()
+                    hooks.review_code.assert_not_called()
 
     def test_accepted_documents_survive_worktree_tests_export_and_review(self):
         outcome = self.pipeline()
@@ -270,8 +243,16 @@ class PortableTests(unittest.TestCase):
         )
         self.assertIn("User text", sdlc.update_pr_evidence("User text", body))
         (self.artifact / "provider.jsonl").write_text("private transcript")
+        review.ReviewEvidence(
+            events=[{"private_provider_content": "private transcript"}],
+            review_inputs={"example": {"head": self.states["example"]["commit"]}},
+        ).save(self.artifact / "provider.jsonl")
         output = export(self.artifact.parent, self.artifact.name, self.root / "export")
         self.assertFalse((output / "provider.jsonl").exists())
+        context = (output / "provider-evidence.json").read_text()
+        self.assertNotIn("private transcript", context)
+        self.assertNotIn("events", json.loads(context))
+        self.assertIn(self.states["example"]["commit"], context)
         self.assertEqual(
             (output / "example/changes.patch").read_bytes(),
             (self.artifact / "example/changes.patch").read_bytes(),

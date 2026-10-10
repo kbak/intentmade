@@ -12,8 +12,7 @@ import review
 import review_publication
 import review_report
 import run
-from test_specialist_review import evidence, finding, specialist
-from test_traceability_review import EXPECTED, assessed, change
+from review_fixture import EXPECTED, assessed, change, evidence, finding, specialist
 
 
 class DirectReportTests(unittest.TestCase):

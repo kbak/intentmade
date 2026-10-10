@@ -469,7 +469,7 @@ Needs: impl, utest
 
 Documentation: [docs/reviews.md](../docs/reviews.md).
 
-Implementation: [publish](../workflows/review_publication.py), [load_saved](../workflows/review_publication.py).
+Implementation: [publish](../workflows/review_publication.py), [load_saved](../workflows/review_publication.py), [ReviewEvidence replay context](../workflows/review.py).
 
 Existing assertions: [test_changed_head_or_failed_ci_never_posts](../tests/test_review_publication.py), [test_retargeted_or_advanced_base_cannot_publish_or_reuse_old_review](../tests/test_review_publication.py), [test_old_protocol_publication_retry_runs_a_fresh_review](../tests/test_review_publication.py).
 
@@ -487,7 +487,7 @@ Documentation: [docs/reviews.md](../docs/reviews.md).
 
 Implementation: [publish](../workflows/review_publication.py), [load_saved](../workflows/review_publication.py).
 
-Existing assertions: [test_lost_response_is_reconciled_without_duplicate_post](../tests/test_review_publication.py), [test_failed_publication_reuses_verified_artifacts_without_rerunning_specialists](../tests/test_review_publication.py).
+Existing assertions: [test_lost_response_is_reconciled_without_duplicate_post](../tests/test_review_publication.py), [test_failed_publication_reuses_verified_artifacts_without_rerunning_specialists](../tests/test_review_publication.py), [both harnesses replay and reject changed evidence](../tests/test_review_publication.py).
 
 ### Preserve findings through report consolidation
 `req~im-review-report-integrity~1`
@@ -775,9 +775,9 @@ Needs: impl, utest
 
 Documentation: [docs/measurements.md](../docs/measurements.md).
 
-Implementation: [update](../workflows/measurements.py), [record_agent](../workflows/measurements.py), [task](../workflows/measurements.py).
+Implementation: [update](../workflows/measurements.py), [record_agent](../workflows/measurements.py), [task](../workflows/measurements.py), [shared task outcomes](../workflows/lifecycle.py).
 
-Existing assertions: [test_repaired_build_retains_both_checks_and_source_versions](../tests/test_measurements.py), [test_metrics_write_failure_preserves_original_error](../tests/test_measurements.py), [test_usage_is_a_delta_and_zero_cost_is_unknown](../tests/test_measurements.py), [test_usage_reset_or_unavailable_baseline_is_not_fabricated](../tests/test_measurements.py).
+Existing assertions: [test_repaired_build_retains_both_checks_and_source_versions](../tests/test_measurements.py), [test_metrics_write_failure_preserves_original_error](../tests/test_measurements.py), [test_usage_is_a_delta_and_zero_cost_is_unknown](../tests/test_measurements.py), [test_usage_reset_or_unavailable_baseline_is_not_fabricated](../tests/test_measurements.py), [publication outcomes survive nested adapters](../tests/test_lifecycle.py).
 
 Evidence limit: Measurement collection is not an independent spend ledger or a measure of prevented defects.
 
@@ -949,7 +949,8 @@ Documentation: [portable workflow](portable-workflow.md#keep-product-context-sma
 Implementation: [review.py](../workflows/review.py), [run.py](../workflows/run.py),
 [factory review skill](../workflows/skills/factory-review/SKILL.md).
 
-Existing assertions: [intent assessment gates](../tests/test_intent_review.py).
+Existing assertions: [intent assessment gates](../tests/test_intent_review.py),
+[intent conflicts retain their verdict at publication](../tests/test_review_publication.py).
 
 Evidence limit: scripted judgments exercise gating and retention, not model ability
 to detect semantic drift. Controller checks do not prove references are relevant.

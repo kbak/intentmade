@@ -13,65 +13,8 @@ from unittest.mock import Mock, patch
 import monitor
 import review
 import run
+from review_fixture import evidence, finding, specialist
 from review_report import draft_report, validate_report
-
-
-def finding(**changes):
-    return {
-        "title": "Cross-account access",
-        "category": "security",
-        "severity": "high",
-        "file": "app/routes.py",
-        "line": 12,
-        "evidence": "The account lookup uses the request ID without checking ownership.",
-        "scenario": "A signed-in user supplies another account's ID.",
-        "impact": "The response discloses that account's private records.",
-        "remediation": "Check ownership before reading the records.",
-        "introduced_or_worsened": True,
-        "demonstrated_exploitability": True,
-        "material_impact": True,
-        **changes,
-    }
-
-
-def specialist(**changes):
-    return {
-        "verdict": "PASS",
-        "summary": "Source reviewed.",
-        "blocking_findings": [],
-        "non_blocking_findings": [],
-        "infrastructure_error": None,
-        **changes,
-    }
-
-
-def evidence(code=None, security=None):
-    # Assemble correctness and security fixtures into the single Alibaba result.
-    result = copy.deepcopy(code or specialist())
-    if security:
-        for name in ("blocking_findings", "non_blocking_findings"):
-            result[name].extend(security[name])
-        if security["verdict"] != "PASS":
-            result["verdict"] = security["verdict"]
-        if security["infrastructure_error"]:
-            result["infrastructure_error"] = security["infrastructure_error"]
-    return {
-        "kind": "ACPToolCallEvent",
-        "title": "Factory specialist review",
-        "status": "completed",
-        "raw_input": {"version": 2, "threadId": "parent", "turnId": "turn"},
-        "raw_output": {
-            "agents": [
-                {
-                    "thread_id": "child-0",
-                    "parent_thread_id": "parent",
-                    "role": review.ROLES[0],
-                    "status": "completed",
-                    "message": json.dumps(result),
-                }
-            ]
-        },
-    }
 
 
 class SpecialistVerdictTests(unittest.TestCase):
@@ -276,7 +219,7 @@ class SpecialistRepairTests(unittest.TestCase):
 class ManualSpecialistReviewTests(unittest.TestCase):
     @unittest.skipUnless(importlib.util.find_spec("intentbond"), "Optional portable package")
     def test_opted_in_pr_review_receives_scope_and_accessible_patch_context(self):
-        from test_traceability_review import assessed, change
+        from review_fixture import assessed, change
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
