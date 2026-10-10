@@ -1,0 +1,132 @@
+namespace IntentMade {
+    entity Controller;
+    entity Run;
+    action "validation:complete" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            tests_passed: Bool,
+            review_verdict: String,
+            browser_passed: Bool,
+            traceability_passed: Bool
+        } }
+    };
+    action "issue:eligible" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            state: String,
+            is_pull_request: Bool,
+            assignees: Long,
+            intake: String,
+            label_required: Bool,
+            label_present: Bool
+        } }
+    };
+    action "issue:approval" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            has_changes: Bool,
+            latest_change_at: Long,
+            approved_at: Long
+        } }
+    };
+    action "pr:inspect" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            state: String,
+            draft: Bool
+        } }
+    };
+    action "ci:accept" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            results: Set<String>,
+            head_results: Set<String>,
+            accepted_results: Set<String>,
+            required_patterns: Set<String>,
+            matched_patterns: Set<String>
+        } }
+    };
+    action "feedback:accept" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            login: String,
+            generated: Bool,
+            bot: Bool,
+            permission: String,
+            allowed_bots: Set<String>,
+            kind: String,
+            mentioned: Bool
+        } }
+    };
+    action "resume:task" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            status: String
+        } }
+    };
+    action "resume:event" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            source: String,
+            kind: String,
+            role: String,
+            event_id: String,
+            answer_id: String
+        } }
+    };
+    action "resume:answer" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            event_at: Long,
+            question_at: Long,
+            explicit: Bool,
+            answer_present: Bool
+        } }
+    };
+    action "resume:dispatch" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            scheduler_enabled: Bool
+        } }
+    };
+}

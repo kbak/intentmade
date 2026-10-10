@@ -16,6 +16,7 @@
 
 - [Intent](intent.md) — intended outcomes, rationale and conversation guidance.
 - [Specification](spec.md) — maintained requirements and their code/test links.
+- [Authorization](authorization.md) — Cedar rules, controller facts and decision receipts.
 - [Traceability](traceability.md) — configure IntentBond and understand the validation stages.
 - [Traceability agent API](traceability-agent-api.md) — guidance and command helpers.
 - [Scope identity](scope-identity.md) — capture and verify the selected policy.

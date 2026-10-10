@@ -58,7 +58,8 @@
     "utest~im-factory-PipelineTests-failed_tests_or_review_keep_branch_and_never_publish~1"
   ],
   "test_factory.PipelineTests.test_group_validation_retention_and_partial_publication": [
-    "utest~im-factory-PipelineTests-group_validation_retention_and_partial_publication~1"
+    "utest~im-factory-PipelineTests-group_validation_retention_and_partial_publication~1",
+    "utest~im-authorization-pipeline~1"
   ],
   "test_factory.PipelineTests.test_group_acquires_all_repository_locks_before_preparing_work": [
     "utest~im-factory-PipelineTests-group_acquires_all_repository_locks_before_preparing_work~1"
@@ -487,5 +488,55 @@
   ],
   "test_report_status.ReportStatusTests.test_generated_questions_do_not_start_a_healthy_assistant": [
     "utest~im-report-no-auto-start~1"
+  ],
+  "test_authorization.AuthorizationTests.test_real_policy_matrix_and_stateless_restarts": [
+    "utest~im-authorization-matrix~1"
+  ],
+  "test_authorization.AuthorizationTests.test_group_and_candidate_identity_are_recorded_as_one_decision": [
+    "utest~im-authorization-group~1"
+  ],
+  "test_authorization.AuthorizationTests.test_operator_configuration_cannot_enter_repository_or_saved_workflow": [
+    "utest~im-authorization-configuration~1"
+  ],
+  "test_authorization.AuthorizationTests.test_engine_is_authoritative_without_python_predicate": [
+    "utest~im-authorization-authority~1"
+  ],
+  "test_authorization.AuthorizationTests.test_engine_errors_block_progression_without_python_fallback": [
+    "utest~im-authorization-errors~1"
+  ],
+  "test_authorization.AuthorizationTests.test_enforcement_rejects_missing_facts_and_sources": [
+    "utest~im-authorization-facts~1"
+  ],
+  "test_authorization.AuthorizationTests.test_receipt_failure_blocks_enforcement_even_after_engine_allows": [
+    "utest~im-authorization-receipt~1"
+  ],
+  "test_authorization_admission.AdmissionTests.test_issue_and_approval_policy_equivalence": [
+    "utest~im-authorization-issue-admission~1"
+  ],
+  "test_authorization_admission.AdmissionTests.test_pr_and_ci_policy_equivalence": [
+    "utest~im-authorization-ci-admission~1"
+  ],
+  "test_authorization_admission.AdmissionTests.test_feedback_and_continuation_policy_equivalence": [
+    "utest~im-authorization-reply-admission~1"
+  ],
+  "test_authorization_admission.AdmissionTests.test_invalid_action_facts_and_unavailable_engine_block_each_gate": [
+    "utest~im-authorization-admission-errors~1"
+  ],
+  "test_authorization_admission.AdmissionTests.test_existing_issue_approval_and_ci_boundaries_use_engine": [
+    "utest~im-authorization-admission-boundaries~1",
+    "utest~im-authorization-admission-ownership~1",
+    "utest~im-authorization-admission-approval~1",
+    "utest~im-authorization-admission-ci~1"
+  ],
+  "test_authorization_admission.AdmissionTests.test_existing_feedback_resume_and_dispatch_boundaries_use_engine": [
+    "utest~im-authorization-continuation-boundaries~1",
+    "utest~im-authorization-continuation-feedback~1",
+    "utest~im-authorization-continuation-resume~1"
+  ],
+  "test_authorization.AuthorizationTests.test_all_projects_invoke_bridge_without_operator_selection": [
+    "utest~im-authorization-no-bypass~1"
+  ],
+  "test_authorization.AuthorizationTests.test_real_bridge_rejects_malformed_requests": [
+    "utest~im-authorization-requests~1"
   ]
 }

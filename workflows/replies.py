@@ -3,12 +3,14 @@
 import hashlib
 import json
 
+import authorization
 import reporting
 from common import DATA, api, lock, projects
 from openhands.sdk.utils.files import atomic_write_text
 
 
 # [impl->req~im-explicit-resume~1]
+# [impl->req~im-authorization~1]
 def queue_reply(conversation_id):
     for config in projects().values():
         if not config.get("enabled") or not config.get("repository"):
@@ -32,7 +34,12 @@ def queue_reply(conversation_id):
                 if receipt.exists():
                     return True
                 scheduler = api("GET", "/api/automation/v1/" + route["scheduler_id"], timeout=10)
-                if not scheduler["enabled"]:
+                if not authorization.permit(
+                    config,
+                    "resume:dispatch",
+                    {"task": path.stem, "answer": reply["id"], "scheduler": route["scheduler_id"]},
+                    {"scheduler_enabled": scheduler["enabled"]},
+                ):
                     return False
                 run = api(
                     "POST", "/api/automation/v1/" + route["automation_id"] + "/dispatch", timeout=10

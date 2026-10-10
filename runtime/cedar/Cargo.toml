@@ -1,0 +1,16 @@
+[package]
+name = "intentmade-cedar"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+publish = false
+license = "MIT"
+
+[dependencies]
+cedar-policy = { version = "=4.13.0", default-features = false }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+sha2 = "=0.10.9"
+
+[profile.release]
+overflow-checks = true

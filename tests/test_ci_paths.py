@@ -17,7 +17,7 @@ class PathChecksTests(unittest.TestCase):
                 {"paths": ["mobile/ios/**"], "required_checks": ["swift", "js"]}
             ],
         }
-        pr = {"state": "open", "head": {"sha": "head"}}
+        pr = {"state": "open", "draft": False, "head": {"sha": "head"}}
         cases = [
             ([{"filename": "mobile/ios/app.js"}], {"swift": "success", "js": "success"}, True),
             ([{"filename": "mobile/ios/app.js"}], {"swift": "success"}, False),

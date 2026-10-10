@@ -245,9 +245,7 @@ def plan(config, pr, credential):
     behind = comparison["behind_by"] > 0
     title = pull_request_title(pr["title"], config)
     rename_title = title != pr["title"]
-    ready = checks_pass({**checks, **merged}, config) and all(
-        v in config["accepted_check_results"] for v in checks.values()
-    )
+    ready = checks_pass({**checks, **merged}, config, head_checks=checks)
     if ready and not behind and not rename_title and not entries and not reply:
         record["attempts"] = 0
         report_status(

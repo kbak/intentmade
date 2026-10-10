@@ -1,5 +1,13 @@
+FROM rust:1.91.1-bookworm@sha256:c1e5f19e773b7878c3f7a805dd00a495e747acbdc76fb2337a4ebf0418896b33 AS cedar-build
+WORKDIR /build
+COPY runtime/cedar/ ./
+RUN cargo test --release --locked && cargo build --release --locked
+
 FROM ghcr.io/openhands/agent-canvas:1.26.0@sha256:ce4526401c08b47d74fd0be5ebf97e8219d6a02955cb6710e8cc3335f01291a6
 USER root
+COPY --from=cedar-build /build/target/release/intentmade-cedar /opt/factory/cedar/intentmade-cedar
+COPY runtime/cedar/policy.cedar runtime/cedar/schema.cedarschema /opt/factory/cedar/
+COPY runtime/cedar/LICENSE.cedar runtime/cedar/NOTICE.cedar /opt/factory/cedar/
 COPY docker/openhands-requirements.txt /opt/factory/openhands-requirements.txt
 RUN python -m pip install --no-cache-dir --no-deps --require-hashes --only-binary=:all: \
       -r /opt/factory/openhands-requirements.txt && python -m pip check

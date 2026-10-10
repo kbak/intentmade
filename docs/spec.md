@@ -25,8 +25,9 @@ The boundary column identifies areas needing more detailed requirements or check
 | Portable workflow | [portable-plan](#retain-an-explicitly-accepted-planning-package), [intent-consistency](#check-affected-product-and-task-intent-in-existing-review), [repository-policy](#capture-verification-policy-from-a-pinned-project-commit), [portable-handoff](#export-source-bound-continuation-and-review-evidence) | Explicit package gates are controller-enforced; request-only delegated planning remains agent guidance. No live model or GitHub qualification. |
 | IntentBond integration | [trace-opt-in](#enable-traceability-through-explicit-configuration), [trace-source-gate](#match-controller-evidence-to-exported-source-and-policy), [trace-assessment](#require-semantic-accounting-beyond-a-green-trace-graph), [scope-identity](#distinguish-scope-bytes-from-canonical-policy), [trace-retention](#retain-bounded-invocation-evidence-including-failures) | Deployment activation requires explicit configuration; fixture annotations are excluded through the trusted scope. |
 | Observability and operator automation | [execution-provenance](#keep-observed-environment-identity-distinct-from-intent), [finite-completion](#record-finite-execution-before-acknowledgement), [finite-timeout](#stop-timed-out-finite-recipes), [measurement-outcomes](#preserve-attempts-and-unknown-measurements), [startup-retry](#retry-only-a-typed-pre-work-startup-timeout) | Provider counter conversion, finite registration consistency, full CLI/setup and backup/restore promises remain deferred. |
+| Current-fact authorization | [controller authorization](#authorize-controller-actions-with-cedar), [individual rules](authorization.md#rule-traceability) | Cedar decides over validated current facts; durable history and orchestration remain outside the engine. |
 | Runtime validation | [runtime-build-inputs](#runtime-test-image-matches-candidate-patch-inputs) | A matching build manifest checks consistency; it does not attest an untrusted image. |
-| Deployment configuration repository, pilot applications and upstream projects | Outside this repository's product baseline | Examples and dependency pins are captured; sibling repositories and upstream internals have separate contracts. |
+| Deployment configuration repository, registered applications and upstream projects | Outside this repository's product baseline | Examples and dependency pins are captured; sibling repositories and upstream internals have separate contracts. |
 
 ## Checking and verification limits
 
@@ -129,7 +130,7 @@ Needs: impl, utest
 
 Documentation: [SECURITY.md](../SECURITY.md).
 
-Implementation: [approved_issue](../workflows/approval.py), [publish](../workflows/run.py).
+Implementation: [approved_issue](../workflows/approval.py), [approval chronology policy](authorization.md#issue-approval-rule), [publish](../workflows/run.py).
 
 Existing assertions: [test_title_and_body_edits_after_or_during_approval_second_fail_closed](../tests/test_approval.py), [test_missing_or_partial_history_fails_closed](../tests/test_approval.py), [test_publication_requires_unchanged_snapshot_before_any_push](../tests/test_approval.py).
 
@@ -145,7 +146,7 @@ Needs: impl, utest
 
 Documentation: [docs/workflows.md](../docs/workflows.md).
 
-Implementation: [issue_eligible](../workflows/policy.py), [implement_issue](../workflows/monitor.py).
+Implementation: [issue_eligible](../workflows/policy.py), [issue eligibility policy](authorization.md#issue-eligibility-rule), [implement_issue](../workflows/monitor.py).
 
 Existing assertions: [test_only_approved_unassigned_issues_are_eligible](../tests/test_factory.py), [test_success_claims_before_build_and_keeps_assignment](../tests/test_factory.py), [test_failure_releases_only_our_own_assignment](../tests/test_factory.py).
 
@@ -197,7 +198,7 @@ Needs: impl, utest
 
 Documentation: [docs/workflows.md](../docs/workflows.md).
 
-Implementation: [resume_reply](../workflows/reporting.py), [queue_reply](../workflows/replies.py).
+Implementation: [resume_reply](../workflows/reporting.py), [queue_reply](../workflows/replies.py), [continuation policies](authorization.md#continuation-task-rule).
 
 Existing assertions: [test_only_new_explicit_user_reply_can_resume_same_snapshot](../tests/test_recovery.py), [test_saved_answer_dispatches_immediately_and_duplicate_notification_is_idempotent](../tests/test_replies.py), [test_paused_schedule_disables_immediate_dispatch](../tests/test_replies.py).
 
@@ -229,11 +230,71 @@ Needs: impl, utest
 
 Documentation: [README.md](../README.md).
 
-Implementation: [_execute_build](../workflows/run.py), [publish](../workflows/run.py).
+Implementation: [_execute_build](../workflows/run.py), [validation policy](authorization.md#validation-completion-rule), [publish](../workflows/run.py).
 
 Existing assertions: [test_failed_tests_or_review_keep_branch_and_never_publish](../tests/test_factory.py), [test_actual_upstream_push_and_draft_payload_use_task_branch](../tests/test_factory.py), [test_accepted_gaps_reach_review_and_publication_but_do_not_waive_tests_or_review](../tests/test_browser_qa.py).
 
 Evidence limit: Explicitly accepted infrastructure browser gaps use PASSED_WITH_GAPS. External GitHub CI triggered by a push remains outside factory isolation.
+
+### Authorize controller actions with Cedar
+`req~im-authorization~1`
+
+Cedar is the sole decision maker for the controller's current-fact authorization
+gates. Supply separately validated test, review, browser and traceability facts
+to the bundled policy, preserving optional checks and accepted browser gaps
+without introducing expiry. Authorize the entire group for every grouped build.
+There are no Python reference predicates, shadow comparisons, disabled modes or
+project-selection bypasses. Reject engine mode/project configuration
+rather than silently ignoring an operator's obsolete setting. Repository content
+and captured workflow settings cannot select the policy.
+
+Use the same bridge for issue eligibility and approval chronology, PR inspection
+and CI acceptance, feedback-author authority and comment mentions, continuation
+task/event/answer eligibility, and reply dispatch under the current schedule.
+Python collects and validates facts, source identities, configured check-pattern
+matches and evidence. Keep hashing, GitHub/Canvas reads, ownership, locks,
+consumed-answer records, deduplication, repair budgets and action execution in Python.
+
+All policies use no engine history. Each evaluation runs the pinned Cedar SDK
+in a private process without a store, retaining its action-bound receipt outside
+worker mounts. Validate policy and request against the bundled schema. Any Cedar
+evaluation error blocks progression even if another policy would permit.
+Denials prevent the associated action; final-validation denial enters the existing
+bounded repair orchestration. Missing or malformed facts/source identities,
+unavailable bridge, timeout, invalid response, policy mismatch or unavailable receipt
+stop progression without fallback. Preserve current head/merge CI behavior,
+same-second approval ambiguity, feedback allowlists and explicit fresh replies.
+Keep evidence validation and current approval/publication checks. Rolling limits,
+expiry and history-based invalidation are outside this change.
+
+Requirement, rule and assertion IDs describe authorization behavior independently
+of the engine. Future engine changes retain those identities and revise the
+requirement when its contract changes.
+
+Retain an atomically written receipt with task, attempt, source identities, facts, decision, policy
+identity and latency outside worker mounts. Local fixture builds identify their
+controller-retained repository instead of a remote registration. Report engine
+and receipt errors.
+
+Covers:
+- `intent~im-deliver-changes~1`
+- `intent~im-trust-evidence~1`
+
+Needs: impl, utest
+
+Documentation: [Cedar authorization](authorization.md),
+[individual rule traceability](authorization.md#rule-traceability).
+
+Implementation: [shared authorization](../workflows/authorization.py), [issue/CI gates](../workflows/policy.py),
+[approval](../workflows/approval.py), [feedback](../workflows/feedback.py),
+[continuation](../workflows/reporting.py), [dispatch](../workflows/replies.py),
+[_execute_build](../workflows/run.py).
+
+Existing assertions: [test_authorization.py](../tests/test_authorization.py), [current-fact gates](../tests/test_authorization_admission.py), [grouped publication](../tests/test_factory.py).
+
+Evidence limit: Policy decisions and failure tests use the compiled published
+engine and scripted facts in disposable containers. Production behavior still
+requires receipts bound to the deployed source and policy.
 
 ### Bound repair and preserve the approved request
 `req~im-bounded-repair~1`
@@ -469,7 +530,7 @@ Needs: impl, utest
 
 Documentation: [docs/reviews.md](../docs/reviews.md).
 
-Implementation: [publish](../workflows/review_publication.py), [load_saved](../workflows/review_publication.py), [ReviewEvidence replay context](../workflows/review.py).
+Implementation: [publish](../workflows/review_publication.py), [load_saved](../workflows/review_publication.py), [ReviewEvidence replay context](../workflows/review.py), [PR inspection and CI policies](authorization.md#pr-inspection-rule).
 
 Existing assertions: [test_changed_head_or_failed_ci_never_posts](../tests/test_review_publication.py), [test_retargeted_or_advanced_base_cannot_publish_or_reuse_old_review](../tests/test_review_publication.py), [test_old_protocol_publication_retry_runs_a_fresh_review](../tests/test_review_publication.py).
 
@@ -517,7 +578,7 @@ Needs: impl, utest
 
 Documentation: [docs/workflows.md](../docs/workflows.md).
 
-Implementation: [collect](../workflows/feedback.py).
+Implementation: [collect](../workflows/feedback.py), [feedback authority policy](authorization.md#feedback-acceptance-rule).
 
 Existing assertions: [test_author_permission_bot_allowlist_and_own_generated_reviews](../tests/test_feedback.py), [test_current_submitted_reviews_and_unresolved_roots_only](../tests/test_feedback.py), [test_later_approval_supersedes_review_body](../tests/test_feedback.py), [test_general_comments_need_explicit_mention_and_edits_get_new_digest](../tests/test_feedback.py).
 

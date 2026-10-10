@@ -530,15 +530,19 @@ class PipelineTests(unittest.TestCase):
 
     def test_group_validation_retention_and_partial_publication(self):
         scenarios = (
-            (0, "PASS", None),
-            (1, "PASS", None),
-            (0, "CHANGES_REQUESTED", None),
-            (0, "PASS", "second"),
+            (0, "PASS", None, False),
+            (1, "PASS", None, False),
+            (0, "CHANGES_REQUESTED", None, False),
+            (0, "PASS", "second", False),
+            (0, "PASS", None, True),
         )
-        for test_exit, verdict, publication_failure in scenarios:
+        for test_exit, verdict, publication_failure, engine_error in scenarios:
             with (
                 self.subTest(
-                    test_exit=test_exit, verdict=verdict, publication_failure=publication_failure
+                    test_exit=test_exit,
+                    verdict=verdict,
+                    publication_failure=publication_failure,
+                    engine_error=engine_error,
                 ),
                 tempfile.TemporaryDirectory() as temp,
             ):
@@ -554,7 +558,7 @@ class PipelineTests(unittest.TestCase):
                             **CONFIG,
                             "project": project,
                             "repository": "org/" + project,
-                            "repair_attempts": 0,
+                            "repair_attempts": 3 if engine_error else 0,
                             "test_command": "test -f code.txt",
                         }
                     )
@@ -595,6 +599,11 @@ class PipelineTests(unittest.TestCase):
                 with (
                     scenario.activate(implement=converse, review=converse),
                     patch.object(run, "publish", side_effect=publish) as published,
+                    patch.object(
+                        run.authorization,
+                        "BRIDGE",
+                        str(root / "missing") if engine_error else run.authorization.BRIDGE,
+                    ),
                 ):
 
                     def invoke():
@@ -609,7 +618,7 @@ class PipelineTests(unittest.TestCase):
                             states,
                         )
 
-                    if test_exit or verdict != "PASS" or publication_failure:
+                    if test_exit or verdict != "PASS" or publication_failure or engine_error:
                         # [utest~im-factory-PipelineTests-group_validation_retention_and_partial_publication~1->req~im-group-publication~1]
                         with self.assertRaises(RuntimeError):
                             invoke()
@@ -619,14 +628,35 @@ class PipelineTests(unittest.TestCase):
                         artifact = root / "next-run-artifact"
                         artifact.mkdir()
                         self.assertEqual(invoke()["status"], "PASSED")
-                    if test_exit or verdict != "PASS":
+                    if test_exit or verdict != "PASS" or engine_error:
                         published.assert_not_called()
+                        if engine_error:
+                            self.assertEqual(tested, ["first", "second"])
+                            result = json.loads((artifact / "result.json").read_text())
+                            self.assertEqual(result["status"], "FAILED")
+                            self.assertIn("Cedar authorization unavailable", result["error"])
                     elif publication_failure:
                         result = json.loads((artifact / "result.json").read_text())
                         self.assertEqual(result["status"], "PUBLICATION_FAILED")
                         self.assertEqual(
                             result["repositories"]["first"]["pull_request"],
                             "https://example.test/first",
+                        )
+                    # [utest~im-authorization-pipeline~1->req~im-authorization~1]
+                    receipt_path = artifact / "authorization" / "attempt-0.json"
+                    if test_exit:
+                        self.assertFalse(receipt_path.exists())
+                    else:
+                        receipt = json.loads(receipt_path.read_text())
+                        self.assertEqual(
+                            receipt["status"],
+                            "ERROR" if engine_error else ("ALLOW" if verdict == "PASS" else "DENY"),
+                            receipt,
+                        )
+                        self.assertNotIn("python_allowed", receipt)
+                        self.assertEqual(
+                            set(json.loads(receipt["request"]["source_identity"])),
+                            {"first", "second"},
                         )
                     for state in states.values():
                         content = common.git(

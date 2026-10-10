@@ -78,7 +78,21 @@ class MeasurementTests(unittest.TestCase):
         ):
             with self.assertRaises(reporting.NeedsInput):
                 run.execute_build(
-                    [{"repair_attempts": 1}], "task", "spec", "", None, False, self.root, {}
+                    [{"project": "app", "repository": "org/app", "repair_attempts": 1}],
+                    "task",
+                    "spec",
+                    "",
+                    None,
+                    False,
+                    self.root,
+                    {
+                        "app": {
+                            "base": "base",
+                            "commit": "head",
+                            "branch": "branch",
+                            "repository": "retained",
+                        }
+                    },
                 )
         record = self.record()
         self.assertEqual(record["status"], "NEEDS_INPUT")

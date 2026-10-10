@@ -7,6 +7,7 @@ import time
 from urllib.error import HTTPError
 from urllib.parse import quote
 
+import authorization
 from common import github, issues
 
 MENTION = re.compile(r"(?<![\w-])@openhands(?:-agent)?\b", re.I)
@@ -49,6 +50,7 @@ def unresolved_roots(config, number, credential):
 
 
 # [impl->req~im-feedback-authority~1]
+# [impl->req~im-authorization~1]
 def collect(config, pr, credential, record, retry=False):
     if not config.get("pr_feedback", False):
         return []
@@ -57,24 +59,44 @@ def collect(config, pr, credential, record, retry=False):
     permission = {}
     bots = {s.casefold() for s in config.get("pr_feedback_bots", [])}
 
-    def allowed(item):
+    def allowed(kind, item):
         user = item.get("user") or {}
-        login = user.get("login", "")
-        if not login or "<!-- factory-review:" in (item.get("body") or ""):
-            return False
-        if user.get("type") == "Bot" or login.endswith("[bot]"):
-            return login.casefold() in bots
-        if login not in permission:
+        login = user.get("login") or ""
+        generated = "<!-- factory-review:" in (item.get("body") or "")
+        bot = user.get("type") == "Bot" or login.endswith("[bot]")
+        mentioned = bool(MENTION.search(item.get("body") or ""))
+        # Do not query irrelevant human permissions or attempt bot permission lookup.
+        if (
+            login
+            and not generated
+            and not bot
+            and (kind != "comment" or mentioned)
+            and login not in permission
+        ):
             try:
                 access = github(
                     credential, "GET", path + f"/collaborators/{quote(login, safe='')}/permission"
                 )
-                permission[login] = access.get("permission") in {"write", "maintain", "admin"}
+                permission[login] = access.get("permission") or ""
             except HTTPError as exc:
                 if exc.code != 404:
                     raise
-                permission[login] = False
-        return permission[login]
+                permission[login] = ""
+        facts = {
+            "login": login.casefold(),
+            "generated": generated,
+            "bot": bot,
+            "permission": permission.get(login, ""),
+            "allowed_bots": sorted(bots),
+            "kind": kind,
+            "mentioned": mentioned,
+        }
+        return authorization.permit(
+            config,
+            "feedback:accept",
+            {"pr": number, "head": head, "feedback": item["id"]},
+            facts,
+        )
 
     reviews = issues._github_paginate(credential, f"{path}/pulls/{number}/reviews")
     comments = issues._github_paginate(credential, f"{path}/pulls/{number}/comments")
@@ -96,13 +118,11 @@ def collect(config, pr, credential, record, retry=False):
     for item in comments:
         if item["id"] in roots or item.get("in_reply_to_id") in roots:
             candidates.append(("inline", item))
-    for item in discussion:
-        if MENTION.search(item.get("body") or ""):
-            candidates.append(("comment", item))
+    candidates.extend(("comment", item) for item in discussion)
     result = []
     for kind, item in candidates:
         body = (item.get("body") or "").strip()
-        if not body or not allowed(item):
+        if not body or not allowed(kind, item):
             continue
         entry = {
             "id": f"{kind}:{item['id']}",

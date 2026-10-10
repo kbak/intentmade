@@ -10,9 +10,11 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 
+import authorization
 import harness
 import httpx
 import measurements
+from approval import microseconds
 from common import DATA, api, identifier, session_api_key
 from lifecycle import NeedsInput  # noqa: F401 (public import for retained workflows)
 from openhands.sdk.utils.files import atomic_write_text
@@ -293,10 +295,18 @@ class TaskReport:
 
 
 # [impl->req~im-explicit-resume~1]
+# [impl->req~im-authorization~1]
 def resume_reply(config, task):
     """Only an explicit, new user reply can restart a failed/waiting task."""
     record = read_report(config, task)
-    if not record or record.get("status") not in {"NEEDS_INPUT", "FAILED", "PUBLICATION_FAILED"}:
+    if not record:
+        return None
+    if not authorization.permit(
+        config,
+        "resume:task",
+        {"task": task, "conversation": record.get("conversation_id")},
+        {"status": record.get("status", "")},
+    ):
         return None
     page_id = None
     while True:
@@ -319,19 +329,43 @@ def resume_reply(config, task):
             print(f"{task}: Canvas conversation unavailable; no resume reply.", flush=True)
             return None
         for event in data["items"]:
-            message = event.get("llm_message", {})
-            if event.get("source") != "user" or event.get("kind") != "MessageEvent":
-                continue
-            if message.get("role") != "user" or event.get("id") == record.get("answer_id"):
+            message = event.get("llm_message") or {}
+            subject = {
+                "task": task,
+                "conversation": record["conversation_id"],
+                "event": event.get("id"),
+            }
+            if not authorization.permit(
+                config,
+                "resume:event",
+                subject,
+                {
+                    "source": event.get("source", ""),
+                    "kind": event.get("kind", ""),
+                    "role": message.get("role", ""),
+                    "event_id": event.get("id"),
+                    "answer_id": record.get("answer_id") or "",
+                },
+            ):
                 continue
             timestamp = datetime.datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00"))
             # SDK event timestamps are UTC without an offset in this version.
             if timestamp.tzinfo is None:
                 timestamp = timestamp.replace(tzinfo=datetime.UTC)
-            if timestamp <= datetime.datetime.fromisoformat(record["updated_at"]):
-                continue
             text = "\n".join(c.get("text", "") for c in message.get("content", []))
-            if text.lower().startswith("resume:") and text[7:].strip():
+            if authorization.permit(
+                config,
+                "resume:answer",
+                subject,
+                {
+                    "event_at": microseconds(timestamp),
+                    "question_at": microseconds(
+                        datetime.datetime.fromisoformat(record["updated_at"])
+                    ),
+                    "explicit": text.lower().startswith("resume:"),
+                    "answer_present": bool(text[7:].strip()),
+                },
+            ):
                 return {
                     "id": event["id"],
                     "answer": text[7:].strip(),

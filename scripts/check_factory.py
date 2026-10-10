@@ -58,6 +58,8 @@ def main(argv=None):
         *docker,
         "--user",
         f"{os.getuid()}:{os.getgid()}",
+        "--tmpfs",
+        f"/projects/artifacts:uid={os.getuid()},gid={os.getgid()},mode=0700",
         "--entrypoint",
         "python",
         "-e",

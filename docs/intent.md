@@ -68,6 +68,17 @@ Operators should also be able to choose Codex or OpenHands' own harness through
 existing OpenHands profiles. Keep workflow authorization, isolated execution,
 independent review and evidence requirements consistent across those choices.
 
+Use Cedar as the sole authorization decision maker for current-fact controller
+gates, preserving the working runtime and validation behavior. Use readable,
+reusable policy expressions without a temporal engine or durable store.
+Remove equivalent Python predicates and comparison/fallback modes. Missing
+evidence or unavailable authorization must stop progression; retain evidence
+validation and existing denial orchestration.
+Keep authorization readable and separate from orchestration through one reusable
+schema-aware bridge. Link each rule to the behavior it implements and the
+executed assertions that check it. Ownership, consumed answers, rolling budgets,
+expiry and authorization over durable history remain separate design work.
+
 Keep a short, current product overview so people can understand the software's
 purpose without reading task history. Task context should link to it and describe
 only the local change. Routine fixes need no new document set; existing review

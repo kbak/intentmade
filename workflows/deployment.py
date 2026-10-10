@@ -4,7 +4,14 @@ import json
 import os
 from pathlib import Path
 
-FIELDS = {"worker_runtime", "resource_limits", "authorization", "worker_agent_profile"}
+FIELDS = {
+    "worker_runtime",
+    "resource_limits",
+    "authorization",
+    "worker_agent_profile",
+    "dogwood",
+    "cedar",
+}
 LEGACY_FIELDS = {"worker_runtime", "resource_limits"}
 
 
@@ -33,10 +40,18 @@ def settings(config_dir=None):
     defaults = read(directory / "defaults.json")
     if set(options) - FIELDS:
         raise ValueError("deployment.json contains unsupported settings")
+    if {"dogwood", "cedar"} & options.keys():
+        raise ValueError(
+            "Cedar authorization is always enforced; remove engine mode settings from deployment.json"
+        )
     if "authorization" in defaults:
         raise ValueError("Set factory-wide authorization in deployment.json")
     if "worker_agent_profile" in defaults:
         raise ValueError("Set factory-wide worker_agent_profile in deployment.json")
+    if {"dogwood", "cedar"} & defaults.keys():
+        raise ValueError(
+            "Cedar authorization is always enforced; remove engine mode settings from defaults.json"
+        )
     # Existing installations keep their settings until the operator moves them.
     # Reject duplicate definitions rather than silently choosing weaker values.
     for name in LEGACY_FIELDS & defaults.keys():

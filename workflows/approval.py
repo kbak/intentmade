@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import json
 
+import authorization
 import deployment
 from common import github, issues
 from policy import issue_snapshot
@@ -34,7 +35,13 @@ def timestamp(value):
         raise RuntimeError("GitHub approval history is unavailable; no work authorized") from None
 
 
+def microseconds(value):
+    delta = value - datetime.datetime(1970, 1, 1, tzinfo=datetime.UTC)
+    return (delta.days * 86400 + delta.seconds) * 1000000 + delta.microseconds
+
+
 # [impl->req~im-approval-snapshot~1]
+# [impl->req~im-authorization~1]
 def approved_issue(config, number, credential, expected=None):
     """Return one verified content snapshot, optionally matching a running task.
 
@@ -105,7 +112,19 @@ def approved_issue(config, number, credential, expected=None):
         raise RuntimeError("GitHub approval history is unavailable; no work authorized") from None
     if edited_at is not None:
         changes.append(edited_at)
-    if any(timestamp(changed) >= approved_at for changed in changes):
+    facts = {
+        "has_changes": bool(changes),
+        "latest_change_at": max(
+            (microseconds(timestamp(changed)) for changed in changes), default=0
+        ),
+        "approved_at": microseconds(approved_at),
+    }
+    if not authorization.permit(
+        config,
+        "issue:approval",
+        {"issue": number, "label_event": str(latest["id"])},
+        facts,
+    ):
         raise RuntimeError(
             "Issue title or body was edited at or after approval; review the current "
             "specification, wait a second, then remove and reapply the approval label"

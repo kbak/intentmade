@@ -9,6 +9,7 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import Literal
 
+import authorization
 import browser_qa
 import deployment
 import input_artifacts
@@ -848,12 +849,13 @@ def _execute_build(
             if review.verdict == "BLOCKED":
                 raise RuntimeError("Independent review infrastructure blocked: " + review.summary)
             browser_passed = all(browser_qa.passed(r) for r in outcome["browser_qa"].values())
-            if (
-                all(code == 0 for code in results.values())
-                and review.verdict == "PASS"
-                and browser_passed
-                and traceability.checks_passed(configs, states)
-            ):
+            validation_facts = {
+                "tests_passed": all(code == 0 for code in results.values()),
+                "review_verdict": review.verdict,
+                "browser_passed": browser_passed,
+                "traceability_passed": traceability.checks_passed(configs, states),
+            }
+            if authorization.authorize(configs, task, attempt, artifact, states, validation_facts):
                 outcome["validation"] = (
                     "PASSED_WITH_GAPS"
                     if any(r["status"] == "ACCEPTED_GAPS" for r in outcome["browser_qa"].values())

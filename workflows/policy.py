@@ -6,22 +6,28 @@ import re
 from collections import defaultdict
 from fnmatch import fnmatchcase
 
+import authorization
 import deployment
 from common import github, issues
 from review_requests import comparison_files
 
 
 # [impl->req~im-issue-ownership~1]
+# [impl->req~im-authorization~1]
 def issue_eligible(issue, config):
-    return (
-        issue.get("state") == "open"
-        and not issue.get("pull_request")
-        and not issue.get("assignees")
-        and (
-            deployment.issue_intake(config) == "manual"
-            or not config.get("issue_label")
-            or config["issue_label"] in issues._labels(issue)
-        )
+    facts = {
+        "state": issue.get("state"),
+        "is_pull_request": bool(issue.get("pull_request")),
+        "assignees": len(issue["assignees"]) if isinstance(issue.get("assignees"), list) else None,
+        "intake": deployment.issue_intake(config),
+        "label_required": bool(config.get("issue_label")),
+        "label_present": config.get("issue_label") in issues._labels(issue),
+    }
+    return authorization.permit(
+        config,
+        "issue:eligible",
+        {"issue": issue.get("number")},
+        facts,
     )
 
 
@@ -40,14 +46,26 @@ def issue_snapshot(config, issue):
     return content, snapshot
 
 
-def checks_pass(checks, config):
-    if not checks:
-        return False
-    allowed = set(config["accepted_check_results"])
-    # Every reported check must finish successfully, and each required name or
-    # pattern must occur. No checks, missing checks and pending checks fail closed.
-    return all(value in allowed for value in checks.values()) and all(
-        any(fnmatchcase(name, pattern) for name in checks) for pattern in config["required_checks"]
+# [impl->req~im-authorization~1]
+def checks_pass(checks, config, *, head_checks=None):
+    # Preserve Python's configured glob semantics when collecting check matches.
+    # Cedar decides whether the observed results and coverage authorize work.
+    facts = {
+        "results": list(checks.values()),
+        "head_results": list((head_checks or {}).values()),
+        "accepted_results": config["accepted_check_results"],
+        "required_patterns": config["required_checks"],
+        "matched_patterns": [
+            pattern
+            for pattern in config["required_checks"]
+            if any(fnmatchcase(name, pattern) for name in checks)
+        ],
+    }
+    return authorization.permit(
+        config,
+        "ci:accept",
+        {"check_names": sorted(checks), "head_check_names": sorted(head_checks or {})},
+        facts,
     )
 
 
@@ -167,8 +185,15 @@ def required_checks_for(token, pr, config):
     return list(dict.fromkeys(selected)) if selected else config["required_checks"]
 
 
+# [impl->req~im-authorization~1]
 def pr_eligible(token, pr, config):
-    if pr.get("state") != "open" or pr.get("draft"):
+    facts = {"state": pr.get("state"), "draft": pr.get("draft")}
+    if not authorization.permit(
+        config,
+        "pr:inspect",
+        {"pr": pr.get("number"), "head": pr.get("head", {}).get("sha")},
+        facts,
+    ):
         return False
     config = {**config, "required_checks": required_checks_for(token, pr, config)}
     head = checks_for(token, config["repository"], pr["head"]["sha"])
@@ -176,6 +201,4 @@ def pr_eligible(token, pr, config):
     merged = checks_for(token, config["repository"], merge_sha) if merge_sha else {}
     # GitHub may run CI on the synthetic merge revision instead of head.
     # Pending/failing checks on either current revision still block review.
-    return checks_pass({**head, **merged}, config) and all(
-        value in config["accepted_check_results"] for value in head.values()
-    )
+    return checks_pass({**head, **merged}, config, head_checks=head)

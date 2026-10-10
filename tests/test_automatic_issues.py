@@ -71,7 +71,13 @@ class AutomaticSchedulerTests(unittest.TestCase):
     def test_receipt_flush_failure_prevents_starting_implementation(self):
         from openhands.sdk.utils import files
 
-        with patch.object(files.os, "fsync", side_effect=OSError("fixture I/O failure")):
+        def fail_flush(*args, **kwargs):
+            # Exercise the real scheduler writer and its temporary-file cleanup,
+            # after the separate authorization receipt has been retained.
+            with patch.object(files.os, "fsync", side_effect=OSError("fixture I/O failure")):
+                files.atomic_write_text(*args, **kwargs)
+
+        with patch.object(monitor, "atomic_write_text", side_effect=fail_flush):
             with self.assertRaises(OSError):
                 monitor.poll(CONFIG, "offline-token")
         self.build.assert_not_called()
