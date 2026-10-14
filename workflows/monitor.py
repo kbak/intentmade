@@ -39,7 +39,7 @@ def review_pr(config, pr, credential):
         else None
     )
     if report:
-        report.update("REVIEWING", f"Reviewing commit {pr['head']['sha']}.")
+        report.update("REVIEWING", f"Reviewing commit {pr['head']['sha']}.", notify=False)
     with TaskLifecycle(
         artifact=artifact,
         task=f"pr-{pr['number']}",

@@ -148,7 +148,7 @@ def task_progress(task, artifact, stages, repair_limit=0):
     token = _PROGRESS.set(progress)
     thread = threading.Thread(target=progress.heartbeat, daemon=True) if emit else None
     try:
-        progress.refresh(conversation=True)
+        progress.refresh()
         if thread:
             try:
                 thread.start()
@@ -218,18 +218,6 @@ class TaskReport:
             )
             self.record["conversation_id"] = str(created["id"])
             write_report(config, task, self.record)
-            post(
-                self.record["conversation_id"],
-                "This is a persistent factory task report. The implementation runs in an "
-                "isolated worker. If it needs your answer, reply here starting with `resume:` "
-                "followed by your answer. To retry a failure, reply `resume: retry`. "
-                "An explicit resume message queues the continuation immediately. "
-                "If the repository is busy, it waits for the current work to finish. "
-                "The report assistant is read-only; native automation runs the continuation. "
-                "Factory updates do not start the report assistant. This report's terminal "
-                "does not show the isolated worker; use Automate for its current phase. "
-                "Only report that it has started when its RUNNING or REVIEWING update appears.",
-            )
         if ACTIVE:
             ACTIVE["task_conversation_id"] = self.record["conversation_id"]
             self.record["run_id"] = ACTIVE["run_id"]
@@ -242,7 +230,7 @@ class TaskReport:
         write_report(config, task, self.record)
 
     # [impl->req~im-report-status~1]
-    def update(self, status, message, *, metrics=None, **details):
+    def update(self, status, message, *, metrics=None, notify=True, **details):
         metrics = metrics or details.get("result", {}).get("metrics")
         if metrics:
             details["metrics"] = str(metrics)
@@ -285,11 +273,12 @@ class TaskReport:
                 f"/api/conversations/{self.record['conversation_id']}",
                 json={"title": f"{self.config['project']} — {self.task} — {status}"},
             )
-            post(
-                self.record["conversation_id"],
-                f"**{status}**\n\n{message}",
-                run=False,
-            )
+            if notify:
+                post(
+                    self.record["conversation_id"],
+                    f"**{status}**\n\n{message}",
+                    run=False,
+                )
         except Exception as exc:
             print(f"Canvas report update unavailable: {type(exc).__name__}", flush=True)
 

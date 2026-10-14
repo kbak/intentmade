@@ -48,15 +48,31 @@ class ProgressTests(unittest.TestCase):
             tempfile.TemporaryDirectory() as temp,
             patch.object(reporting, "ACTIVE", {"run_id": "run", "conversation_id": "first"}),
             patch.object(reporting, "_RUN_KEY", "parent-fixture"),
-            patch.object(reporting, "read_report", return_value={"conversation_id": "second"}),
+            patch.object(reporting, "read_report", return_value=None),
+            patch.object(reporting, "report_agent"),
             patch.object(reporting, "write_report"),
-            patch.object(reporting, "api") as api,
+            patch.object(reporting, "api", return_value={"id": "second"}) as api,
         ):
-            reporting.TaskReport({"project": "example", "repository": "org/repo"}, "issue-2")
+            report = reporting.TaskReport(
+                {"project": "example", "repository": "org/repo"}, "issue-2"
+            )
+            self.assertFalse(any(c.args[1].endswith("/second/events") for c in api.call_args_list))
+            api.reset_mock()
+            report.update("REVIEWING", "Reviewing the captured commit.", notify=False)
+            self.assertEqual(report.record["status"], "REVIEWING")
+            self.assertFalse(any(c.args[1].endswith("/events") for c in api.call_args_list))
+            self.assertTrue(any(c.args[0] == "PATCH" for c in api.call_args_list))
             api.reset_mock()
             with reporting.task_progress("issue-2", temp, ("review",)) as tracker:
+                self.assertFalse(any(c.args[1].endswith("/events") for c in api.call_args_list))
                 with patch.dict(os.environ, {"OH_SESSION_API_KEYS_0": "worker-fixture"}):
                     reporting.progress_stage("review")
+                    messages = [c for c in api.call_args_list if c.args[1].endswith("/events")]
+                    self.assertEqual(len(messages), 1)
+                    self.assertIn(
+                        "| Independent review | Running |",
+                        messages[0].kwargs["json"]["content"][0]["text"],
+                    )
                     reporting.phase("Reviewing")
                     reporting.progress_stage("review", "Passed")
             # [utest~im-canvas-progress-routing~1->req~im-canvas-progress~1]

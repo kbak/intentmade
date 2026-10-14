@@ -1,6 +1,6 @@
 # Runtime patch review
 
-The runtime pins Canvas 1.26.0 by image digest, with OpenHands SDK/Workspace/Agent
+The runtime pins Canvas 1.27.1 by image digest, with OpenHands SDK/Workspace/Agent
 Server/Tools 1.54.0 and Automation 1.19.3. The Python packages are layered over
 the Canvas image with wheel hashes in `docker/openhands-requirements.txt`, without
 resolving new third-party dependencies; `pip check` validates the base dependency
@@ -8,7 +8,7 @@ set. Review patches against the installed source
 when updating that pin; version guards and exact source matches deliberately
 stop the build on drift.
 
-| Integration | Decision for Canvas 1.26.0 | Reason |
+| Integration | Decision for Canvas 1.27.1 | Reason |
 | --- | --- | --- |
 | Unicode automation downloads | Removed | Automation now sanitizes names, supplies an ASCII fallback and encodes Unicode with `filename*`. The regression exercises the installed upstream route, including compatibility characters. |
 | Review permissions and project trust | Reduced | ACP 2.2.2 supplies the native read-only sandbox; the patch only disables escalation and automatic project trust. SDK's permission bridge still needs its read-only denial. The launcher uses ACP's `DISABLE_MCP_CONFIG_FILTERING=true` option so ignored repository configuration cannot suppress explicit factory MCP servers. |
@@ -34,6 +34,12 @@ runtime. Source matches establish patch applicability, not behavioral correctnes
 SDK 1.54 selects sub-agent/model-switch capabilities through explicit tool lists.
 The native factory adapter now filters model switching through that API and keeps
 reviewers restricted to the factory reader. No product requirements change.
+
+Canvas 1.27.1 retains SDK 1.54.0 and Automation 1.19.3. The update changes the
+Canvas UI, frontend binding and bundled MARS bridge modules; the factory's Python
+package pins, callback patch and reply-hook integration remain applicable.
+Canvas releases now live in [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands/releases/tag/v1.27.1);
+the former `OpenHands/agent-canvas` repository is archived.
 
 Extensions helpers are independently pinned to release 0.29.0. Both issue and
 review helpers now import the shared `github_client` transport and pagination

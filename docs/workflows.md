@@ -35,6 +35,9 @@ elapsed time and repair attempt. The progress line refreshes every 30 seconds
 while the task is active. Open its linked task conversation for a table of stages
 and their results; the table is posted on stage changes, with elapsed times as of
 that update. Timer refreshes do not add chat messages or start an assistant.
+The first stage update opens the report without introductory messages, a separate
+review-start notice or an all-waiting table. Resume instructions appear when work
+needs an answer or stops with a failure.
 
 Builds show implementation, project tests, applicable browser QA, independent
 review and publication. Standalone reviews show review and publication. Checks

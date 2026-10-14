@@ -849,6 +849,8 @@ Active build and standalone review tasks report the current stage, stage and tas
 elapsed time, and repair attempt through Canvas's native run progress. Refresh
 elapsed time every 30 seconds while running; post a stage table to the task's own
 conversation on transitions, without waking an agent for progress updates.
+Start the conversation with the first stage transition, omitting introductory
+boilerplate, a separate review-start notice and the initial all-waiting table.
 Use explicit workflow results for passed, failed, blocked, not-required and
 publication states. Unreached stages remain waiting; repairs start a fresh table
 and retain previous attempts. Stopped tasks freeze their timers and show the
