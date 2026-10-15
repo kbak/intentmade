@@ -960,6 +960,28 @@ Implementation: [manifest and verify](../runtime/build_inputs.py), [regression r
 
 Existing assertions: [test_patch_additions_removals_modes_and_lock_changes_require_rebuild](../tests/test_build_inputs.py).
 
+### Retain portable assurance from existing checks and review
+`req~im-portable-assurance~1`
+
+For opted-in builds, reuse IntentBond's portable traceability assessment validator
+and generate source/policy/invocation-bound assurance from the existing verified
+controller evidence and independent review. Preserve accepted package identities,
+ordinary review verdicts, and applicable intent judgments. Retain a portable
+report reference in the existing handoff without adding model calls, test runs,
+approval steps, or operator-authored documents. Non-opted-in workflows must not
+import the optional IntentBond modules. Existing submission/package formats and
+authorization, repair, and publication gates remain authoritative.
+
+Covers:
+- `intent~im-trust-evidence~1`
+- `intent~im-review-changes~1`
+
+Needs: impl, utest
+
+Implementation: [assurance adapter](../workflows/traceability/assurance.py).
+Assertions: [traceability lifecycle](../tests/test_traceability.py),
+[portable assurance integration](../tests/test_assurance.py).
+
 ### Retain an explicitly accepted planning package
 `req~im-portable-plan~2`
 

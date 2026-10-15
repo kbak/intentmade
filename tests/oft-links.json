@@ -538,5 +538,20 @@
   ],
   "test_authorization.AuthorizationTests.test_real_bridge_rejects_malformed_requests": [
     "utest~im-authorization-requests~1"
+  ],
+  "test_assurance.OptionalBoundaryTests.test_unopted_record_review_does_not_import_intentbond": [
+    "utest~im-assurance-optional~1"
+  ],
+  "test_assurance.AssuranceIntegrationTests.test_report_uses_one_existing_check_and_review_without_task_documents": [
+    "utest~im-assurance-current~1"
+  ],
+  "test_assurance.AssuranceIntegrationTests.test_report_preserves_review_failure_and_does_not_publish": [
+    "utest~im-assurance-failed-review~1"
+  ],
+  "test_assurance.AssuranceIntegrationTests.test_shared_validator_is_the_existing_review_gate": [
+    "utest~im-assurance-shared-review~1"
+  ],
+  "test_assurance.AssuranceIntegrationTests.test_accepted_package_keeps_original_identity_while_current_plan_evolves": [
+    "utest~im-assurance-package~1"
   ]
 }

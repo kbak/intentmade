@@ -331,60 +331,10 @@ def coordinator_prompt(context, traceability=None, intent_projects=()):
 
 # [impl->req~im-trace-assessment~1]
 def validate_assessments(assessments, expected):
-    """Check required accounting and outcomes; relevance remains the reviewer's judgment."""
-    projects = [item.project for item in assessments]
-    if len(set(projects)) != len(projects) or set(projects) != set(expected):
-        raise ValueError("Traceability assessment must cover exactly the opted-in repositories")
-    for assessment in assessments:
-        paths = set(expected[assessment.project]["changed_paths"])
-        accounted = set()
-        for change in assessment.changes:
-            if not set(change.changed_paths) <= paths:
-                raise ValueError(
-                    f"{assessment.project}: assessment includes paths outside the scoped change"
-                )
-            accounted.update(change.changed_paths)
-            for reference in change.requirement_ids:
-                label, identifier = (
-                    reference.split(":", 1) if ":" in reference else ("candidate", reference)
-                )
-                indexed = expected[assessment.project].get("requirement_index", {}).get(label)
-                if not isinstance(indexed, dict) or not indexed or "error" in indexed:
-                    detail = (
-                        indexed.get("error", "snapshot not available")
-                        if isinstance(indexed, dict)
-                        else "snapshot not available"
-                    )
-                    raise ValueError(
-                        f"{assessment.project}: cannot resolve {reference}: {detail}; a source index is required"
-                    )
-                if not isinstance(indexed.get("ids"), list) or any(
-                    not isinstance(item, str) for item in indexed["ids"]
-                ):
-                    raise ValueError(
-                        f"{assessment.project}: malformed requirement ID index; a fresh review is required"
-                    )
-                if identifier not in indexed["ids"]:
-                    raise ValueError(
-                        f"{assessment.project}: unknown requirement ID or revision in {label}: {identifier}"
-                    )
-            if change.status == "covered" and not all(
-                (
-                    change.requirement_ids,
-                    change.documentation,
-                    change.implementation,
-                    change.verification,
-                )
-            ):
-                raise ValueError(
-                    f"{assessment.project}: covered behavior needs requirement, documentation, implementation and verification references"
-                )
-            if change.status == "missing" and not change.remediation:
-                raise ValueError(
-                    f"{assessment.project}: missing traceability needs a concrete repair"
-                )
-        if accounted != paths:
-            raise ValueError(f"{assessment.project}: traceability assessment omits changed paths")
+    """Use the optional package only on the explicitly opted-in review path."""
+    from intentbond.assurance_review import validate_assessments as validate_portable
+
+    validate_portable([item.model_dump() for item in assessments], expected)
 
 
 # [impl->req~im-review-evidence~1]

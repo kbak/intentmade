@@ -288,6 +288,7 @@ def handoff(artifact, outcome):
                 "plan",
                 "pull_request",
                 "traceability",
+                "assurance",
             )
             if key in state
         }

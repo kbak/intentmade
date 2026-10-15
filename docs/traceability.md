@@ -219,6 +219,13 @@ the checks.
 
 ## Review assessment
 
+The optional integration uses IntentBond's shared assessment validator and
+retains `assurance-N/assessment.json` and `summary.md` beside the existing review.
+The controller constructs context from already retained inputs and source-matched
+evidence; it performs no additional model or test pass. Existing handoff JSON
+includes each opted-in repository's assurance reference. The portable report is
+an account of checking/review obligations, not new approval authority.
+
 For opted-in repositories, Alibaba Reviewer assesses changed behavior within the
 configured `inputs`, even when requirements and tests were not edited. It follows
 relevant requirements, implementation references, and test assertions or other

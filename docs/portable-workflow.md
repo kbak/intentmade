@@ -108,6 +108,13 @@ requirements → plan steps → implementation/assertions → execution evidence
 
 ## Keep verification with the project
 
+Opted-in builds also retain IntentBond's optional portable assurance report from
+the existing controller check and independent review. Handoffs reference this
+report; it adds no test execution, model call, task document, or approval step.
+The report identifies supported observations and remaining obligations, while
+factory authorization and publication gates retain their existing authority.
+Repositories without traceability keep the existing runtime and handoff behavior.
+
 Prefer a repository-owned command, such as `python -m unittest discover` or
 `./scripts/check`, and document its dependencies and environment in the project.
 The factory can select a scope from an explicitly pinned project commit using

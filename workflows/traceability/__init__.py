@@ -4,6 +4,7 @@ Imports of IntentBond are lazy so repositories without opt-in keep
 their existing runtime, context, test commands, and completion gates.
 """
 
+import hashlib
 import json
 import shlex
 import shutil
@@ -52,6 +53,7 @@ def prepare(configs, states, root, artifact, attempt):
     selected = {}
     for config in configs:
         project = config["project"]
+        states[project].pop("assurance", None)
         states[project].pop("traceability", None)
         scope = scope_for(config)
         if scope is None:
@@ -233,7 +235,7 @@ def collect(state, paths, check_exit_code):
             with tempfile.TemporaryDirectory(prefix="factory-traceability-") as directory:
                 repo = Path(directory) / "source"
                 git(["clone", "--no-checkout", state["repository"], str(repo)])
-                verify(
+                matched = verify(
                     repo,
                     paths["scope"],
                     state["base"],
@@ -242,6 +244,11 @@ def collect(state, paths, check_exit_code):
                     allow_pending_review=True,
                 )
             record["matched_commit"] = state["commit"]
+            record["verified_candidate"] = matched["candidate"]
+            record["base"] = evidence["base"]
+            record["evidence_sha256"] = hashlib.sha256(
+                (target / "evidence.json").read_bytes()
+            ).hexdigest()
             return 0
         return check_exit_code
     except Exception as exc:
@@ -401,3 +408,7 @@ def record_review(configs, states, review, report_path):
                 "report": str(report_path),
                 "commit": states[config["project"]].get("commit"),
             }
+    if any("traceability_scope" in config for config in configs):
+        from .assurance import record
+
+        record(configs, states, review, report_path)
