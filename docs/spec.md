@@ -16,7 +16,7 @@ The boundary column identifies areas needing more detailed requirements or check
 
 | Capability | Requirements | Boundary / remaining work |
 | --- | --- | --- |
-| Authorization and scheduling | [deployment-authority](#keep-deployment-authority-separate), [approval-snapshot](#bind-issue-approval-to-content), [issue-ownership](#claim-eligible-issues-and-preserve-prior-ownership), [issue-deduplication](#retain-failed-issue-attempts-across-polls), [repository-locks](#serialize-work-for-each-repository), [explicit-resume](#resume-only-from-a-fresh-explicit-answer), [task-identity](#bind-retained-tasks-to-their-repository-and-base-branch) | Account/team review eligibility, poll priority, daily budgets and naming details need more detailed requirements. |
+| Authorization and scheduling | [deployment-authority](#keep-deployment-authority-separate), [approval-snapshot](#bind-issue-approval-to-content), [issue-ownership](#claim-eligible-issues-and-preserve-prior-ownership), [issue-deduplication](#retain-failed-issue-attempts-across-polls), [repository-locks](#serialize-work-for-each-repository), [explicit-resume](#resume-only-from-a-fresh-explicit-answer), [task-identity](#bind-retained-tasks-to-their-repository-and-base-branch), [branch-prefix](#normalize-branch-prefix-separators-before-creating-task-state) | Account/team review eligibility, poll priority, daily budgets and naming details need more detailed requirements. |
 | Build, repair and publication | [publication-gate](#publish-only-validated-changes-as-drafts), [bounded-repair](#bound-repair-and-preserve-the-approved-request), [needs-input](#stop-on-unanswered-product-questions), [group-publication](#validate-the-whole-group-before-sequential-publication) | Scripted lifecycle; no live model or GitHub publication. |
 | Custody and resource boundaries | [git-transfer](#import-commits-without-worker-git-configuration), [failed-work-retention](#preserve-work-when-export-or-retention-fails), [safe-controller-writes](#write-job-files-without-following-worker-links), [bounded-git](#bound-git-imports-and-retained-patches), [disk-admission](#reject-new-jobs-when-disk-is-low), [worker-credentials](#use-the-selected-backend-credential-boundary) | Archive expansion, kernel isolation, VM networking and resource enforcement need separate requirement/probe decomposition. |
 | Independent review and maintenance | [review-evidence](#derive-review-verdicts-from-native-evidence-and-complete-coverage), [immutable-pr-comparison](#review-the-captured-base-and-head), [pr-publication](#recheck-review-identity-and-ci-before-posting), [review-retry](#reconcile-uncertain-review-publication), [review-report-integrity](#preserve-findings-through-report-consolidation), [feedback-authority](#accept-maintenance-feedback-only-from-eligible-sources), [feedback-lifecycle](#deduplicate-and-recheck-maintenance-feedback) | Native read-only enforcement, model finding quality and live API behavior are not established by scripted tests. |
@@ -24,7 +24,7 @@ The boundary column identifies areas needing more detailed requirements or check
 | Inputs and continuation | [input-bytes](#verify-and-freeze-declared-input-artifacts), [input-restart](#bind-input-declarations-across-task-restarts), [repair-context](#reuse-only-matching-retained-repair-context) | Input size/count combinatorics and bounded continuation record limits need further boundary tests. |
 | Portable workflow | [portable-plan](#retain-an-explicitly-accepted-planning-package), [intent-consistency](#check-affected-product-and-task-intent-in-existing-review), [repository-policy](#capture-verification-policy-from-a-pinned-project-commit), [portable-handoff](#export-source-bound-continuation-and-review-evidence) | Explicit package gates are controller-enforced; request-only delegated planning remains agent guidance. No live model or GitHub qualification. |
 | IntentBond integration | [trace-opt-in](#enable-traceability-through-explicit-configuration), [trace-source-gate](#match-controller-evidence-to-exported-source-and-policy), [trace-assessment](#require-semantic-accounting-beyond-a-green-trace-graph), [scope-identity](#distinguish-scope-bytes-from-canonical-policy), [trace-retention](#retain-bounded-invocation-evidence-including-failures) | Deployment activation requires explicit configuration; fixture annotations are excluded through the trusted scope. |
-| Observability and operator automation | [execution-provenance](#keep-observed-environment-identity-distinct-from-intent), [finite-completion](#record-finite-execution-before-acknowledgement), [finite-timeout](#stop-timed-out-finite-recipes), [measurement-outcomes](#preserve-attempts-and-unknown-measurements), [startup-retry](#retry-only-a-typed-pre-work-startup-timeout) | Provider counter conversion, finite registration consistency, full CLI/setup and backup/restore promises remain deferred. |
+| Observability and operator automation | [execution-provenance](#keep-observed-environment-identity-distinct-from-intent), [finite-completion](#record-finite-execution-before-acknowledgement), [finite-timeout](#stop-timed-out-finite-recipes), [measurement-outcomes](#preserve-attempts-and-unknown-measurements), [startup-retry](#retry-only-a-typed-pre-work-startup-timeout), [canvas-activity](#keep-conversation-activity-compact-and-inspectable) | Provider counter conversion, finite registration consistency, full CLI/setup and backup/restore promises remain deferred. |
 | Current-fact authorization | [controller authorization](#authorize-controller-actions-with-cedar), [individual rules](authorization.md#rule-traceability) | Cedar decides over validated current facts; durable history and orchestration remain outside the engine. |
 | Runtime validation | [runtime-build-inputs](#runtime-test-image-matches-candidate-patch-inputs) | A matching build manifest checks consistency; it does not attest an untrusted image. |
 | Deployment configuration repository, registered applications and upstream projects | Outside this repository's product baseline | Examples and dependency pins are captured; sibling repositories and upstream internals have separate contracts. |
@@ -217,6 +217,27 @@ Documentation: [SECURITY.md](../SECURITY.md).
 Implementation: [task_repository](../workflows/run.py).
 
 Existing assertions: [test_repointed_registration_is_rejected_before_any_build_or_push](../tests/test_scheduler.py), [test_override_push_url_and_non_github_origins_are_rejected](../tests/test_scheduler.py), [test_changed_base_branch_requires_a_new_task_id](../tests/test_scheduler.py), [test_new_naming_defaults_preserve_a_retained_published_branch](../tests/test_scheduler.py).
+
+### Normalize branch-prefix separators before creating task state
+`req~im-branch-prefix~1`
+
+Accept configured branch prefixes with or without trailing slashes, removing
+trailing separators before adding one separator between the prefix and task
+name. Preserve nested prefixes. Reject any remaining invalid generated Git branch
+name before cloning or creating a new task store. Retained task branches keep
+their existing identity across prefix changes.
+
+Covers:
+- `intent~im-operate-reliably~1`
+
+Needs: impl, utest
+
+Documentation: [configuration](configuration.md).
+
+Implementation: [branch_name](../workflows/naming.py), [task_repository](../workflows/run.py).
+
+Existing assertions: [prefix normalization](../tests/test_followup.py),
+[pre-clone validation and retained branches](../tests/test_scheduler.py).
 
 ### Publish only validated changes as drafts
 `req~im-publication-gate~1`
@@ -871,6 +892,36 @@ Existing assertions: [progress timing, routing, repair, questions and reporting 
 
 Evidence limit: Scripted checks verify content, native API compatibility and
 workflow outcomes; they do not establish browser rendering or live API delivery.
+
+### Keep conversation activity compact and inspectable
+`req~im-canvas-activity~1`
+
+Fold consecutive routine ACP calls and successful Guardian checks into Canvas's
+existing collapsed event groups, including a run containing only one ACP event.
+Show a short current title and accurate running/completed counts. Limit ACP titles
+to a single line of at most 80 characters. Keep failures, error-marked completions,
+pending approvals, active Guardian checks, unknown statuses and ordinary messages
+outside collapsed groups. Preserve event order and native action grouping.
+Expanded details must expose the original title, command and complete ACP output.
+Presentation must not modify stored events, approval behavior or execution.
+Install the patch at image build time and reject an unexpected upstream bundle.
+Version the JavaScript asset references so browsers load the changed display
+after deployment without requiring a cache clear.
+
+Covers:
+- `intent~im-operate-reliably~1`
+- `intent~im-trust-evidence~1`
+
+Needs: impl, utest
+
+Documentation: [conversation activity](agents.md#conversation-activity).
+
+Implementation: [Canvas activity patch](../runtime/patch_canvas_activity.py).
+
+Existing assertions: [activity regressions](../tests/test_canvas_activity.py).
+
+Evidence limit: The offline bundle probe checks shipped grouping, counts, titles
+and details with fixtures. It does not establish live provider or approval behavior.
 
 ### Retry only a typed pre-work startup timeout
 `req~im-startup-retry~1`

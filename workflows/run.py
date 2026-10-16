@@ -54,6 +54,9 @@ def task_repository(config, task, base, credential, request=""):
     repository = DATA / "tasks" / config["project"] / (identifier(task) + ".git")
     branch = branch_name(task, request or task, config.get("branch_prefix"))
     if not repository.exists():
+        # [impl->req~im-branch-prefix~1]
+        # Reject malformed configuration before cloning or creating task state.
+        git(["check-ref-format", "--branch", branch])
         repository.parent.mkdir(parents=True, exist_ok=True)
         try:
             if config["repository"]:

@@ -49,6 +49,9 @@ COPY runtime/patch_agent_startup.py /opt/factory/patch_agent_startup.py
 RUN python /opt/factory/patch_agent_startup.py
 COPY runtime/patch_native_harness.py /opt/factory/patch_native_harness.py
 RUN python /opt/factory/patch_native_harness.py
+# Compact ACP activity using Canvas's existing expandable event groups.
+COPY runtime/patch_canvas_activity.py /opt/factory/patch_canvas_activity.py
+RUN python /opt/factory/patch_canvas_activity.py
 # Both Canvas and disposable workers must load the patched Python packages.
 COPY --chmod=755 runtime/agent-server /usr/local/bin/openhands-agent-server
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py

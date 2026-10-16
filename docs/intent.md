@@ -146,6 +146,9 @@ work or mistaking an incomplete attempt for success.
 While work is running, operators should be able to see its current stage, elapsed
 time, repair attempt and any input needed in Canvas. Progress should remain useful
 without opening logs or adding GitHub reporting solely for status visibility.
+Conversation activity should stay compact: routine commands and successful
+approval checks belong in expandable groups, while failures and input needed
+remain visible. Full command and output details should be available on demand.
 
 Needs: req
 

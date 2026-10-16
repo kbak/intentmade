@@ -401,6 +401,29 @@ class TaskIdentityTests(unittest.TestCase):
     def git(self, *args):
         return common.git(["--git-dir", str(self.store), *args]).stdout.strip()
 
+    def test_invalid_new_branch_fails_before_clone_or_task_state(self):
+        def checked_git(args, **kwargs):
+            if args[0] == "clone":
+                self.fail("Invalid branch must be rejected before a clone or network request")
+            return common.git(args, **kwargs)
+
+        for prefix in ("/", "codex//nested", "bad name", "bad..prefix"):
+            with (
+                self.subTest(prefix=prefix),
+                patch.object(run, "git", side_effect=checked_git) as git,
+            ):
+                # [utest~im-branch-prefix-preflight~1->req~im-branch-prefix~1]
+                with self.assertRaisesRegex(RuntimeError, "check-ref-format"):
+                    run.task_repository(
+                        {**CONFIG, "branch_prefix": prefix},
+                        "issue-43",
+                        self.base,
+                        "",
+                        "feat: Graph foundations",
+                    )
+                self.assertEqual(git.call_count, 1)
+                self.assertFalse((self.root / "tasks/example/issue-43.git").exists())
+
     def test_legacy_task_adopts_verified_identity_and_preserves_base_and_changes(self):
         repository, branch = run.task_repository(CONFIG, "issue-42", "new-approved-base", "")
         self.assertEqual(repository, self.store)
@@ -461,6 +484,12 @@ class TaskIdentityTests(unittest.TestCase):
         self.assertEqual(branch, "factory/issue-42")
         self.assertEqual(self.git("config", "factory.branch"), branch)
         self.assertEqual(self.git("rev-parse", branch), self.tip)
+        self.assertEqual(
+            run.task_repository({**CONFIG, "branch_prefix": "codex/"}, "issue-42", self.base, "")[
+                1
+            ],
+            branch,
+        )
 
 
 class SchedulerTests(unittest.TestCase):

@@ -456,6 +456,15 @@
   "test_review_sources.ReferenceSourcesTests.test_invalid_registration_or_unavailable_source_stops_preparation": [
     "utest~im-review-reference-unavailable~1"
   ],
+  "test_followup.NamingTests.test_branch_prefix_accepts_trailing_separators": [
+    "utest~im-branch-prefix-normalization~1"
+  ],
+  "test_scheduler.TaskIdentityTests.test_invalid_new_branch_fails_before_clone_or_task_state": [
+    "utest~im-branch-prefix-preflight~1"
+  ],
+  "test_canvas_activity.CanvasActivityTests.test_installed_grouping_counts_titles_and_full_details": [
+    "utest~im-canvas-activity~1"
+  ],
   "test_progress.ProgressTests.test_timing_heartbeat_and_stopped_clock": [
     "utest~im-canvas-progress-timing~1"
   ],

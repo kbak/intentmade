@@ -1,5 +1,10 @@
 # Configuration
 
+`branch_prefix` may be written as `codex` or `codex/`; the factory removes
+trailing separators and inserts one slash before the task name. Nested prefixes
+such as `team/codex/` are supported. Other invalid Git branch names fail before
+cloning a task repository. Existing task branches retain their stored names.
+
 Factory behavior is configured in JSON. `.env` selects deployment paths, the
 image, port, and Compose instance name; it does not replace repository policy.
 

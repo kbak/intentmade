@@ -35,6 +35,7 @@ def change_title(request):
     return "chore: " + text[:173]
 
 
+# [impl->req~im-branch-prefix~1]
 def branch_name(task, request, prefix=None):
     title = change_title(request)
     kind, _, description = title.partition(": ")
@@ -43,7 +44,7 @@ def branch_name(task, request, prefix=None):
     ascii_text = unicodedata.normalize("NFKD", description).encode("ascii", "ignore").decode()
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")[:60].rstrip("-")
     number = task.removeprefix("issue-")
-    category = prefix or re.match(r"\w+", kind)[0]
+    category = (prefix or re.match(r"\w+", kind)[0]).rstrip("/")
     return f"{category}/{number}-{slug or 'update'}"
 
 

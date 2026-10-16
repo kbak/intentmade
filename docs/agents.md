@@ -59,6 +59,20 @@ output. Unavailable evidence must be reported and prevents a complete review.
 Ambient repository/user plugins are disabled for factory workers and report
 readers so they cannot introduce hooks or additional executors.
 
+## Conversation activity
+
+Canvas groups consecutive routine Codex/ACP calls, including successful Guardian
+approval checks, into collapsed activity rows. Running groups show a short current
+action and completion count. Command titles are limited to 80 characters and one
+line; expanding the group and then an individual row reveals its complete command
+and output. Messages, failed calls, pending approvals and unknown statuses remain
+outside these groups. Guardian checks still run and the full event history is
+retained. This display change does not reduce the number of tool calls.
+
+The display patch is installed when the runtime image is built. Editing its source
+does not update an existing factory; activate it during a separately authorized
+runtime update.
+
 ## Roles
 
 For Codex, the runtime installs roles from

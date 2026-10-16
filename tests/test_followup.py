@@ -38,6 +38,19 @@ PR = {
 
 
 class NamingTests(unittest.TestCase):
+    def test_branch_prefix_accepts_trailing_separators(self):
+        for prefix in ("codex", "codex/", "codex///", "team/codex", "team/codex/"):
+            with self.subTest(prefix=prefix):
+                branch = naming.branch_name("issue-14", "feat: Graph foundations", prefix)
+                expected = (
+                    "team/codex/14-graph-foundations"
+                    if prefix.startswith("team/")
+                    else "codex/14-graph-foundations"
+                )
+                # [utest~im-branch-prefix-normalization~1->req~im-branch-prefix~1]
+                self.assertEqual(branch, expected)
+                common.git(["check-ref-format", "--branch", branch])
+
     def test_repository_tracker_rule_preserves_existing_keys_and_is_idempotent(self):
         config = {"pr_title_subject_prefix": "NOSTORY"}
         expected = "fix(telegram): NOSTORY: Restore scanning"
