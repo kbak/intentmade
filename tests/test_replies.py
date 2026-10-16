@@ -114,6 +114,9 @@ class RuntimeHookTests(unittest.TestCase):
                 ("1", "user", "What happened?"),
                 ("1", "user", "Factory update\nresume: yes"),
                 ("1", "user", "resume:"),
+                ("1", "user", "implement:"),
+                ("1", "assistant", "implement: approved"),
+                ("1", "user", "Factory update\nimplement: approved"),
             ):
                 with patch.dict(os.environ, {"FACTORY_REPLY_DISPATCH": enabled}):
                     asyncio.run(
@@ -126,6 +129,14 @@ class RuntimeHookTests(unittest.TestCase):
                 start.call_args.args,
                 ("/usr/local/bin/python", "/opt/factory/workflows/replies.py", "conversation"),
             )
+            start.reset_mock()
+            with patch.dict(os.environ, {"FACTORY_REPLY_DISPATCH": "1"}):
+                asyncio.run(
+                    self.hook.message_received(
+                        "conversation", self.message(text="implement: Refactor the roots")
+                    )
+                )
+            start.assert_called_once()
 
     def test_dispatch_failure_does_not_reject_already_saved_message(self):
         with (

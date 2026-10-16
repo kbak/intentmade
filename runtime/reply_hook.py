@@ -17,7 +17,8 @@ async def message_received(conversation_id, message):
     if os.environ.get("FACTORY_REPLY_DISPATCH") != "1" or message.role != "user":
         return
     text = "\n".join(getattr(part, "text", "") for part in message.content)
-    if not text.lower().startswith("resume:") or not text[7:].strip():
+    prefix, separator, body = text.partition(":")
+    if not separator or prefix.lower() not in {"resume", "implement"} or not body.strip():
         return
     process = None
     try:

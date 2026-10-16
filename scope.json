@@ -259,7 +259,12 @@
         "utest~im-authorization-continuation-feedback",
         "utest~im-authorization-continuation-resume",
         "utest~im-authorization-no-bypass",
-        "utest~im-authorization-requests"
+        "utest~im-authorization-requests",
+        "utest~im-follow-up-capture",
+        "utest~im-follow-up-authority",
+        "utest~im-follow-up-lifecycle",
+        "utest~im-follow-up-recovery",
+        "utest~im-follow-up-pipeline"
       ]
     }
   },

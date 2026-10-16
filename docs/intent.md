@@ -36,6 +36,12 @@ Operators need direct control over which issues consume their factory's resource
 with automatic intake available for repositories they trust. PR follow-up should
 run independently of how new work is submitted.
 
+Operators should be able to discuss and explicitly approve follow-up scope in
+the existing task conversation without reconstructing its context in a new
+thread. The controller carries that approval to a writable implementation
+worker while independent reviewers and the report assistant retain read-only
+access. Questions alone must never start work.
+
 Needs: req
 
 Rationale: automation remains useful only while its authority and retained task

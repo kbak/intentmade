@@ -119,6 +119,20 @@ namespace IntentMade {
             answer_present: Bool
         } }
     };
+    action "continuation:accept" appliesTo {
+        principal: [Controller],
+        resource: [Run],
+        context: { input: {
+            task: String,
+            attempt: Long,
+            source_identity: String,
+            state: String,
+            head_matches: Bool,
+            branch_matches: Bool,
+            base_matches: Bool,
+            repository_matches: Bool
+        } }
+    };
     action "resume:dispatch" appliesTo {
         principal: [Controller],
         resource: [Run],

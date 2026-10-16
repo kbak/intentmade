@@ -238,3 +238,22 @@ Covers:
 - `req~im-explicit-resume~1`
 
 Needs: utest
+
+### Follow-up PR identity rule
+`impl~im-authorization-continuation-accept~1`
+
+Policy: `intentmade_continuation_accept`, action `continuation:accept`.
+Requires an open PR whose head, branch, base branch and repository match the
+factory publication receipt. The existing `resume:answer` rule checks freshness
+and nonempty explicit scope; parsing admits only native user messages beginning
+`implement:`. Capture, context bounds and once-only consumption remain in Python.
+The existing dispatch rule also gates immediate follow-ups on schedule state.
+
+Covers:
+- `req~im-thread-follow-up~1`
+- `req~im-authorization~1`
+
+Needs: utest
+
+Assertions: `utest~im-follow-up-authority~1` in
+[test_continuations.py](../tests/test_continuations.py).

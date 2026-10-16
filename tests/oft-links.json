@@ -581,5 +581,20 @@
   ],
   "test_recovery.RecoveryTests.test_full_test_logs_and_command_are_visible_in_next_worker": [
     "utest~im-review-profile-context~1"
+  ],
+  "test_continuations.ContinuationTests.test_only_fresh_explicit_user_scope_can_capture_context": [
+    "utest~im-follow-up-capture~1"
+  ],
+  "test_continuations.ContinuationTests.test_real_pr_identity_policy_and_untracked_reports_reject_scope": [
+    "utest~im-follow-up-authority~1"
+  ],
+  "test_continuations.ContinuationTests.test_dispatch_is_once_and_execution_keeps_the_original_thread": [
+    "utest~im-follow-up-lifecycle~1"
+  ],
+  "test_continuations.ContinuationTests.test_failed_scope_needs_a_new_resume_and_tampering_blocks_execution": [
+    "utest~im-follow-up-recovery~1"
+  ],
+  "test_continuations.ContinuationTests.test_real_pipeline_preserves_accepted_work_and_updates_the_existing_pr": [
+    "utest~im-follow-up-pipeline~1"
   ]
 }

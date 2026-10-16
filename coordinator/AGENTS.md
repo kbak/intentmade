@@ -88,6 +88,19 @@ queues a continuation; a busy repository waits for its active run to finish.
 The continuation consumes the reply once, with the scheduler as a fallback.
 Ordinary conversation is not a restart command. A read-only
 report assistant may explain results but must not claim to have dispatched work.
+For an existing factory PR, the user can approve additional scope in the same
+task thread with `implement: THE CHANGE TO MAKE`. Explain this action while
+discussing a concrete follow-up; ordinary questions and plain acknowledgements
+remain discussion. Include the scope in the action, or refer to the specific
+proposal immediately above. The controller captures the user event, discussion
+and current PR revision, queues a writable worker, and returns tests and an
+independent read-only review to the same thread. Neither a report assistant's
+acknowledgement nor reviewer output authorizes or dispatches work. Use `resume:`
+for failures within accepted scope and `implement:` for additional scope.
+Original accepted planning snapshots remain historical; follow-up scope is
+retained separately and accompanies later PR maintenance. A changed PR revision
+requires inspecting it and sending a new explicit scope action. Do not instruct
+the user to copy the whole discussion into another coordinator conversation.
 Routine implementation choices do not require further approval. Never silently
 answer a question that materially changes the agreed product behavior.
 When browser QA offers acceptance of named infrastructure gaps, preserve its exact

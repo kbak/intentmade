@@ -74,3 +74,11 @@ permit (principal, action == IntentMade::Action::"resume:dispatch", resource)
 when {
     context.input.scheduler_enabled
 };
+
+@id("intentmade_continuation_accept")
+permit (principal, action == IntentMade::Action::"continuation:accept", resource)
+when {
+    context.input.state == "open"
+    && context.input.head_matches && context.input.branch_matches
+    && context.input.base_matches && context.input.repository_matches
+};

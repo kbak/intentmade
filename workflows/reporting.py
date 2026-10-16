@@ -231,6 +231,15 @@ class TaskReport:
 
     # [impl->req~im-report-status~1]
     def update(self, status, message, *, metrics=None, notify=True, **details):
+        if status in {"PASSED", "WATCHING"} and any(
+            state.get("pull_request")
+            for state in details.get("result", {}).get("repositories", {}).values()
+        ):
+            message += (
+                "\n\nDiscuss follow-ups here. To approve additional changes on this PR, "
+                "reply `implement: THE CHANGE TO MAKE`. The controller queues implementation "
+                "and independent read-only review in this thread; ordinary questions stay discussion."
+            )
         metrics = metrics or details.get("result", {}).get("metrics")
         if metrics:
             details["metrics"] = str(metrics)

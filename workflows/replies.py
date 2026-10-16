@@ -4,6 +4,7 @@ import hashlib
 import json
 
 import authorization
+import continuations
 import reporting
 from common import DATA, api, lock, projects
 from openhands.sdk.utils.files import atomic_write_text
@@ -27,6 +28,10 @@ def queue_reply(conversation_id):
             # as the scheduler and requires a known task conversation.
             with lock(config["project"] + ".reply-queue", blocking=True):
                 reply = reporting.resume_reply(config, path.stem)
+                if not reply:
+                    continuation = continuations.capture(config, path.stem, record)
+                    if continuation:
+                        reply = {"id": continuation["package"]["event_id"]}
                 if not reply:
                     return False
                 key = hashlib.sha256((conversation_id + ":" + reply["id"]).encode()).hexdigest()
@@ -53,9 +58,9 @@ def queue_reply(conversation_id):
             # acknowledgement is lost, even a duplicate run cannot apply it twice.
             reporting.post(
                 conversation_id,
-                "Your answer has queued a continuation. The factory will recheck the task "
+                "Your explicit request has queued a continuation in this thread. The factory will recheck the task "
                 "before starting it. If the repository is busy, the continuation will wait; "
-                "no scheduled scan is required.",
+                "implementation and independent read-only review run separately.",
             )
             return True
     return False

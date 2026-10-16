@@ -514,6 +514,21 @@ def poll(config, credential, replies_only=False):
 
     # Adopt durable publication receipts from the previous workflow version.
     followup.adopt_reports(config)
+    from continuations import process
+
+    def continuation_started():
+        state["count"] += 1
+        save()
+
+    continued, continuation_waiting = process(config, credential, remaining, continuation_started)
+    if continued:
+        remaining -= continued
+        if remaining <= 0:
+            outcome(
+                "SKIPPED" if continuation_waiting else "COMPLETED",
+                f"{continued - continuation_waiting} follow-ups completed; {continuation_waiting} waiting for input",
+            )
+            return
     # Readiness is polled on every tick, independent of PR updated_at.
     candidates = []
     items = (
@@ -580,7 +595,8 @@ def poll(config, credential, replies_only=False):
         # Publications already passed independent review. Only external PRs
         # requested from this account/its teams or following our outstanding
         # changes request enter standalone review.
-        if not followup.read(config, item["number"]):
+        published = followup.read(config, item["number"])
+        if not published:
             try:
                 resume = resume_reply(config, f"pr-{item['number']}")
                 if (replies_only and not resume) or not requests.eligible(item):
@@ -612,7 +628,7 @@ def poll(config, credential, replies_only=False):
                     flush=True,
                 )
             continue
-        if replies_only and not resume_reply(config, f"pr-{item['number']}"):
+        if replies_only and not resume_reply(config, followup.report_target(config, published)[0]):
             continue
         try:
             fresh = reviews._get_pr(credential, repo, item["number"])
@@ -638,7 +654,7 @@ def poll(config, credential, replies_only=False):
         f"up to {remaining} tasks this scan.",
         flush=True,
     )
-    processed, waiting = 0, 0
+    processed, waiting = continued - continuation_waiting, continuation_waiting
     for kind, key, item in candidates:
         if remaining <= 0:
             break

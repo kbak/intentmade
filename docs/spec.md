@@ -16,7 +16,7 @@ The boundary column identifies areas needing more detailed requirements or check
 
 | Capability | Requirements | Boundary / remaining work |
 | --- | --- | --- |
-| Authorization and scheduling | [deployment-authority](#keep-deployment-authority-separate), [approval-snapshot](#bind-issue-approval-to-content), [issue-ownership](#claim-eligible-issues-and-preserve-prior-ownership), [issue-deduplication](#retain-failed-issue-attempts-across-polls), [repository-locks](#serialize-work-for-each-repository), [explicit-resume](#resume-only-from-a-fresh-explicit-answer), [task-identity](#bind-retained-tasks-to-their-repository-and-base-branch), [branch-prefix](#normalize-branch-prefix-separators-before-creating-task-state) | Account/team review eligibility, poll priority, daily budgets and naming details need more detailed requirements. |
+| Authorization and scheduling | [deployment-authority](#keep-deployment-authority-separate), [approval-snapshot](#bind-issue-approval-to-content), [issue-ownership](#claim-eligible-issues-and-preserve-prior-ownership), [issue-deduplication](#retain-failed-issue-attempts-across-polls), [repository-locks](#serialize-work-for-each-repository), [explicit-resume](#resume-only-from-a-fresh-explicit-answer), [thread-follow-up](#continue-approved-pr-scope-in-the-same-conversation), [task-identity](#bind-retained-tasks-to-their-repository-and-base-branch), [branch-prefix](#normalize-branch-prefix-separators-before-creating-task-state) | Account/team review eligibility, poll priority, daily budgets and naming details need more detailed requirements. |
 | Build, repair and publication | [publication-gate](#publish-only-validated-changes-as-drafts), [bounded-repair](#bound-repair-and-preserve-the-approved-request), [needs-input](#stop-on-unanswered-product-questions), [group-publication](#validate-the-whole-group-before-sequential-publication) | Scripted lifecycle; no live model or GitHub publication. |
 | Custody and resource boundaries | [git-transfer](#import-commits-without-worker-git-configuration), [failed-work-retention](#preserve-work-when-export-or-retention-fails), [safe-controller-writes](#write-job-files-without-following-worker-links), [bounded-git](#bound-git-imports-and-retained-patches), [disk-admission](#reject-new-jobs-when-disk-is-low), [worker-credentials](#use-the-selected-backend-credential-boundary) | Archive expansion, kernel isolation, VM networking and resource enforcement need separate requirement/probe decomposition. |
 | Independent review and maintenance | [review-evidence](#derive-review-verdicts-from-native-evidence-and-complete-coverage), [immutable-pr-comparison](#review-the-captured-base-and-head), [pr-publication](#recheck-review-identity-and-ci-before-posting), [review-retry](#reconcile-uncertain-review-publication), [review-report-integrity](#preserve-findings-through-report-consolidation), [feedback-authority](#accept-maintenance-feedback-only-from-eligible-sources), [feedback-lifecycle](#deduplicate-and-recheck-maintenance-feedback) | Native read-only enforcement, model finding quality and live API behavior are not established by scripted tests. |
@@ -201,6 +201,45 @@ Documentation: [docs/workflows.md](../docs/workflows.md).
 Implementation: [resume_reply](../workflows/reporting.py), [queue_reply](../workflows/replies.py), [continuation policies](authorization.md#continuation-task-rule).
 
 Existing assertions: [test_only_new_explicit_user_reply_can_resume_same_snapshot](../tests/test_recovery.py), [test_saved_answer_dispatches_immediately_and_duplicate_notification_is_idempotent](../tests/test_replies.py), [test_paused_schedule_disables_immediate_dispatch](../tests/test_replies.py).
+
+### Continue approved PR scope in the same conversation
+`req~im-thread-follow-up~1`
+
+For a task with this factory's publication receipt, a fresh user message beginning
+`implement:` with nonempty scope may extend work on its existing open PR. Ordinary
+discussion, assistant messages, generated reports and attached document contents
+must not authorize work. Capture the explicit user event, bounded conversational
+text, task and PR identity, and current head/base in a separate hashed follow-up
+record. Keep original accepted planning snapshots unchanged and retain approved
+scope extensions for later maintenance.
+
+The native reply bridge queues work only while the repository schedule is enabled,
+with scheduled scanning as fallback. Consume each request once under repository
+locks; interrupted or failed attempts need a fresh `resume:` reply. Recheck the
+captured PR identity before execution and publication. Changed revisions stop
+progression. Continue from retained source, and require normal tests and independent
+read-only review before updating the existing PR. Keep progress, questions and
+results in the originating thread; neither the reviewer nor the report assistant
+receives write or dispatch privileges.
+
+Covers:
+- `intent~im-authorized-work~1`
+- `intent~im-deliver-changes~1`
+- `intent~im-review-changes~1`
+
+Needs: impl, utest
+
+Documentation: [same-thread follow-ups](workflows.md#approve-follow-up-work-in-the-same-thread).
+
+Implementation: [continuations.py](../workflows/continuations.py),
+[replies.py](../workflows/replies.py), [followup.py](../workflows/followup.py).
+
+Assertions: [continuation regressions](../tests/test_continuations.py).
+
+Evidence limit: scripted lifecycle and native reply-hook tests do not establish
+live model behavior or GitHub delivery. Conversation capture is limited to 10,000
+events and 256 KiB of recent conversational text; omitted earlier messages are
+identified, and the original conversation remains linked.
 
 ### Bind retained tasks to their repository and base branch
 `req~im-task-identity~1`

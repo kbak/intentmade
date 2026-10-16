@@ -143,6 +143,34 @@ For retained workspaces and cleanup failures, see [recovery](operations.md#recov
 
 ## PR maintenance
 
+### Approve follow-up work in the same thread
+
+Discuss changes in the existing task conversation. To approve additional scope
+on a PR published by this factory, reply with a concrete instruction:
+
+```text
+implement: Apply the sibling-library refactor proposed above and update AGENTS.md and docs/intent.md. Preserve existing proofs.
+```
+
+The controller retains the explicit approval, recent discussion and current PR
+revision, then queues the existing PR for implementation, tests and independent
+read-only review. Progress and results stay in that conversation. Questions and
+plain acknowledgements do not start work. The report assistant remains read-only;
+only the controller dispatches workers.
+
+Follow-ups use retained source and preserve the original accepted package. The
+approved scope is recorded separately and accompanies later maintenance. The
+existing repository locks and scheduler budgets apply. If another run changes
+the PR after capture, inspect the new revision and send a new `implement:` action;
+the factory will not silently apply stale approval. Use `resume:` to retry a
+failed follow-up within its already accepted scope.
+
+Recent conversational text is bounded to 256 KiB and excludes tool output,
+generated updates and private reasoning. The receipt identifies omitted older
+messages and links the original conversation. Supply essential scope directly
+in the action when the discussion is long. This does not authorize changes to
+other repositories, merge the PR or deploy the project.
+
 ### CI repairs
 
 Published PRs are monitored for CI failures. Repairs receive annotations and
