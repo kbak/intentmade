@@ -456,6 +456,12 @@
   "test_review_sources.ReferenceSourcesTests.test_invalid_registration_or_unavailable_source_stops_preparation": [
     "utest~im-review-reference-unavailable~1"
   ],
+  "test_startup_recovery.StartupRecoveryTests.test_run_budget_is_explicit_and_wait_timeout_does_not_replay": [
+    "utest~im-run-timeout~1"
+  ],
+  "test_scheduler.ConfigurationTests.test_submitted_automation_uses_full_factory_run_budget": [
+    "utest~im-automation-timeout~1"
+  ],
   "test_followup.NamingTests.test_branch_prefix_accepts_trailing_separators": [
     "utest~im-branch-prefix-normalization~1"
   ],
@@ -562,5 +568,8 @@
   ],
   "test_assurance.AssuranceIntegrationTests.test_accepted_package_keeps_original_identity_while_current_plan_evolves": [
     "utest~im-assurance-package~1"
+  ],
+  "test_deployment.DeploymentTests.test_run_timeout_default_override_groups_and_validation": [
+    "utest~im-timeout-configuration~1"
   ]
 }

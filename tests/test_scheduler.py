@@ -57,6 +57,25 @@ class ConfigurationTests(unittest.TestCase):
         ):
             spec.loader.exec_module(cls.configure)
 
+    def test_submitted_automation_uses_full_factory_run_budget(self):
+        with (
+            patch.object(
+                self.configure,
+                "projects",
+                return_value={"example": {**CONFIG, "run_timeout_seconds": 36000}},
+            ),
+            patch.object(self.configure, "factories", return_value={}),
+            patch.object(self.configure, "records", return_value=[]),
+            patch.object(self.configure, "selected_bases", return_value={"example": "a" * 40}),
+            patch.object(self.configure, "files", return_value={}),
+            patch.object(self.configure, "install") as install,
+        ):
+            self.configure.submit(
+                "example", "-", task="issue-42", request_text="Implement the approved request"
+            )
+        # [utest~im-automation-timeout~1->req~im-run-timeout~1]
+        self.assertEqual(install.call_args.args[0]["timeout"], 36000)
+
     def test_registration_waits_for_native_commits_without_repeating_writes(self):
         trigger = {"type": "event", "source": "custom", "on": "fixture", "filter": "`false`"}
         saved = {

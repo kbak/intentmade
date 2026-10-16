@@ -1,5 +1,19 @@
 # Operations
 
+Set `run_timeout_seconds` in `config/deployment.json` for the deployment default
+(7,200 seconds when absent). A repository registration can override it with the
+same key, for example `36000` for a 10-hour run. Groups use the longest selected
+repository budget. The selected budget supplies both the native automation timeout
+and the SDK's explicit blocking wait, avoiding its one-hour default.
+`AUTOMATION_MAX_RUN_DURATION` in `.env` sets the service ceiling (default 36,000);
+the native API rejects automation registration above its actual service ceiling.
+Refresh saved workflows with
+`factoryctl configure` after changing budgets. These changes affect subsequent
+runs; changing the service ceiling also requires an idle service restart.
+Project-specific test/check timeouts remain part of their captured policy.
+An expired run does not automatically replay work. Inspect its retained task
+commit and handoff, then resume the same task with its original approved inputs.
+
 Run commands from the tooling checkout:
 
 | Command | Purpose |

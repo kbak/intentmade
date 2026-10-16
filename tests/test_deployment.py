@@ -59,6 +59,35 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(resource_limits.settings(), resource_limits.DEFAULTS)
         deployment.check_issue_authorization(CONFIG)
 
+    def test_run_timeout_default_override_groups_and_validation(self):
+        # [utest~im-timeout-configuration~1->req~im-run-timeout~1]
+        self.assertEqual(deployment.run_timeout(), 7200)
+        self.write("deployment.json", {"run_timeout_seconds": 36000})
+        self.assertEqual(deployment.run_timeout(CONFIG), 36000)
+        smaller = {**CONFIG, "run_timeout_seconds": 1800}
+        self.assertEqual(deployment.run_timeout(smaller), 1800)
+        self.assertEqual(deployment.run_timeout([smaller, CONFIG]), 36000)
+        self.assertEqual(common.projects(self.config)["example"], CONFIG)
+        self.write("repositories/example.json", {"run_timeout_seconds": 1800})
+        self.assertEqual(common.projects(self.config)["example"]["run_timeout_seconds"], 1800)
+        for invalid in (True, 0, -1, "36000", None):
+            with self.subTest(invalid=invalid):
+                self.write("repositories/example.json", {"run_timeout_seconds": invalid})
+                with self.assertRaisesRegex(ValueError, "run_timeout_seconds"):
+                    common.projects(self.config)
+                self.write("deployment.json", {"run_timeout_seconds": invalid})
+                with self.assertRaisesRegex(ValueError, "run_timeout_seconds"):
+                    deployment.settings()
+                self.write("deployment.json", {"run_timeout_seconds": 36000})
+        with patch.dict(os.environ, {"AUTOMATION_MAX_RUN_DURATION": "7200"}):
+            # Native registration enforces its actual service ceiling. A worker's
+            # inherited environment can predate an idle backend process restart.
+            self.assertEqual(deployment.run_timeout(CONFIG), 36000)
+        self.write("deployment.json", {})
+        self.write("defaults.json", {**CONFIG, "run_timeout_seconds": 9000})
+        with self.assertRaisesRegex(ValueError, "deployment.json"):
+            deployment.settings()
+
     def test_public_examples_use_manual_intake_even_when_scheduling_is_enabled(self):
         examples = Path(__file__).resolve().parents[1] / "examples/config"
         for name in ("defaults.json", "deployment.json"):

@@ -8,6 +8,7 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+import deployment
 import diagnostics
 import docker_sandboxes
 import harness
@@ -144,7 +145,8 @@ def worker(root, config):
                     json={"name": "CODEX_AUTH_JSON", "value": value},
                 ).raise_for_status()
             try:
-                yield workspace
+                with deployment.run_budget(config):
+                    yield workspace
             finally:
                 primary_failure = sys.exc_info()[0] is not None
                 credentials = [settings["OH_SESSION_API_KEYS_0"]]

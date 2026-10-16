@@ -13,7 +13,7 @@ services:
       DO_NOT_TRACK: "1"
       OH_PERSISTENCE_DIR: /home/openhands/.openhands
       AUTOMATION_BASE_URL: http://canvas:8000
-      AUTOMATION_MAX_RUN_DURATION: "7200"
+      AUTOMATION_MAX_RUN_DURATION: ${AUTOMATION_MAX_RUN_DURATION:-36000}
       DOCKER_HOST: unix:///run/factory-docker/docker.sock
     group_add: ["2375"]
     security_opt:

@@ -50,6 +50,7 @@ def projects(config_dir=None):
         name = identifier(file.stem)
         registration = json.loads(file.read_text())
         config = {**deployment.workflow_settings(defaults, registration), "project": name}
+        deployment.run_timeout(config, options)
         from policy import validate_check_overrides
 
         validate_check_overrides(config)

@@ -8,6 +8,7 @@ import tomllib
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import deployment
 import harness
 import measurements
 from common import session_api_key
@@ -29,10 +30,11 @@ class AgentStartupError(RuntimeError):
 # [impl->req~im-startup-retry~1]
 def run_with_startup_recovery(conversation, transcript=None):
     """Retry one proven startup timeout, before any agent turn can do work."""
+    timeout = deployment.CURRENT_RUN_TIMEOUT.get() or deployment.run_timeout()
     for attempt in range(2):
         before = {str(event.id) for event in conversation.state.events}
         try:
-            conversation.run()
+            conversation.run(timeout=timeout)
             return
         except Exception as exc:
             events = [

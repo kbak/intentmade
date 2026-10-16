@@ -429,7 +429,7 @@ class ReviewResponseTests(unittest.TestCase):
                 responses = iter(["Progress text. PASS followed by more text", final])
                 conversation.state.events = []
 
-                def respond():
+                def respond(**kwargs):
                     conversation.state.events.append(
                         MessageEvent(
                             source="agent",

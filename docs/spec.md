@@ -24,7 +24,7 @@ The boundary column identifies areas needing more detailed requirements or check
 | Inputs and continuation | [input-bytes](#verify-and-freeze-declared-input-artifacts), [input-restart](#bind-input-declarations-across-task-restarts), [repair-context](#reuse-only-matching-retained-repair-context) | Input size/count combinatorics and bounded continuation record limits need further boundary tests. |
 | Portable workflow | [portable-plan](#retain-an-explicitly-accepted-planning-package), [intent-consistency](#check-affected-product-and-task-intent-in-existing-review), [repository-policy](#capture-verification-policy-from-a-pinned-project-commit), [portable-handoff](#export-source-bound-continuation-and-review-evidence) | Explicit package gates are controller-enforced; request-only delegated planning remains agent guidance. No live model or GitHub qualification. |
 | IntentBond integration | [trace-opt-in](#enable-traceability-through-explicit-configuration), [trace-source-gate](#match-controller-evidence-to-exported-source-and-policy), [trace-assessment](#require-semantic-accounting-beyond-a-green-trace-graph), [scope-identity](#distinguish-scope-bytes-from-canonical-policy), [trace-retention](#retain-bounded-invocation-evidence-including-failures) | Deployment activation requires explicit configuration; fixture annotations are excluded through the trusted scope. |
-| Observability and operator automation | [execution-provenance](#keep-observed-environment-identity-distinct-from-intent), [finite-completion](#record-finite-execution-before-acknowledgement), [finite-timeout](#stop-timed-out-finite-recipes), [measurement-outcomes](#preserve-attempts-and-unknown-measurements), [startup-retry](#retry-only-a-typed-pre-work-startup-timeout), [canvas-activity](#keep-conversation-activity-compact-and-inspectable) | Provider counter conversion, finite registration consistency, full CLI/setup and backup/restore promises remain deferred. |
+| Observability and operator automation | [execution-provenance](#keep-observed-environment-identity-distinct-from-intent), [finite-completion](#record-finite-execution-before-acknowledgement), [finite-timeout](#stop-timed-out-finite-recipes), [measurement-outcomes](#preserve-attempts-and-unknown-measurements), [startup-retry](#retry-only-a-typed-pre-work-startup-timeout), [canvas-activity](#keep-conversation-activity-compact-and-inspectable), [run-timeout](#keep-sdk-and-automation-run-budgets-aligned) | Provider counter conversion, finite registration consistency, full CLI/setup and backup/restore promises remain deferred. |
 | Current-fact authorization | [controller authorization](#authorize-controller-actions-with-cedar), [individual rules](authorization.md#rule-traceability) | Cedar decides over validated current facts; durable history and orchestration remain outside the engine. |
 | Runtime validation | [runtime-build-inputs](#runtime-test-image-matches-candidate-patch-inputs) | A matching build manifest checks consistency; it does not attest an untrusted image. |
 | Deployment configuration repository, registered applications and upstream projects | Outside this repository's product baseline | Examples and dependency pins are captured; sibling repositories and upstream internals have separate contracts. |
@@ -922,6 +922,30 @@ Existing assertions: [activity regressions](../tests/test_canvas_activity.py).
 
 Evidence limit: The offline bundle probe checks shipped grouping, counts, titles
 and details with fixtures. It does not establish live provider or approval behavior.
+
+### Keep SDK and automation run budgets aligned
+`req~im-run-timeout~1`
+
+Give factory implementation/review conversations and native build, review,
+scheduler and resume automations a configurable run budget: repository
+`run_timeout_seconds` overrides the deployment default (7,200 seconds when absent).
+Groups use the longest selected repository budget. Reject nonpositive/noninteger
+values; native automation registration enforces the configurable service ceiling.
+Pass the selected
+budget explicitly to the SDK's blocking conversation run instead of inheriting
+its one-hour default. Preserve separate project test/check deadlines, retained
+source and evidence, and the existing prohibition on automatically replaying
+work after a timeout with agent activity.
+
+Covers:
+- `intent~im-operate-reliably~1`
+
+Needs: impl, utest
+
+Implementation: [run budget](../workflows/deployment.py), [SDK wait](../workflows/agent.py),
+[automation definitions](../scripts/configure.py), [service cap](../compose.yaml).
+
+Existing assertions: [timeout and startup-recovery regressions](../tests/test_startup_recovery.py).
 
 ### Retry only a typed pre-work startup timeout
 `req~im-startup-retry~1`

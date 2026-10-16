@@ -15,6 +15,15 @@ for manual and automatic issue intake.
 Set `worker_agent_profile` there to select an existing Canvas agent profile;
 see [native OpenHands and Codex configuration](agents.md).
 
+`run_timeout_seconds` sets the deployment's default run budget (7,200 seconds
+when omitted). Set it in `deployment.json`, and optionally override it in
+`repositories/NAME.json`; use `36000` for ten hours. Groups use the longest
+selected repository budget. Saved automations and SDK conversation waits use
+that budget; project test deadlines remain separate. Refresh workflows after
+changing budgets. The service ceiling is `AUTOMATION_MAX_RUN_DURATION` in `.env`
+(default 36,000 seconds); native registration rejects budgets above the actual
+ceiling. See [operations](operations.md) for restart and recovery guidance.
+
 `issue_intake` is `manual` by default. `submit-issue PROJECT NUMBER` authorizes
 one captured issue specification without labels. Set `issue_intake: "automatic"`
 explicitly to poll new issues in a trusted repository. `enabled` controls the

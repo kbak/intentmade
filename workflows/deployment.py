@@ -2,6 +2,8 @@
 
 import json
 import os
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 FIELDS = {
@@ -11,8 +13,16 @@ FIELDS = {
     "worker_agent_profile",
     "dogwood",
     "cedar",
+    "run_timeout_seconds",
 }
 LEGACY_FIELDS = {"worker_runtime", "resource_limits"}
+CURRENT_RUN_TIMEOUT = ContextVar("factory_run_timeout", default=None)
+
+
+def validate_run_timeout(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError("run_timeout_seconds must be a positive integer")
+    return value
 
 
 def read(path):
@@ -38,6 +48,8 @@ def settings(config_dir=None):
     )
     options = read(directory / "deployment.json")
     defaults = read(directory / "defaults.json")
+    if "run_timeout_seconds" in defaults:
+        raise ValueError("Set the default run_timeout_seconds in deployment.json")
     if set(options) - FIELDS:
         raise ValueError("deployment.json contains unsupported settings")
     if {"dogwood", "cedar"} & options.keys():
@@ -79,6 +91,7 @@ def settings(config_dir=None):
         if isinstance(path, str) and path.strip() and not Path(path).is_absolute():
             runtime[key] = str((host_directory / path).resolve())
     return {
+        "run_timeout_seconds": validate_run_timeout(options.get("run_timeout_seconds", 7200)),
         "worker_agent_profile": agent_profile,
         "worker_runtime": validate_runtime(runtime),
         "resource_limits": validate_limits(options.get("resource_limits", {})),
@@ -89,7 +102,7 @@ def settings(config_dir=None):
 # [impl->req~im-deployment-authority~1]
 def workflow_settings(defaults, registration):
     """Keep operator settings out of repository overrides and submitted jobs."""
-    for name in FIELDS & registration.keys():
+    for name in (FIELDS - {"run_timeout_seconds"}) & registration.keys():
         raise ValueError(f"Set factory-wide {name} in deployment.json")
     config = {
         **{key: value for key, value in defaults.items() if key not in FIELDS},
@@ -97,6 +110,30 @@ def workflow_settings(defaults, registration):
     }
     issue_intake(config)
     return config
+
+
+# [impl->req~im-run-timeout~1]
+def run_timeout(configs=(), options=None):
+    """Repository override, then deployment default; groups use the longest budget."""
+    options = settings() if options is None else options
+    configs = [configs] if isinstance(configs, dict) else configs
+    return max(
+        (
+            validate_run_timeout(config.get("run_timeout_seconds", options["run_timeout_seconds"]))
+            for config in configs
+        ),
+        default=options["run_timeout_seconds"],
+    )
+
+
+@contextmanager
+def run_budget(configs):
+    """Use the selected budget for all conversations in this worker scope."""
+    token = CURRENT_RUN_TIMEOUT.set(run_timeout(configs))
+    try:
+        yield
+    finally:
+        CURRENT_RUN_TIMEOUT.reset(token)
 
 
 # [impl->req~im-issue-intake~1]

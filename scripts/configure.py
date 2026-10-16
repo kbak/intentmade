@@ -219,7 +219,7 @@ def configure(paused=False):
                 "timezone": config["timezone"],
             },
             "entrypoint": "python monitor.py",
-            "timeout": 7200,
+            "timeout": deployment.run_timeout(config),
         }
         previous = existing.get(definition["name"], {}).get("id")
         scheduler = install(definition, files({"config": config}), previous)
@@ -237,7 +237,7 @@ def configure(paused=False):
                     "filter": "`false`",
                 },
                 "entrypoint": "python monitor.py",
-                "timeout": 7200,
+                "timeout": deployment.run_timeout(config),
             },
             files({"config": config, "resume_replies": True}),
             existing.get(reply_name, {}).get("id"),
@@ -338,7 +338,7 @@ def submit(
             "filter": "`false`",
         },
         "entrypoint": "python run.py",
-        "timeout": 7200,
+        "timeout": deployment.run_timeout(configs),
     }
     result = install(definition, bundle, previous["id"] if previous else None)
     print("Task:", task, "— approved bases:", json.dumps(bases))
@@ -362,7 +362,7 @@ def review(project, number):
             "filter": "`false`",
         },
         "entrypoint": "python monitor.py",
-        "timeout": 7200,
+        "timeout": deployment.run_timeout(config),
     }
     result = install(
         definition,
@@ -436,7 +436,7 @@ def retry_issue(project, number, answer=None, *, initial=False):
                     "filter": "`false`",
                 },
                 "entrypoint": "python monitor.py",
-                "timeout": 7200,
+                "timeout": deployment.run_timeout(config),
             },
             files(
                 {

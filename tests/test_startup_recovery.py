@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import agent
+import deployment
 import diagnostics
 
 
@@ -27,8 +28,20 @@ class StartupRecoveryTests(unittest.TestCase):
         )
         raise RuntimeError("Remote conversation ended with error")
 
+    def test_run_budget_is_explicit_and_wait_timeout_does_not_replay(self):
+        with deployment.run_budget({"run_timeout_seconds": 36000}):
+            agent.run_with_startup_recovery(self.conversation)
+            # [utest~im-run-timeout~1->req~im-run-timeout~1]
+            self.conversation.run.assert_called_once_with(timeout=36000)
+            self.conversation.run.reset_mock()
+            self.conversation.run.side_effect = TimeoutError("Blocking wait expired")
+            with self.assertRaises(TimeoutError):
+                agent.run_with_startup_recovery(self.conversation)
+            self.conversation.run.assert_called_once_with(timeout=36000)
+        self.assertIsNone(deployment.CURRENT_RUN_TIMEOUT.get())
+
     def test_temporary_startup_timeout_retries_once_and_retains_reason(self):
-        def run():
+        def run(**kwargs):
             if self.conversation.run.call_count == 1:
                 self.fail("ACPStartupTimeout", "Authentication endpoint timed out")
 
@@ -43,7 +56,7 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertEqual(record["code"], "ACPStartupTimeout")
 
     def test_repeated_timeout_is_bounded(self):
-        self.conversation.run.side_effect = lambda: self.fail("ACPStartupTimeout")
+        self.conversation.run.side_effect = lambda **kwargs: self.fail("ACPStartupTimeout")
         # [utest~im-startup_recovery-StartupRecoveryTests-repeated_timeout_is_bounded~1->req~im-startup-retry~1]
         with (
             patch.object(agent.time, "sleep"),
@@ -55,7 +68,7 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertFalse(caught.exception.details["retrying"])
 
     def test_generic_server_wrapper_does_not_hide_typed_startup_failure(self):
-        def run():
+        def run(**kwargs):
             self.conversation.state.events.extend(
                 [
                     event("typed", code="ACPAuthRequired", detail="Reconnect Codex"),
@@ -72,7 +85,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_auth_spawn_and_unknown_initialization_failures_are_not_retried(self):
         for code in ("ACPAuthRequired", "ACPSpawnError", "ACPInitError"):
             self.conversation.run.reset_mock()
-            self.conversation.run.side_effect = lambda: self.fail(code)
+            self.conversation.run.side_effect = lambda **kwargs: self.fail(code)
             # [utest~im-startup_recovery-StartupRecoveryTests-auth_spawn_and_unknown_initialization_failures_are_not_retried~1->req~im-startup-retry~1]
             with self.subTest(code=code), self.assertRaisesRegex(agent.AgentStartupError, code):
                 agent.run_with_startup_recovery(self.conversation)
@@ -82,7 +95,9 @@ class StartupRecoveryTests(unittest.TestCase):
         for code in (None, "ACPPromptError"):
             self.conversation.run.reset_mock()
             self.conversation.run.side_effect = (
-                RuntimeError("connection dropped") if code is None else lambda: self.fail(code)
+                RuntimeError("connection dropped")
+                if code is None
+                else lambda **kwargs: self.fail(code)
             )
             with self.subTest(code=code), self.assertRaises(RuntimeError) as caught:
                 agent.run_with_startup_recovery(self.conversation)
@@ -90,7 +105,7 @@ class StartupRecoveryTests(unittest.TestCase):
             self.conversation.run.assert_called_once()
 
     def test_timeout_after_agent_activity_does_not_replay(self):
-        def run():
+        def run(**kwargs):
             self.conversation.state.events.append(event("action", kind="ACPToolCallEvent"))
             self.fail("ACPStartupTimeout")
 
