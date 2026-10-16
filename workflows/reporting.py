@@ -221,6 +221,7 @@ class TaskReport:
         if ACTIVE:
             ACTIVE["task_conversation_id"] = self.record["conversation_id"]
             self.record["run_id"] = ACTIVE["run_id"]
+            self.record["automation_id"] = os.environ.get("AUTOMATION_ID")
             previous = ACTIVE.get("conversation_id")
             current = self.record["conversation_id"]
             if previous and previous != current:

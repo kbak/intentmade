@@ -265,7 +265,10 @@
         "utest~im-follow-up-lifecycle",
         "utest~im-follow-up-recovery",
         "utest~im-follow-up-pipeline",
-        "utest~im-follow-up-deleted-report"
+        "utest~im-follow-up-deleted-report",
+        "utest~im-interrupted-run-notice",
+        "utest~im-interrupted-run-no-replay",
+        "utest~im-interrupted-run-deploy-guard"
       ]
     }
   },

@@ -599,5 +599,14 @@
   ],
   "test_continuations.ContinuationTests.test_deleted_reports_do_not_stop_scans_or_authorize_partial_history": [
     "utest~im-follow-up-deleted-report~1"
+  ],
+  "test_run_health.RunHealthTests.test_restart_reports_interruption_once_and_preserves_approval": [
+    "utest~im-interrupted-run-notice~1"
+  ],
+  "test_run_health.RunHealthTests.test_quiet_live_cloud_pending_and_unknown_runs_are_not_failed": [
+    "utest~im-interrupted-run-no-replay~1"
+  ],
+  "test_run_guard.RunGuardTests.test_paused_disabled_and_older_active_runs_block_shutdown": [
+    "utest~im-interrupted-run-deploy-guard~1"
   ]
 }

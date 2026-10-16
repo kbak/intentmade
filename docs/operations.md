@@ -30,6 +30,11 @@ Use Canvas's **Automate** view to inspect runs and pause schedules. Let active
 jobs finish before restarting services. The host and Docker must remain running
 for polling; configure Docker to start at boot if unattended operation is
 needed.
+`factoryctl up` and `down` refuse to stop a running controller while native runs
+are pending or running, including work whose automation has been disabled.
+An unavailable run-state API also blocks shutdown. Pause admission, drain work,
+and inspect stale records before retrying the operation; direct Docker commands
+bypass this guard.
 
 `FACTORY_DATA_DIR` selects the runtime data directory. Task branches live under
 `workspaces/tasks/`; reports, test logs, patches and PR metadata are
@@ -96,6 +101,16 @@ the current worker phase. Generated updates and questions do not launch the
 report assistant. If that assistant previously failed, later updates identify
 its error separately from the task status. Explicit `resume:` replies still
 continue eligible failed or waiting tasks through native automation.
+
+Each enabled repository scan also checks unfinished task reports independently
+of the long run budget. Proven local process loss or a failed/cancelled native
+run produces an **Interrupted — action needed** notice in the original task
+conversation. Its retained table stops claiming that work is running. Failed
+notice delivery remains pending for a later scan; a persisted notice is not
+posted again after a lost response. Quiet long builds are not expired for lack
+of output. Work and approval remain intact, and recovery requires an explicit
+`resume:` reply. These are Canvas conversation notices, not an email or OS push
+notification channel; paused scans cannot deliver them until polling resumes.
 
 Provider HTTP failures are reported before structured-response validation. A
 Codex HTTP 401 requires `./scripts/factoryctl codex-login`, followed by an

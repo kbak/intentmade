@@ -24,7 +24,7 @@ The boundary column identifies areas needing more detailed requirements or check
 | Inputs and continuation | [input-bytes](#verify-and-freeze-declared-input-artifacts), [input-restart](#bind-input-declarations-across-task-restarts), [repair-context](#reuse-only-matching-retained-repair-context) | Input size/count combinatorics and bounded continuation record limits need further boundary tests. |
 | Portable workflow | [portable-plan](#retain-an-explicitly-accepted-planning-package), [intent-consistency](#check-affected-product-and-task-intent-in-existing-review), [repository-policy](#capture-verification-policy-from-a-pinned-project-commit), [portable-handoff](#export-source-bound-continuation-and-review-evidence) | Explicit package gates are controller-enforced; request-only delegated planning remains agent guidance. No live model or GitHub qualification. |
 | IntentBond integration | [trace-opt-in](#enable-traceability-through-explicit-configuration), [trace-source-gate](#match-controller-evidence-to-exported-source-and-policy), [trace-assessment](#require-semantic-accounting-beyond-a-green-trace-graph), [scope-identity](#distinguish-scope-bytes-from-canonical-policy), [trace-retention](#retain-bounded-invocation-evidence-including-failures) | Deployment activation requires explicit configuration; fixture annotations are excluded through the trusted scope. |
-| Observability and operator automation | [execution-provenance](#keep-observed-environment-identity-distinct-from-intent), [finite-completion](#record-finite-execution-before-acknowledgement), [finite-timeout](#stop-timed-out-finite-recipes), [measurement-outcomes](#preserve-attempts-and-unknown-measurements), [startup-retry](#retry-only-a-typed-pre-work-startup-timeout), [canvas-activity](#keep-conversation-activity-compact-and-inspectable), [run-timeout](#keep-sdk-and-automation-run-budgets-aligned) | Provider counter conversion, finite registration consistency, full CLI/setup and backup/restore promises remain deferred. |
+| Observability and operator automation | [execution-provenance](#keep-observed-environment-identity-distinct-from-intent), [finite-completion](#record-finite-execution-before-acknowledgement), [finite-timeout](#stop-timed-out-finite-recipes), [measurement-outcomes](#preserve-attempts-and-unknown-measurements), [startup-retry](#retry-only-a-typed-pre-work-startup-timeout), [canvas-activity](#keep-conversation-activity-compact-and-inspectable), [run-timeout](#keep-sdk-and-automation-run-budgets-aligned), [interrupted-run](#report-interrupted-execution-before-the-run-budget-expires) | Provider counter conversion, finite registration consistency, full CLI/setup and backup/restore promises remain deferred. |
 | Current-fact authorization | [controller authorization](#authorize-controller-actions-with-cedar), [individual rules](authorization.md#rule-traceability) | Cedar decides over validated current facts; durable history and orchestration remain outside the engine. |
 | Runtime validation | [runtime-build-inputs](#runtime-test-image-matches-candidate-patch-inputs) | A matching build manifest checks consistency; it does not attest an untrusted image. |
 | Deployment configuration repository, registered applications and upstream projects | Outside this repository's product baseline | Examples and dependency pins are captured; sibling repositories and upstream internals have separate contracts. |
@@ -949,6 +949,48 @@ Existing assertions: [progress timing, routing, repair, questions and reporting 
 
 Evidence limit: Scripted checks verify content, native API compatibility and
 workflow outcomes; they do not establish browser rendering or live API delivery.
+
+### Report interrupted execution before the run budget expires
+`req~im-interrupted-run~1`
+
+At each enabled repository scan, reconcile active task reports with the exact
+native automation run. A local workflow that predates the current Docker
+controller's startup, a finished command scoped to that run, or a native failed
+or cancelled run must not leave the task reporting active work. Preserve task
+identity, approval, branches, workspaces and evidence. Mark incomplete execution
+failed and its retained running stage interrupted, preserving the last observed
+elapsed time rather than inventing a stop time.
+
+Post an action-needed interruption notice in the original task conversation,
+with explicit continuation guidance. Retry unavailable notification delivery on
+later scans and reconcile a lost response against persisted events to avoid
+duplicate notices. Do not launch implementation or change approval automatically.
+Quiet output, missing API evidence, pending dispatch and live remote workers do
+not establish interruption. A late normal completion or a new task run wins over
+an older reconciliation snapshot.
+
+Before supported `factoryctl up` or `down` operations stop a running controller,
+reject observed pending/running native runs, including disabled automations.
+Failure to read run state must block shutdown. Recheck immediately before the
+state-ownership shutdown step.
+
+Covers:
+- `intent~im-operate-reliably~1`
+- `intent~im-protect-work~1`
+
+Needs: impl, utest
+
+Implementation: [run reconciliation](../workflows/run_health.py),
+[shutdown guard](../scripts/run_guard.py), [operator lifecycle](../scripts/factoryctl).
+
+Existing assertions: [interruption regressions](../tests/test_run_health.py),
+[shutdown guard regressions](../tests/test_run_guard.py).
+
+Evidence limit: Scripted native API responses exercise restart, notification and
+completion races. This does not establish OS push/email delivery, detection
+while all scans are paused, or an atomic deployment admission barrier. Direct
+Docker operations bypass the supported shutdown guard. Missing command history
+without evidence of a controller restart remains unknown.
 
 ### Keep conversation activity compact and inspectable
 `req~im-canvas-activity~1`

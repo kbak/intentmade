@@ -77,6 +77,11 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class StartupTests(unittest.TestCase):
+    def setUp(self):
+        self.idle = patch("run_guard.require_idle")
+        self.idle.start()
+        self.addCleanup(self.idle.stop)
+
     def test_plan_and_submit_forward_documents_without_container_path_assumptions(self):
         # [utest~im-sdlc-cli-handoff~1->req~im-portable-plan~2]
         with tempfile.TemporaryDirectory() as temporary:

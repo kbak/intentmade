@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "workflows"))
 sys.path.insert(0, str(ROOT / "scripts"))
 import deployment  # noqa: E402
+from run_guard import require_idle  # noqa: E402
 
 # Ask Compose to resolve .env, exported overrides and relative bind paths.
 # This keeps setup, deployment and image caching on the same configuration.
@@ -53,6 +54,7 @@ def native(*args, **kwargs):
 def prepare_canvas_state():
     # Preserve native state when switching either direction between controller
     # images with different UIDs. Resolve ownership from the selected image.
+    require_idle(run)
     run("docker", "compose", "stop", "canvas")
     run(
         "docker",
@@ -110,6 +112,8 @@ p.add_argument(
 )
 p.add_argument("args", nargs=argparse.REMAINDER)
 a = p.parse_args()
+if a.action in {"up", "down"}:
+    require_idle(run)
 runtime = deployment.settings(CONFIG)["worker_runtime"]
 native_backend = runtime["backend"] == "docker-sandboxes"
 if native_backend and a.action == "up":

@@ -826,6 +826,11 @@ if __name__ == "__main__":
         raise InterruptedError("Cancelled")
 
     signal.signal(signal.SIGTERM, cancelled)
+    # Run independently of GitHub credentials and the repository build lock.
+    # A lost workflow cannot report its own interruption.
+    from run_health import reconcile
+
+    reconcile(json.loads(Path("job.json").read_text())["config"])
     with run_report():
         job = json.loads(Path("job.json").read_text())
         config = job["config"]
