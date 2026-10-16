@@ -268,7 +268,12 @@
         "utest~im-follow-up-deleted-report",
         "utest~im-interrupted-run-notice",
         "utest~im-interrupted-run-no-replay",
-        "utest~im-interrupted-run-deploy-guard"
+        "utest~im-interrupted-run-deploy-guard",
+        "utest~im-opengauss-selection",
+        "utest~im-opengauss-stage-boundaries",
+        "utest~im-opengauss-unsupported",
+        "utest~im-opengauss-hook-failure",
+        "utest~im-opengauss-skill-registration"
       ]
     }
   },

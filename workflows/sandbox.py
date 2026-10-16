@@ -81,6 +81,7 @@ def worker(root, config):
         {"/factory-tests/" + c["test_profile"] for c in configs if c.get("test_profile")}
     )
     selected = harness.resolve(profile, name, [str(root), "/factory-inputs", *profile_roots])
+    harness.select_implementation(selected, configs)
     require_disk_space(root)
     name = root.name
     options = docker_sandboxes.settings()

@@ -1,0 +1,7 @@
+{
+  "opengauss": "f87633900ae185b8037bf451a914fe7eeae1eb08",
+  "lean4_skills": "b6243b85b9b0a0ddff5bb6773889044daf687f8e",
+  "lean_lsp_mcp": "0.29.0",
+  "workflow": "autoprove",
+  "transport": "codex-acp"
+}

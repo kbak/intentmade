@@ -1,6 +1,7 @@
 // Apply at the ACP boundary: Canvas's frozen server has its own embedded SDK.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 
 const selection = Symbol("factory-selected-directory");
 
@@ -15,6 +16,23 @@ export function factorySessionRequest(request) {
 }
 
 export function factorySessionConfig(config, request) {
+  if (process.env.FACTORY_OPENGAUSS === "autoprove") {
+    const prepared = spawnSync("python", ["/opt/factory/opengauss_runtime.py", request.cwd], {
+      encoding: "utf8", timeout: 15000, maxBuffer: 1024 * 1024,
+    });
+    if (prepared.error || prepared.status !== 0) {
+      throw new Error("OpenGauss preparation failed; check the pinned proof runtime and Lean project");
+    }
+    const workflow = JSON.parse(prepared.stdout);
+    // Use the upstream session hook: cwd is the actual new/resumed worktree,
+    // not the worker server's cwd or the repository used to allocate a worktree.
+    return {
+      ...config,
+      developer_instructions: `${config.developer_instructions ?? ""}\n\n${workflow.instructions}`,
+      skills: { ...(config.skills ?? {}), config: [...(config.skills?.config ?? []), ...workflow.skills] },
+      mcp_servers: { ...(config.mcp_servers ?? {}), "factory-lean-lsp": workflow.mcp },
+    };
+  }
   const directory = request[selection];
   if (!directory) return config;
   const project = directory.slice("/projects/repos/".length).split("/")[0];

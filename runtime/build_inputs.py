@@ -9,6 +9,7 @@ FILES = (
     "docker/runtime.Dockerfile",
     "docker/openhands-requirements.txt",
     "docker/traceability.Dockerfile",
+    "docker/opengauss.Dockerfile",
     "docker/intentbond-requirements.txt",
     "docker/traceability-requirements.txt",
     "upstream.lock.json",

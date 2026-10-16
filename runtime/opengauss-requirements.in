@@ -1,0 +1,2 @@
+# Isolated optional Lean MCP environment; compile all transitive hashes.
+lean-lsp-mcp==0.29.0
