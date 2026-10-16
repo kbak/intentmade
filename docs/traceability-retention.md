@@ -24,7 +24,13 @@ Metrics reference these indexes. Early malformed agent responses still trigger
 retention, even before any controller check has been allocated.
 
 Retention accepts flat, allowlisted portable artifacts only, with SHA-256 and byte
-counts. It rejects symlinks, linked parent directories, hardlinks, special files,
+counts. Alongside `invocation.json`, `checker.log` and the `evidence/` bundle,
+invocations may retain `impact.json`, `implementation-review.json`,
+`verify-result.json` and `verify.log` as supplemental worker observations. These
+reports use the same file and total-size limits; a self-review or verification
+claim cannot change the recorded check result or satisfy independent review.
+Keep other scratch files outside invocation directories, and do not add them
+to the portable evidence bundle. Retention rejects symlinks, linked parent directories, hardlinks, special files,
 unknown filenames, over 200 invocations, files over 32 MiB or a retained attempt
 over 512 MiB. It does not crawl arbitrary worker directories. If a checker version
 adds a new artifact, update the explicit allowlist after review. A retention error

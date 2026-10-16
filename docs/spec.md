@@ -780,6 +780,11 @@ Existing assertions: [test_exact_source_survives_native_payload_and_worker_freez
 
 After worker teardown, retain designated agent/controller invocation directories, including incomplete checks, with hashes and byte counts. Reject links, special files, unknown artifacts and evidence exceeding the fixed retention bounds; on retention failure preserve the original workspace. The ledger itself does not grant acceptance.
 
+Retain the named supplemental reports `impact.json`, `implementation-review.json`,
+`verify-result.json` and `verify.log` beside the invocation's portable bundle,
+under the same custody and size limits. Treat their contents as worker claims;
+they cannot change check results or satisfy independent review.
+
 Covers:
 - `intent~im-trust-evidence~1`
 

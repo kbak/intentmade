@@ -571,5 +571,11 @@
   ],
   "test_deployment.DeploymentTests.test_run_timeout_default_override_groups_and_validation": [
     "utest~im-timeout-configuration~1"
+  ],
+  "test_traceability_retention.RetentionTests.test_supplemental_reports_retain_hashes_without_changing_check_result": [
+    "utest~im-trace-supplemental-reports~1"
+  ],
+  "test_traceability_retention.RetentionTests.test_supplemental_reports_enforce_file_and_aggregate_limits": [
+    "utest~im-trace-supplemental-bounds~1"
   ]
 }

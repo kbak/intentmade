@@ -102,7 +102,10 @@ def instructions(selected, states, environments):
         "Finish candidate documents and reports before checking; do not change inputs during validation. "
         "Use this wrapper for every feedback invocation so rejected bundles are retained. "
         "Each run creates fresh evidence outside the repository. The controller repeats "
-        "the check before completion."
+        "the check before completion. Supplemental reports beside the evidence directory "
+        "may use impact.json, implementation-review.json, verify-result.json or verify.log; "
+        "they remain worker claims. Keep other scratch files outside invocation directories "
+        "and do not add files to the portable evidence bundle."
     ]
     for project, paths in selected.items():
         state = states[project]

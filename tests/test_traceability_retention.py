@@ -1,6 +1,8 @@
 """Custody failures preserve the source; only allowed regular evidence is exported."""
 
+import hashlib
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +13,91 @@ from traceability.invocation import begin
 
 
 class RetentionTests(unittest.TestCase):
+    def test_supplemental_reports_retain_hashes_without_changing_check_result(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            checks = root / "checks"
+            checks.mkdir()
+            scope = root / "scope.json"
+            scope.write_text("{}")
+            invocation, _ = begin(checks, "feedback", root, scope, "base")
+            evidence = invocation / "evidence"
+            evidence.mkdir()
+            (evidence / "evidence.json").write_text(
+                json.dumps({"predicate": {"status": "rejected"}})
+            )
+            reports = {
+                "impact.json": '{"counts": {"added": 1}}',
+                "implementation-review.json": '{"verdict": "PASS"}',
+                "verify-result.json": '{"exit_code": 0}',
+                "verify.log": "Source matched; review still pending.\n",
+            }
+            for name, content in reports.items():
+                (invocation / name).write_text(content)
+            index = retention.retain(
+                {"root": root, "scratch": checks / "scratch", "retained": root / "traceability-0"},
+                0,
+            )
+            record = index["invocations"][0]
+            # [utest~im-trace-supplemental-reports~1->req~im-trace-retention~1]
+            self.assertEqual(record["bundle"]["status"], "rejected")
+            self.assertIsNone(record["exit_code"])
+            for name, content in reports.items():
+                self.assertEqual((Path(record["directory"]) / name).read_text(), content)
+                self.assertEqual(
+                    record["artifacts"][name],
+                    {
+                        "sha256": hashlib.sha256(content.encode()).hexdigest(),
+                        "bytes": len(content.encode()),
+                    },
+                )
+
+    def test_supplemental_reports_enforce_file_and_aggregate_limits(self):
+        for kind in ("symlink", "hardlink", "fifo", "size", "total", "unknown"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                checks = root / "checks"
+                checks.mkdir()
+                scope = root / "scope.json"
+                scope.write_text("{}")
+                invocation, _ = begin(checks, "feedback", root, scope, "base")
+                private = root / "private"
+                private.write_text("DO_NOT_EXPORT")
+                item = invocation / "impact.json"
+                if kind == "symlink":
+                    item.symlink_to(private)
+                elif kind == "hardlink":
+                    os.link(private, item)
+                elif kind == "fifo":
+                    os.mkfifo(item)
+                elif kind == "unknown":
+                    (invocation / "credentials.json").write_text("DO_NOT_EXPORT")
+                else:
+                    item.write_text("x" * 20)
+                with (
+                    patch.object(retention, "MAX_FILE_BYTES", 10 if kind == "size" else 100000),
+                    patch.object(retention, "MAX_TOTAL_BYTES", 10 if kind == "total" else 100000),
+                ):
+                    # [utest~im-trace-supplemental-bounds~1->req~im-trace-retention~1]
+                    with self.assertRaises((RuntimeError, OSError)):
+                        retention.retain(
+                            {
+                                "root": root,
+                                "scratch": checks / "scratch",
+                                "retained": root / "traceability-0",
+                            },
+                            0,
+                        )
+                self.assertTrue(invocation.exists())
+                self.assertEqual(private.read_text(), "DO_NOT_EXPORT")
+                self.assertFalse(
+                    any(
+                        "DO_NOT_EXPORT" in p.read_text()
+                        for p in (root / "traceability-invocations-0").rglob("*")
+                        if p.is_file()
+                    )
+                )
+
     def test_incomplete_and_unregistered_checks_stay_visible(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -39,8 +126,6 @@ class RetentionTests(unittest.TestCase):
     def test_links_special_files_unknown_files_and_size_limits_are_not_exported(self):
         for kind in ("symlink", "parent_link", "hardlink", "unknown", "size", "fifo"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
-                import os
-
                 root = Path(temporary)
                 checks = root / "checks"
                 checks.mkdir()
@@ -85,8 +170,6 @@ class RetentionTests(unittest.TestCase):
                 )
 
     def test_manifest_hashes_cover_preserved_rejected_bundle(self):
-        import hashlib
-
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             checks = root / "checks"

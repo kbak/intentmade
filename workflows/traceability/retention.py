@@ -25,6 +25,15 @@ BUNDLE_NAMES = {
         for name in ("items.xml", "tags.xml", "import.log", "tags-import.log", "trace.log")
     },
 }
+# These reports are worker observations, never independent approval or acceptance.
+INVOCATION_NAMES = {
+    "invocation.json",
+    "checker.log",
+    "impact.json",
+    "implementation-review.json",
+    "verify-result.json",
+    "verify.log",
+}
 MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_TOTAL_BYTES = 512 * 1024 * 1024
 MAX_INVOCATIONS = 200
@@ -97,7 +106,7 @@ def retain(paths, attempt):
                         )
                     relative = "evidence/" + artifact.name
                     manifest[relative] = copy_file(artifact, destination / relative, budget)
-            elif item.name in {"invocation.json", "checker.log"}:
+            elif item.name in INVOCATION_NAMES:
                 manifest[item.name] = copy_file(item, destination / item.name, budget)
             else:
                 raise RuntimeError(
