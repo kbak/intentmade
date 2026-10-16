@@ -6,6 +6,7 @@ import json
 
 import authorization
 import followup
+import httpx
 import reporting
 from approval import microseconds
 from common import api, github, lock, token
@@ -36,11 +37,18 @@ def discussion(conversation):
     """Read conversational text only; never forward tool output or private reasoning."""
     page, count, messages = None, 0, []
     while True:
-        data = api(
-            "GET",
-            f"/api/conversations/{conversation}/events/search",
-            params={"limit": 100, **({"page_id": page} if page else {})},
-        )
+        try:
+            data = api(
+                "GET",
+                f"/api/conversations/{conversation}/events/search",
+                params={"limit": 100, **({"page_id": page} if page else {})},
+            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+            # A deleted historical report has no new approval. Discard partial
+            # history too; preserve its task/publication receipts for recovery.
+            return []
         count += len(data["items"])
         if count > MAX_EVENTS:
             raise ValueError("Conversation exceeds the follow-up context limit; use a new task")

@@ -13,6 +13,7 @@ import authorization
 import common
 import continuations
 import followup
+import httpx
 import monitor
 import replies
 import reporting
@@ -94,6 +95,44 @@ class ContinuationTests(unittest.TestCase):
 
     def capture(self):
         return continuations.capture(CONFIG, self.task, self.report, "fixture-token")
+
+    def test_deleted_reports_do_not_stop_scans_or_authorize_partial_history(self):
+        # [utest~im-follow-up-deleted-report~1->req~im-thread-follow-up~1]
+        response = httpx.Response(404, request=httpx.Request("GET", "http://canvas/events"))
+        error = httpx.HTTPStatusError("Deleted", request=response.request, response=response)
+        original = copy.deepcopy(self.report)
+        for pages in (
+            [error],
+            [
+                {
+                    "items": [self.event("implement: unverified partial history")],
+                    "next_page_id": "next",
+                },
+                error,
+            ],
+        ):
+            with self.subTest(pages=len(pages)):
+                self.api.side_effect = pages
+                self.assertIsNone(self.capture())
+                self.api.side_effect = error
+                self.assertEqual(continuations.process(CONFIG, "fixture-token", 1), (0, 0))
+                self.assertEqual(reporting.read_report(CONFIG, self.task), original)
+                self.assertEqual(followup.read(CONFIG, 25), self.tracked)
+                self.assertFalse(continuations.directory(CONFIG).exists())
+        self.github.assert_not_called()
+        self.post.assert_not_called()
+
+    def test_auth_and_service_errors_still_block_follow_up_scans(self):
+        for status in (401, 403, 429, 500):
+            response = httpx.Response(status, request=httpx.Request("GET", "http://canvas/events"))
+            error = httpx.HTTPStatusError(
+                "Unavailable", request=response.request, response=response
+            )
+            with self.subTest(status=status):
+                self.api.side_effect = error
+                with self.assertRaises(httpx.HTTPStatusError):
+                    continuations.process(CONFIG, "fixture-token", 1)
+        self.github.assert_not_called()
 
     def test_only_fresh_explicit_user_scope_can_capture_context(self):
         # [utest~im-follow-up-capture~1->req~im-thread-follow-up~1]

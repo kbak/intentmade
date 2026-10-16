@@ -222,6 +222,11 @@ read-only review before updating the existing PR. Keep progress, questions and
 results in the originating thread; neither the reviewer nor the report assistant
 receives write or dispatch privileges.
 
+A deleted historical report conversation must not stop unrelated scheduled work
+or authorize a follow-up from partial event history. Preserve its retained task
+and publication records. Authentication, rate-limit and service errors still
+block the scan rather than being treated as deleted conversations.
+
 Covers:
 - `intent~im-authorized-work~1`
 - `intent~im-deliver-changes~1`

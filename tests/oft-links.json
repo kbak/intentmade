@@ -596,5 +596,8 @@
   ],
   "test_continuations.ContinuationTests.test_real_pipeline_preserves_accepted_work_and_updates_the_existing_pr": [
     "utest~im-follow-up-pipeline~1"
+  ],
+  "test_continuations.ContinuationTests.test_deleted_reports_do_not_stop_scans_or_authorize_partial_history": [
+    "utest~im-follow-up-deleted-report~1"
   ]
 }

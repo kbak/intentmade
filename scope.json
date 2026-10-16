@@ -264,7 +264,8 @@
         "utest~im-follow-up-authority",
         "utest~im-follow-up-lifecycle",
         "utest~im-follow-up-recovery",
-        "utest~im-follow-up-pipeline"
+        "utest~im-follow-up-pipeline",
+        "utest~im-follow-up-deleted-report"
       ]
     }
   },
