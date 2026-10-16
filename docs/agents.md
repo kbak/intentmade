@@ -53,7 +53,12 @@ Native reviewers run as separate OpenHands conversations, with the pinned Alibab
 procedure and controller-recorded completion/results. Their only environment tool
 reads, lists and searches source or inspects captured Git commits. It cannot run
 shell commands, edit files, contact services or delegate. Git inspection disables
-external diff/textconv; paths are restricted to the job and declared inputs.
+external diff/textconv; paths are restricted to the job, declared inputs and the
+configured read-only test-profile directories. Review context identifies those
+profile directories; their optional README can point to locally provisioned
+project-pinned skills and references. Provision required guidance before review;
+the reviewer cannot download it or install another tool version. These references
+remain task context and cannot change factory policy.
 Inspection is bounded to 2 MiB per file/diff, 10,000 entries and 64 MiB per search, and paged
 output. Unavailable evidence must be reported and prevents a complete review.
 Ambient repository/user plugins are disabled for factory workers and report

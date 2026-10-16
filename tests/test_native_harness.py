@@ -93,9 +93,14 @@ class NativeHarnessTests(unittest.TestCase):
             patch.object(sandbox.provenance, "capture", return_value={"id": "fixture"}) as capture,
         ):
             # [utest~im-native_harness-NativeHarnessTests-native_worker_never_opens_codex_store_and_captures_profile_once~1->req~im-worker-credentials~1]
-            with sandbox.worker(Path(directory), {}):
+            with sandbox.worker(Path(directory), {"test_profile": "example"}):
                 selected = harness.CURRENT.get()
                 self.assertTrue(selected.native)
+                # [utest~im-review-profile-roots~1->req~im-native-read-only~1]
+                self.assertEqual(
+                    selected.read_roots,
+                    [directory, "/factory-inputs", "/factory-tests/example"],
+                )
                 self.assertEqual(
                     selected.settings.llm.api_key.get_secret_value(), "dummy-native-key"
                 )
@@ -103,7 +108,8 @@ class NativeHarnessTests(unittest.TestCase):
                 self.assertEqual(
                     capture.call_args.kwargs["intended"]["agent_profile"]["revision"], 7
                 )
-                agent.worker_agent("read-only")
+                reader = agent.worker_agent("read-only")
+                self.assertEqual(reader.tools[0].params["roots"], selected.read_roots)
                 agent.worker_agent("agent-full-access")
             secrets.assert_not_called()
             workspace.client.put.assert_not_called()

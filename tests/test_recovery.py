@@ -135,13 +135,17 @@ class RecoveryTests(unittest.TestCase):
                 json.dumps({"command": "bash /profile/run.sh unit", "cwd": "/old/checkout"})
             )
             context = run.stage_test_evidence(
-                [{"project": "example"}], artifact, 0, root / "worker"
+                [{"project": "example", "test_profile": "example"}], artifact, 0, root / "worker"
             )
             target = root / "worker/test-evidence/example/tests-0.log"
             self.assertEqual(target.read_text(), output)
             self.assertIn(str(target), context)
             self.assertIn("bash /profile/run.sh unit", context)
             self.assertNotIn("Important first failure", context)
+            # [utest~im-review-profile-context~1->req~im-review-evidence~1]
+            self.assertIn('"profile_directory": "/factory-tests/example"', context)
+            self.assertIn("README.md", context)
+            self.assertIn("mounted read-only", context)
 
     def test_questions_stop_before_review_and_publication_and_save_detail(self):
         with tempfile.TemporaryDirectory() as temp:

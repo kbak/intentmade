@@ -76,7 +76,11 @@ def worker(root, config):
 
     name = harness.profile_name()
     profile = api("GET", "/api/agent-profiles/" + quote(name, safe=""))["profile"]
-    selected = harness.resolve(profile, name, [str(root), "/factory-inputs"])
+    configs = config if isinstance(config, list) else [config]
+    profile_roots = sorted(
+        {"/factory-tests/" + c["test_profile"] for c in configs if c.get("test_profile")}
+    )
+    selected = harness.resolve(profile, name, [str(root), "/factory-inputs", *profile_roots])
     require_disk_space(root)
     name = root.name
     options = docker_sandboxes.settings()
@@ -112,7 +116,6 @@ def worker(root, config):
         with runtime as workspace:
             workspace.api_key = settings["OH_SESSION_API_KEYS_0"]
             workspace.reset_client()
-            configs = config if isinstance(config, list) else [config]
             manifest = provenance.capture(
                 workspace,
                 intended={

@@ -388,7 +388,8 @@
   ],
   "test_native_harness.NativeHarnessTests.test_native_worker_never_opens_codex_store_and_captures_profile_once": [
     "utest~im-native_harness-NativeHarnessTests-native_worker_never_opens_codex_store_and_captures_profile_once~1",
-    "utest~im-native_harness-NativeHarnessTests-native_worker_never_opens_codex_store_and_captures_profile_once-2~1"
+    "utest~im-native_harness-NativeHarnessTests-native_worker_never_opens_codex_store_and_captures_profile_once-2~1",
+    "utest~im-review-profile-roots~1"
   ],
   "test_native_harness.NativeHarnessTests.test_native_review_uses_controller_receipt_and_rejects_incomplete_evidence": [
     "utest~im-native_harness-NativeHarnessTests-native_review_uses_controller_receipt_and_rejects_incomplete_evidence~1"
@@ -577,5 +578,8 @@
   ],
   "test_traceability_retention.RetentionTests.test_supplemental_reports_enforce_file_and_aggregate_limits": [
     "utest~im-trace-supplemental-bounds~1"
+  ],
+  "test_recovery.RecoveryTests.test_full_test_logs_and_command_are_visible_in_next_worker": [
+    "utest~im-review-profile-context~1"
   ]
 }

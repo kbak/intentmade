@@ -472,6 +472,10 @@ Evidence limit: Backend control flow is scripted. Live proxy behavior, native VM
 
 Independent review must have the expected completed reviewer execution, valid structured findings and coverage for every selected file. Codex supplies native parent/child identity; native OpenHands uses a separate reviewer conversation with identity, completion and results captured by the controller and bound to its review run. Agent prose cannot supply an execution receipt. Missing or malformed evidence blocks publication. The controller computes blockers and verdicts rather than accepting a coordinator success claim.
 
+Identify configured read-only test-profile directories in review context so their
+optional README can locate locally provisioned project-pinned guidance and references.
+These references do not alter review authority or waive missing required evidence.
+
 Covers:
 - `intent~im-review-changes~1`
 
@@ -505,6 +509,10 @@ Existing assertions: [profile and stage boundaries](../tests/test_native_harness
 `req~im-native-read-only~1`
 
 Native OpenHands review and report conversations expose only bounded source inspection and non-executing built-in tools. Source inspection cannot edit files, execute arbitrary commands, make network requests or delegate; resolved paths must remain within controller-selected roots, and Git inspection disables external diff/textconv. Ambient plugins must not add tools or hooks to factory workers or report readers. Missing or truncated evidence remains unavailable rather than establishing completed coverage.
+
+For workers, selected read-only test-profile directories are permitted inspection
+roots alongside the job and declared inputs. Unselected profile directories remain
+outside the allowed roots.
 
 Covers:
 - `intent~im-protect-work~1`

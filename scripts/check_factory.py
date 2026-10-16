@@ -68,6 +68,8 @@ def main(argv=None):
         "OPENHANDS_SUPPRESS_BANNER=1",
         "-e",
         "PYTHONDONTWRITEBYTECODE=1",
+        "-e",
+        "LITELLM_LOCAL_MODEL_COST_MAP=True",
     ]
     for source, target in mounts.items():
         command += ["-v", f"{root / source}:{target}:ro"]
