@@ -100,6 +100,7 @@ class RuntimeLifecycleTests(unittest.TestCase):
         cleanup_failure=False,
         partial_create=False,
         missing_proxy=False,
+        inventory_failure=False,
     ):
         self.commands = []
         self.session = Mock()
@@ -113,6 +114,7 @@ class RuntimeLifecycleTests(unittest.TestCase):
             code = int(
                 (action == "create" and create_failure)
                 or (action == "rm" and cleanup_failure)
+                or (action == "ls" and inventory_failure)
                 or (action == "exec" and "python" in command and missing_proxy)
             )
             output = (
@@ -214,6 +216,33 @@ class RuntimeLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(LookupError, "workflow failed"):
             self.exercise(body_failure=True)
         self.assertEqual(self.commands[-1][1], "rm")
+
+    def test_cleanup_error_retains_primary_failure_and_diagnostic(self):
+        for options, expected in (
+            ({"create_failure": True, "inventory_failure": True}, "sbx create failed"),
+            ({"body_failure": True, "cleanup_failure": True}, "workflow failed"),
+        ):
+            with self.subTest(options=options):
+                with self.assertRaisesRegex((RuntimeError, LookupError), expected) as raised:
+                    self.exercise(**options)
+                # [utest~im-native-cleanup-primary-error~1->req~im-opengauss-workflow~1]
+                notes = "\n".join(raised.exception.__notes__)
+                self.assertIn("Native worker cleanup also failed", notes)
+                self.assertIn(
+                    "sbx ls failed" if options.get("inventory_failure") else "sbx rm failed", notes
+                )
+                self.assertNotIn("worker-only", notes)
+                if options.get("body_failure"):
+                    self.session.wait.assert_called_once_with(timeout=10)
+                else:
+                    self.session.wait.assert_not_called()
+
+        try:
+            raise LookupError("already handled by caller")
+        except LookupError as outer_error:
+            with self.assertRaisesRegex(RuntimeError, "sbx rm failed"):
+                self.exercise(cleanup_failure=True)
+            self.assertFalse(hasattr(outer_error, "__notes__"))
 
     def test_cleanup_failure_blocks_success_but_reaps_cli_session(self):
         with self.assertRaisesRegex(RuntimeError, "sbx rm failed"):

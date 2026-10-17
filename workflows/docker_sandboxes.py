@@ -124,6 +124,7 @@ def worker(root, volumes, environment, options):
 
     # Keep logs outside the worker-writable job. Never put credential values in argv.
     with tempfile.TemporaryFile(mode="w+") as log:
+        primary_error = None
         try:
             run(
                 "create",
@@ -242,20 +243,33 @@ def worker(root, volumes, environment, options):
                             f"Docker Sandboxes worker did not become ready: {readiness}"
                         )
                 yield workspace
+        except BaseException as exc:
+            primary_error = exc
+            raise
         finally:
             try:
-                if created or any(
-                    item["name"] == name for item in json.loads(run("ls", "--json"))["sandboxes"]
-                ):
-                    run("rm", "--force", name)
-            finally:
-                if session is not None:
-                    try:
-                        session.wait(timeout=10)
-                    except subprocess.TimeoutExpired:
-                        session.terminate()
+                try:
+                    if created or any(
+                        item["name"] == name
+                        for item in json.loads(run("ls", "--json"))["sandboxes"]
+                    ):
+                        run("rm", "--force", name)
+                finally:
+                    if session is not None:
                         try:
-                            session.wait(timeout=5)
+                            session.wait(timeout=10)
                         except subprocess.TimeoutExpired:
-                            session.kill()
-                            session.wait(timeout=5)
+                            session.terminate()
+                            try:
+                                session.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                session.kill()
+                                session.wait(timeout=5)
+            except Exception as cleanup_error:
+                if primary_error is None:
+                    raise
+                # run() already redacts the worker key. Preserve the startup/body
+                # failure while retaining a failed inventory/removal/reaping step.
+                primary_error.add_note(
+                    f"Native worker cleanup also failed: {type(cleanup_error).__name__}: {cleanup_error}"
+                )

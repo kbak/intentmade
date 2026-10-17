@@ -149,7 +149,13 @@ Lean toolchain on PATH to exercise real goal inspection and proof compilation.
 The probe checks actual worktree selection, MCP registration, loaded/resumed/forked
 sessions and preservation of fixture credentials/configuration. It uses a scripted
 local provider and proves protocol behavior, not model quality or subscription access.
-Follow with one bounded live smoke in a separate test deployment. Record all
+Run `python /tests/check_opengauss_lifecycle.py` in the standalone native sandbox
+to exercise a scripted backend HTTP failure, missing authentication, explicit
+cancellation, and a caller deadline followed by cancellation. It checks that the
+managed ACP/MCP descendants terminate, without changing native host credentials.
+These controlled probes make no external provider requests. Separately exercise the
+factory run deadline and VM cleanup, then one bounded live smoke in a separate
+test deployment. Record all
 attempts, actual tool use, accepted proofs, elapsed time, available usage and review
 effort. Separate proof development, validation and integration costs; account for
 coordinator preparation when comparing complete workflows. Shared model/profile
