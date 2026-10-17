@@ -50,6 +50,12 @@ def projects(config_dir=None):
         name = identifier(file.stem)
         registration = json.loads(file.read_text())
         config = {**deployment.workflow_settings(defaults, registration), "project": name}
+        if type(config.get("validation_baseline_manifest", False)) is not bool:
+            raise ValueError(f"{name}: validation_baseline_manifest must be a boolean")
+        if config.get("validation_baseline_manifest") and not (
+            "traceability_scope" in config or "traceability_scope_git" in config
+        ):
+            raise ValueError(f"{name}: validation_baseline_manifest requires a traceability scope")
         deployment.run_timeout(config, options)
         from policy import validate_check_overrides
 

@@ -409,8 +409,11 @@ def stage_test_evidence(configs, artifact, attempt, root):
 
 # [impl->req~im-failed-work-retention~1]
 # [impl->req~im-needs-input~1]
-def implementation_attempt(configs, states, task, prompt, artifact, attempt):
+def implementation_attempt(
+    configs, states, task, prompt, artifact, attempt, *, validation_only=False
+):
     results, test_output = {}, []
+    retained_commits = {p: s.get("commit") for p, s in states.items()}
     contract_path = artifact / "approved-request.md"
     contract = contract_path.read_text() if contract_path.exists() else prompt
     with (
@@ -480,26 +483,34 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                             env["FACTORY_TESTS"] = "/factory-tests/" + config["test_profile"]
                         if project in trace_runs:
                             env["TMPDIR"] = str(trace_runs[project]["scratch"])
+                            env.update(traceability.validation_environment(trace_runs[project]))
                         environments[project] = env
-                    implementation = converse(
-                        workspace,
-                        prompt
-                        + f"\n\nTask ID: {task}"
-                        + "\n\nTask repositories:\n"
-                        + task_context(states)
-                        + input_artifacts.instructions()
-                        + sdlc.instructions(states)
-                        + traceability.instructions(trace_runs, states, environments)
-                        + "\nBase-branch merge results (resolve any conflicts, preserving both sides' intended behavior):\n"
-                        + "\n".join(s.get("merge_output", "") for s in states.values())
-                        + "\nApply the factory-implementation skill to the approved specification.",
-                        "agent-full-access",
-                        "Implementation",
-                        conversation_id,
-                        response_model=ImplementationResult,
-                        skill="factory-implementation",
-                        transcript=artifact / f"implementation-{attempt}.jsonl",
-                        traceability=bool(trace_runs),
+                    implementation = (
+                        ImplementationResult(
+                            status="IMPLEMENTED",
+                            summary="Reused the retained candidate unchanged; retried validation infrastructure only.",
+                        )
+                        if validation_only
+                        else converse(
+                            workspace,
+                            prompt
+                            + f"\n\nTask ID: {task}"
+                            + "\n\nTask repositories:\n"
+                            + task_context(states)
+                            + input_artifacts.instructions()
+                            + sdlc.instructions(states)
+                            + traceability.instructions(trace_runs, states, environments)
+                            + "\nBase-branch merge results (resolve any conflicts, preserving both sides' intended behavior):\n"
+                            + "\n".join(s.get("merge_output", "") for s in states.values())
+                            + "\nApply the factory-implementation skill to the approved specification.",
+                            "agent-full-access",
+                            "Implementation",
+                            conversation_id,
+                            response_model=ImplementationResult,
+                            skill="factory-implementation",
+                            transcript=artifact / f"implementation-{attempt}.jsonl",
+                            traceability=bool(trace_runs),
+                        )
                     )
                     (artifact / f"implementation-{attempt}.json").write_text(
                         implementation.model_dump_json(indent=2)
@@ -516,7 +527,9 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                             + "\n\n"
                             + "\n".join(f"- {q}" for q in implementation.questions)
                         )
-                    reporting.progress_stage("implementation", "Complete")
+                    reporting.progress_stage(
+                        "implementation", "Reused" if validation_only else "Complete"
+                    )
                     for config in configs:
                         project = config["project"]
                         reporting.progress_stage("tests", detail=project)
@@ -622,6 +635,8 @@ def implementation_attempt(configs, states, task, prompt, artifact, attempt):
                 }
                 test_output.append(project + " traceability:\n" + json.dumps(feedback))
     sdlc.verify(states)
+    if validation_only and retained_commits != {p: s.get("commit") for p, s in states.items()}:
+        raise RuntimeError("Validation-only recovery changed the retained candidate")
     return results, test_output
 
 
@@ -762,8 +777,9 @@ def _execute_build(
     repair_reason = "pr_maintenance" if any(c.get("repair_pr") for c in configs) else "initial"
     try:
         for attempt in range(min(c["repair_attempts"] for c in configs) + 1):
+            validation_only = repair_reason == "validation_infrastructure"
             reporting.progress_attempt(attempt)
-            reporting.progress_stage("implementation")
+            reporting.progress_stage("implementation", "Reused" if validation_only else "Running")
             measurements.begin_attempt(attempt, repair_reason)
             outcome.update(
                 phase="IMPLEMENTING" if attempt == 0 else "REPAIRING",
@@ -772,13 +788,18 @@ def _execute_build(
                 tests={},
             )
             save()
-            phase(f"{task}: {outcome['phase'].lower()} (attempt {attempt + 1})")
+            phase(
+                f"{task}: retrying validation on the retained candidate (attempt {attempt + 1})"
+                if validation_only
+                else f"{task}: {outcome['phase'].lower()} (attempt {attempt + 1})"
+            )
             with measurements.stage("implementation_and_tests"):
+                recovery = {"validation_only": True} if validation_only else {}
                 results, test_output = implementation_attempt(
-                    configs, states, task, prompt, artifact, attempt
+                    configs, states, task, prompt, artifact, attempt, **recovery
                 )
             outcome["tests"] = results
-            reporting.progress_stage("implementation", "Complete")
+            reporting.progress_stage("implementation", "Reused" if validation_only else "Complete")
             reporting.progress_stage(
                 "tests",
                 "Not run"
@@ -792,7 +813,9 @@ def _execute_build(
                 save()
                 measurements.end_attempt("TESTS_FAILED")
                 repair_reason = (
-                    "traceability"
+                    "validation_infrastructure"
+                    if traceability.infrastructure_failures(results, states)
+                    else "traceability"
                     if any(
                         state.get("traceability", {}).get("status")
                         not in {None, "passed", "review_required"}
