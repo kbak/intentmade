@@ -13,6 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import deployment
+import measurements
 
 
 def validate(value):
@@ -87,6 +88,8 @@ def image_observation(inspect, name):
     return result
 
 
+# [impl->req~im-worker-credentials~1]
+# [impl->req~im-measurement-outcomes~1]
 @contextmanager
 def worker(root, volumes, environment, options):
     import httpx
@@ -107,14 +110,17 @@ def worker(root, volumes, environment, options):
     session = None
     created = False
 
-    def run(*args, timeout=180):
-        result = subprocess.run(
-            [command, *args], env=env, capture_output=True, text=True, timeout=timeout
-        )
-        if result.returncode:
-            detail = redact(result.stderr, [environment["OH_SESSION_API_KEYS_0"]])[:2000]
-            raise RuntimeError(f"sbx {args[0]} failed: {detail}")
-        return result.stdout
+    def run(*args, timeout=180, phase=None):
+        # Keep phase names nonsecret; argv, proxy settings and credentials never
+        # enter the measurement record. Preserve failed phases through cleanup.
+        with measurements.stage(phase or "worker_native_" + args[0]):
+            result = subprocess.run(
+                [command, *args], env=env, capture_output=True, text=True, timeout=timeout
+            )
+            if result.returncode:
+                detail = redact(result.stderr, [environment["OH_SESSION_API_KEYS_0"]])[:2000]
+                raise RuntimeError(f"sbx {args[0]} failed: {detail}")
+            return result.stdout
 
     # Keep logs outside the worker-writable job. Never put credential values in argv.
     with tempfile.TemporaryFile(mode="w+") as log:
@@ -147,6 +153,7 @@ def worker(root, volumes, environment, options):
                     "import json, os; from pathlib import Path; "
                     "assert json.loads((Path(os.environ['CODEX_HOME']) / 'auth.json')"
                     ".read_text()) == {'OPENAI_API_KEY': 'proxy-managed'}",
+                    phase="worker_native_credentials",
                 )
             except RuntimeError:
                 raise RuntimeError(
@@ -159,7 +166,16 @@ def worker(root, volumes, environment, options):
                 setup.append("ln -s -- " + shlex.join([source, target]))
             # Existing test/browser profiles address the private daemon as 'docker'.
             setup.append("printf '\\n127.0.0.1 docker\\n' >> /etc/hosts")
-            run("exec", "-u", "root", name, "sh", "-ec", "\n".join(setup))
+            run(
+                "exec",
+                "-u",
+                "root",
+                name,
+                "sh",
+                "-ec",
+                "\n".join(setup),
+                phase="worker_native_setup",
+            )
             flags = [item for key in environment for item in ("--env", key)]
             session = subprocess.Popen(
                 [
@@ -194,28 +210,37 @@ def worker(root, volumes, environment, options):
             ) as workspace:
                 workspace._factory_log = log
                 workspace._factory_image_observation = image_observation(run, name)
-                deadline = time.monotonic() + 90
-                readiness = "no response"
-                while time.monotonic() < deadline:
-                    if session.poll() is not None:
-                        raise RuntimeError("Docker Sandboxes worker exited during startup")
-                    try:
-                        # The SDK client retries; use a bounded readiness request here.
-                        response = httpx.get(
-                            url + "/openapi.json",
-                            timeout=2,
-                            headers={"X-Session-API-Key": environment["OH_SESSION_API_KEYS_0"]},
+                with (
+                    measurements.stage("worker_api_readiness"),
+                    httpx.Client(
+                        timeout=2,
+                        headers={"X-Session-API-Key": environment["OH_SESSION_API_KEYS_0"]},
+                    ) as readiness_client,
+                ):
+                    deadline = time.monotonic() + 90
+                    readiness = "no response"
+                    while time.monotonic() < deadline:
+                        if session.poll() is not None:
+                            raise RuntimeError("Docker Sandboxes worker exited during startup")
+                        try:
+                            # This upstream route requires the session key and initialized
+                            # services, without generating the full public OpenAPI schema.
+                            # Reuse one bounded client rather than rebuild it on each poll.
+                            response = readiness_client.get(
+                                url + "/api/conversations/search?limit=1"
+                            )
+                            readiness = f"HTTP {response.status_code}"
+                            if response.status_code == 200:
+                                break
+                            if response.status_code in (401, 403):
+                                raise RuntimeError("Docker Sandboxes worker authentication failed")
+                        except httpx.TransportError as exc:
+                            readiness = type(exc).__name__
+                        time.sleep(0.25)
+                    else:
+                        raise TimeoutError(
+                            f"Docker Sandboxes worker did not become ready: {readiness}"
                         )
-                        readiness = f"HTTP {response.status_code}"
-                        if response.status_code == 200:
-                            break
-                        if response.status_code in (401, 403):
-                            raise RuntimeError("Docker Sandboxes worker authentication failed")
-                    except httpx.TransportError as exc:
-                        readiness = type(exc).__name__
-                    time.sleep(0.25)
-                else:
-                    raise TimeoutError(f"Docker Sandboxes worker did not become ready: {readiness}")
                 yield workspace
         finally:
             try:

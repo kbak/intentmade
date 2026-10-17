@@ -623,5 +623,11 @@
   ],
   "test_opengauss.OpenGaussTests.test_skill_registration_is_idempotent_and_preserves_existing_login_and_conflicts": [
     "utest~im-opengauss-skill-registration~1"
+  ],
+  "test_docker_sandboxes.RuntimeLifecycleTests.test_startup_phases_retain_readiness_and_cleanup_without_credentials": [
+    "utest~im-native-startup-measurements~1"
+  ],
+  "test_docker_sandboxes.RuntimeLifecycleTests.test_failed_creation_retains_failed_phase_and_original_error": [
+    "utest~im-native-startup-failure~1"
   ]
 }

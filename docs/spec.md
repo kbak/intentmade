@@ -943,6 +943,14 @@ Evidence limit: The regression checks both direct and descendant process termina
 `req~im-measurement-outcomes~1`
 
 Metrics preserve failed attempts after later success and distinguish returned stages from successful validation. Missing/reset usage and zero or absent cost remain unknown. Measurement failure must not change authorization or replace the original workflow failure.
+Native worker measurements separate profile resolution, native CLI operations,
+API readiness and runtime provenance; conversation creation is recorded separately
+from agent execution. Phase records contain names, outcomes and timings, excluding
+command arguments, environment values and credentials. Failed startup phases remain
+visible after cleanup. These inclusive timings do not establish proof readiness or
+replace project/compiler warmup measurements.
+Probe an authenticated, initialized native API route with a bounded reusable
+client; public OpenAPI schema generation is not a worker-readiness prerequisite.
 
 Covers:
 - `intent~im-operate-reliably~1`

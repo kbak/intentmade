@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import docker_sandboxes as runtime
+import measurements
 from common import projects
 
 
@@ -128,10 +129,12 @@ class RuntimeLifecycleTests(unittest.TestCase):
             patch.object(runtime.subprocess, "run", side_effect=invoke),
             patch.object(runtime.subprocess, "Popen", return_value=self.session) as spawn,
             patch("openhands.sdk.workspace.RemoteWorkspace") as remote,
-            patch("httpx.get", return_value=Mock(status_code=status)),
+            patch("httpx.Client") as readiness_http,
             patch.dict(os.environ, {"OH_SECRET_KEY": "controller-only"}),
         ):
             remote.return_value.__enter__.return_value = workspace
+            self.readiness_client = readiness_http.return_value.__enter__.return_value
+            self.readiness_client.get.return_value.status_code = status
             with runtime.worker(
                 Path("/job"),
                 ["/job:/job"],
@@ -141,9 +144,43 @@ class RuntimeLifecycleTests(unittest.TestCase):
                 self.assertNotIn("worker-only", spawn.call_args.args[0])
                 self.assertNotIn("OH_SECRET_KEY", spawn.call_args.args[0])
                 self.assertNotIn("--cloud", self.commands[0])
+                self.assertEqual(
+                    self.readiness_client.get.call_args.args[0],
+                    "http://127.0.0.1:34567/api/conversations/search?limit=1",
+                )
+                self.assertEqual(readiness_http.call_args.kwargs["timeout"], 2)
+                self.assertEqual(
+                    readiness_http.call_args.kwargs["headers"],
+                    {"X-Session-API-Key": "worker-only"},
+                )
                 self.assertIn("off", self.commands[0])
                 if body_failure:
                     raise LookupError("workflow failed")
+
+    def test_startup_phases_retain_readiness_and_cleanup_without_credentials(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with measurements.task(temporary, "fixture", "probe", []) as recorder:
+                self.exercise()
+            stages = recorder.data["stages"]
+            # [utest~im-native-startup-measurements~1->req~im-measurement-outcomes~1]
+            self.assertEqual(stages[0]["name"], "worker_native_create")
+            self.assertEqual(stages[-1]["name"], "worker_native_rm")
+            self.assertIn("worker_api_readiness", [s["name"] for s in stages])
+            self.assertTrue(all(s["status"] == "COMPLETED" for s in stages))
+            self.assertTrue(all(s["elapsed_seconds"] is not None for s in stages))
+            self.assertNotIn("worker-only", json.dumps(recorder.data))
+            self.assertNotIn("controller-only", json.dumps(recorder.data))
+
+    def test_failed_creation_retains_failed_phase_and_original_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(RuntimeError, "sbx create failed"):
+                with measurements.task(temporary, "fixture", "probe", []) as recorder:
+                    self.exercise(create_failure=True)
+            # [utest~im-native-startup-failure~1->req~im-measurement-outcomes~1]
+            self.assertEqual(recorder.data["stages"][0]["status"], "FAILED")
+            self.assertEqual(recorder.data["stages"][0]["error_type"], "RuntimeError")
+            self.assertEqual(recorder.data["stages"][-1]["name"], "worker_native_ls")
+            self.assertEqual(recorder.data["stages"][-1]["status"], "COMPLETED")
 
     def test_session_is_held_until_vm_deletion(self):
         self.exercise()
