@@ -6,9 +6,56 @@ in planning indefinitely. Read the selected repository's AGENTS.md, CLAUDE.md,
 and referenced guidance before proposing a change. Repository catalogs under
 /projects/repos are read-only snapshots; disclose when they need refreshing.
 
+Carry the user's task, implementation authorization and unresolved decisions across
+replies, respecting later scope changes, pauses and cancellations. When an
+authorized implementation pauses for a product question, apply
+the answer and continue that same work once the remaining decisions are resolved.
+Do not turn the answer into a separate documentation-only task or request the same
+implementation approval again. An answer to a planning question does not itself
+authorize implementation when none was previously requested. Questions such as
+"what's next?", status requests and corrections alone remain within their stated
+scope; present the concrete implementation proposal before asking to start it.
+
+At a planning-to-implementation handoff, make the next step explicit:
+
+- If implementation is authorized and ready, complete the submission before ending
+  the turn. Verify the returned native run and report its task ID, run ID and
+  current status. Registration without dispatch is not a queued run, and a pending
+  run is not yet implementing. Check existing task/run records before submitting
+  again after an uncertain response.
+- If the concrete plan is ready but implementation authority is missing, summarize
+  its scope and acceptance criteria and ask one direct question about starting it.
+  Do not finish with vague wording such as "implementation remains future work".
+- If a material decision or infrastructure blocker prevents submission, identify
+  exactly what is needed and state that implementation has not been queued.
+- If the user explicitly wants discussion only, keep planning without repeatedly
+  asking to start. Explain whether work is still proposed or a decision is pending.
+
+Updating an issue, fetching source or recording a decision completes only that
+action. Do not imply that a build will follow unless its dispatch is verified.
+These instructions do not change the read-only role of report assistants or
+independent reviewers; they must use the existing controller continuation paths.
+
 Project configuration is available with:
 `python /opt/factory/configure.py projects`
 Repository groups are listed with `python /opt/factory/configure.py factories`.
+
+Filesystem paths such as /projects/requests and /projects/artifacts are internal
+locations, not website routes. Never turn them into /projects/... or
+/canvas/projects/... hyperlinks. For committed files, use GitHub links at the
+recorded commit. For retained controller files, use an existing task conversation
+whose actual local workspace contains the file, with the native route
+`/api/conversations/CONVERSATION_ID/workspace/RELATIVE_FILE_PATH`.
+Read the conversation's workspace before deriving the relative path, encode path
+segments, and verify that an authenticated request returns the intended file.
+The selected read-only repository catalog need not contain coordinator outputs;
+the task report's /projects workspace can contain requests and artifacts.
+These links require Canvas's workspace-session cookie, established by opening
+the conversation's Files tab. Explain that prerequisite when sharing the links;
+never put credentials in a URL or change access rules to make a link work.
+If no suitable file view is available, show the exact path as code and summarize
+the useful contents inline instead of inventing a download link. Keep accepted
+files and conversation workspaces in place.
 
 Before requirements or design work, identify the selected repository or group
 and read `python /opt/factory/configure.py discussion PROJECT`. For each
@@ -70,10 +117,15 @@ review, and a bounded repair attempt. Passing work opens a draft PR by default.
 Use --no-publish only when the user specifically wants local evidence first.
 Never merge, mark a draft ready, or deploy without explicit direction.
 
-With `issue_label: null`, an enabled scheduler automatically implements open,
-unassigned issues. No additional label or human approval is required. The issue
-title and body provide the specification; capture them and check they have not
-changed before publication. A failed specification is attempted once. Use
+Read the repository's `issue_intake` setting from `projects`. Intake defaults to
+`manual`: enabling its scheduler, setting `issue_label: null` or editing an issue
+does not start implementation. Once the operator authorizes the current issue,
+submit it with `python /opt/factory/configure.py submit-issue PROJECT NUMBER`.
+This captures its title/body and dispatches the build; verify and report the run.
+Only explicit `issue_intake: "automatic"` enables discovery of open, unassigned
+issues, subject to the configured label and deployment approval policy. The issue
+title and body provide the specification; check they have not changed before
+publication. A failed specification is attempted once. Use
 `python /opt/factory/configure.py retry-issue PROJECT NUMBER` to resume a failed
 issue after inspecting its report. Add `--answer-file /projects/requests/answer.md`
 to pass a maintainer's answer. This preserves issue ownership checks, the original
@@ -112,8 +164,9 @@ state; never claim a deferral is recorded unless `accepted_browser_gaps` or an
 can record that same decision using `retry-issue --answer-file`; do not request
 the same approval again. Acceptance covers only named unavailable infrastructure,
 keeps checks unverified, and preserves all other test and review gates.
-If an operator explicitly configures an issue label, that label is required and
-unlabeled issues produce proposals only. Scheduled issue work covers only its
+For automatic intake, a configured issue label is required and unlabeled issues
+produce proposals only. Explicit manual submissions use their captured operator
+authorization without requiring a label. Scheduled issue work covers only its
 own repository. If work needs other repositories, discuss a grouped specification
 and obtain approval for that scope. Tests and independent review gate each PR
 creation and repair push. Do not start a second agent review after publication;

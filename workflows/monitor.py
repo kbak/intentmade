@@ -514,12 +514,23 @@ def poll(config, credential, replies_only=False):
 
     # Adopt durable publication receipts from the previous workflow version.
     followup.adopt_reports(config)
+    import submissions
     from continuations import process
 
     def continuation_started():
         state["count"] += 1
         save()
 
+    submitted, submitted_waiting = submissions.process(
+        config, credential, remaining, continuation_started
+    )
+    remaining -= submitted
+    if remaining <= 0:
+        outcome(
+            "SKIPPED" if submitted_waiting else "COMPLETED",
+            f"{submitted - submitted_waiting} submitted tasks completed; {submitted_waiting} waiting for input",
+        )
+        return
     continued, continuation_waiting = process(config, credential, remaining, continuation_started)
     if continued:
         remaining -= continued
@@ -654,7 +665,8 @@ def poll(config, credential, replies_only=False):
         f"up to {remaining} tasks this scan.",
         flush=True,
     )
-    processed, waiting = continued - continuation_waiting, continuation_waiting
+    processed = submitted - submitted_waiting + continued - continuation_waiting
+    waiting = submitted_waiting + continuation_waiting
     for kind, key, item in candidates:
         if remaining <= 0:
             break
@@ -843,6 +855,8 @@ if __name__ == "__main__":
                 config["project"] + ".poll",
                 blocking=bool(job.get("retry_issue") or job.get("resume_replies")),
             ):
+                if job.get("resume_replies"):
+                    phase(f"Answered tasks: checking {config['project']} continuations")
                 credential = token()
                 if job.get("retry_issue"):
                     item = issues._get_issue(credential, config["repository"], job["retry_issue"])

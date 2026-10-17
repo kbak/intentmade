@@ -125,6 +125,16 @@ to another tool also requires supplying those adapters and their environment.
 
 ## Continue elsewhere
 
+Retained paths such as `/projects/requests/...` and `/projects/artifacts/...`
+refer to the controller filesystem, not website routes. Open the task conversation's
+**Files** tab to browse them and establish its authenticated workspace session.
+Native file links use `/api/conversations/CONVERSATION_ID/workspace/RELATIVE_FILE_PATH`
+and must refer to files inside that conversation's actual workspace. A coordinator
+view rooted in a read-only repository catalog cannot serve files outside it;
+use the task report's `/projects` workspace for retained requests and evidence.
+Keep filesystem paths as code when a suitable file view is unavailable. Published
+source links point to the validated GitHub commit instead.
+
 Every build that enters execution maintains a readable handoff beside its retained
 evidence, including failed/no-publish runs. A completed PR embeds its test command
 and independent review findings, with links to accepted artifacts at the validated

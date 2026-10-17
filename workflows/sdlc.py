@@ -133,6 +133,22 @@ def source_file(repository, revision, path):
     ).stdout
 
 
+def permitted_formatting(state, package, name, actual):
+    amendment = state.get("formatting_amendment")
+    if not amendment or name not in amendment["documents"] or actual is None:
+        return False
+    if amendment["package_sha256"] != digest(encoded(package)):
+        raise ValueError("Formatting authorization belongs to another accepted package")
+    original = package["documents"][name].splitlines(keepends=True)
+    start, end = amendment["line_ranges"][name]
+    prefix, suffix = "".join(original[: start - 1]), "".join(original[end:])
+    candidate = actual.decode("utf-8")
+    if not candidate.startswith(prefix) or not candidate.endswith(suffix):
+        return False
+    middle = candidate[len(prefix) : len(candidate) - len(suffix) if suffix else None]
+    return middle.split() == "".join(original[start - 1 : end]).split()
+
+
 # [impl->req~im-portable-plan~2]
 def stage(states):
     """Write accepted artifacts before entering the worker, without following links."""
@@ -160,6 +176,8 @@ def stage(states):
                 # in the controller package and the original staging commit.
                 continue
             if prior is not None and prior != content.encode():
+                if permitted_formatting(state, package, name, prior):
+                    continue
                 raise ValueError("Accepted task document conflicts with retained source: " + name)
             job_files.write_text(root, path, content)
         # Native worktrees start from HEAD. Commit only these documents in this
@@ -198,6 +216,8 @@ def verify(states):
                 }
                 continue
             if actual != content.encode():
+                if permitted_formatting(state, package, name, actual):
+                    continue
                 raise ValueError("Implementation changed an accepted task document: " + name)
 
 
@@ -213,10 +233,20 @@ def instructions(states):
         "\n\nAccepted planning handoffs (repository-relative directories):\n"
         + json.dumps(packages, indent=2)
         + "\nRead these intent.md, spec.md and plan.md documents before implementation or review. "
-        "Preserve intent.md, spec.md and accepted.json. Keep plan.md current with the implementation; "
+        "Preserve intent.md, spec.md and accepted.json, except for controller-authorized "
+        "whitespace-only amendments listed below. Preserve every word, requirement ID and revision; "
+        "the original acceptance and document hashes remain unchanged. Keep plan.md current with the implementation; "
         "briefly explain changed steps there. Its accepted version is retained separately. "
         "Update the project's living intent/spec only where this change affects them; "
         "material changes to agreed behavior require NEEDS_INPUT."
+        + "\nController-authorized formatting amendments (empty means none):\n"
+        + json.dumps(
+            {
+                p: s["formatting_amendment"]
+                for p, s in states.items()
+                if s.get("formatting_amendment")
+            }
+        )
     )
 
 
@@ -239,12 +269,29 @@ def accepted_plan_context(states, root):
         path = directory / (project + ".md")
         job_files.write_text(root, path, original)
         references[project] = str(path)
+    amendments = {}
+    for project, state in states.items():
+        if not state.get("formatting_amendment"):
+            continue
+        package = package_for(state["repository"])
+        directory = root / "accepted-formatting" / project
+        for parent in (directory.parent, directory):
+            if not parent.exists():
+                job_files.mkdir(root, parent)
+        for name in state["formatting_amendment"]["documents"]:
+            job_files.write_text(root, directory / name, package["documents"][name])
+        amendments[project] = {"originals": str(directory), **state["formatting_amendment"]}
     return (
         (
             "\nController-retained accepted plans for comparison with current plan.md:\n"
             + json.dumps(references)
         )
         if references
+        else ""
+    ) + (
+        "\nOriginal accepted documents and formatting authorization for independent comparison:\n"
+        + json.dumps(amendments)
+        if amendments
         else ""
     )
 

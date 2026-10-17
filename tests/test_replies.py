@@ -73,6 +73,12 @@ class ReplyDispatchTests(unittest.TestCase):
         self.assertFalse(replies.queue_reply("conversation"))
         self.api.assert_not_called()
 
+    def test_legacy_manual_task_without_inputs_is_not_falsely_reported_as_queued(self):
+        self.reply.return_value = {"id": "answer", "answer": "retry", "snapshot": None}
+        self.assertFalse(replies.queue_reply("conversation"))
+        self.api.assert_not_called()
+        self.assertIn("no retained submission receipt", self.post.call_args.args[1])
+
     def test_paused_schedule_disables_immediate_dispatch(self):
         self.api.side_effect = None
         self.api.return_value = {"enabled": False}

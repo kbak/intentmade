@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import review
 import traceability
 from pipeline_fixture import TraceabilityScenario
 
@@ -119,3 +120,110 @@ class AssuranceIntegrationTests(unittest.TestCase):
         self.assertEqual(
             report["context"]["repositories"]["pilot"]["candidate"]["commit"], state["commit"]
         )
+
+    def test_authorized_reflow_passes_the_full_assurance_gate_with_original_acceptance_retained(
+        self,
+    ):
+        import sdlc
+        from traceability.assurance import record
+
+        state = self.scenario.states["pilot"]
+        package = sdlc.propose(
+            "task",
+            {"pilot": state["base"]},
+            {
+                "intent.md": "Preserve session expiry.\n",
+                "spec.md": self.scenario.request,
+                "plan.md": "Run the existing session checks.\n",
+            },
+        )
+        sdlc.bind(Path(state["repository"]), package)
+        state["work_package"] = {key: package[key] for key in ("directory", "sha256")}
+        state["formatting_amendment"] = {
+            "package_sha256": sdlc.digest(sdlc.encoded(package)),
+            "event_id": "explicit-user-event",
+            "documents": ["spec.md"],
+            "line_ranges": {"spec.md": [1, 1]},
+        }
+        original = (Path(state["repository"]) / "factory-work-package.json").read_bytes()
+
+        def reflow(root, attempt):
+            (root / package["directory"] / "spec.md").write_text(
+                self.scenario.request.replace(" ", "\n", 1)
+            )
+
+        # [utest~im-assurance-formatting-amendment~1->req~im-portable-assurance~1]
+        result = self.scenario.invoke(reflow)
+        self.assertEqual(result["status"], "PASSED")
+        self.assertEqual(len(self.scenario.attempts), 1)
+        self.assertEqual(len(self.scenario.review_prompts), 1)
+        report_path = Path(state["assurance"]["report"])
+        assessment = json.loads(report_path.read_text())
+        self.assertEqual(assessment["status"], "satisfied")
+        spec = next(a for a in assessment["context"]["artifacts"] if a["role"] == "specification")
+        self.assertEqual(spec["sha256"], spec["accepted_sha256"])
+        self.assertNotEqual(spec["sha256"], package["sha256"]["spec.md"])
+        amendment = json.loads((report_path.parent / "formatting-amendments.json").read_text())[0]
+        self.assertEqual(amendment["original_accepted_sha256"], package["sha256"]["spec.md"])
+        self.assertEqual(amendment["amended_sha256"], spec["sha256"])
+        self.assertEqual(assessment["decisions"][0]["actor"], "user-event:explicit-user-event")
+        self.assertEqual(
+            assessment["policy"]["profile"]["immutable_roles"],
+            ["intent", "specification", "acceptance"],
+        )
+        self.assertEqual(
+            (Path(state["repository"]) / "factory-work-package.json").read_bytes(), original
+        )
+        saved = review.ReviewResult.model_validate_json(
+            (self.scenario.artifact / "review-0.json").read_text()
+        )
+        grant = state.pop("formatting_amendment")
+        with self.assertRaisesRegex(ValueError, "Portable assurance remains failed"):
+            record(
+                [self.scenario.config],
+                self.scenario.states,
+                saved,
+                self.scenario.artifact / "review-unapproved.json",
+            )
+        state["formatting_amendment"] = {**grant, "line_ranges": {"spec.md": [99, 99]}}
+        with self.assertRaisesRegex(ValueError, "Portable assurance remains failed"):
+            record(
+                [self.scenario.config],
+                self.scenario.states,
+                saved,
+                self.scenario.artifact / "review-wrong-range.json",
+            )
+        state["formatting_amendment"] = {**grant, "package_sha256": "0" * 64}
+        with self.assertRaisesRegex(ValueError, "another accepted package"):
+            record(
+                [self.scenario.config],
+                self.scenario.states,
+                saved,
+                self.scenario.artifact / "review-wrong-package.json",
+            )
+        state["formatting_amendment"] = {k: v for k, v in grant.items() if k != "event_id"}
+        with self.assertRaisesRegex(ValueError, "recorded user event"):
+            record(
+                [self.scenario.config],
+                self.scenario.states,
+                saved,
+                self.scenario.artifact / "review-no-event.json",
+            )
+        state["formatting_amendment"] = grant
+        manifest = Path(state["traceability"]["evidence"]).parent / "candidate-manifest.json"
+        original_manifest = manifest.read_bytes()
+        items = json.loads(original_manifest)
+        next(item for item in items if item["path"] == package["directory"] + "/spec.md")[
+            "sha256"
+        ] = "0" * 64
+        manifest.write_text(json.dumps(items))
+        try:
+            with self.assertRaisesRegex(ValueError, "checked candidate"):
+                record(
+                    [self.scenario.config],
+                    self.scenario.states,
+                    saved,
+                    self.scenario.artifact / "review-wrong-manifest.json",
+                )
+        finally:
+            manifest.write_bytes(original_manifest)

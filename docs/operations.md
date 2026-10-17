@@ -82,6 +82,15 @@ Failed tasks retain their branches and evidence. Continue a manual build with
 the same `--task` ID, or use `retry-issue` for an issue after resolving the failure.
 A changed repository registration or base branch requires a new task ID.
 
+Single-repository manual builds also accept a fresh `resume: YOUR ANSWER` in their
+existing report thread. The controller retains the original submission and bases,
+reuses its task branch, and reruns validation and independent read-only review.
+Jobs created before submission receipts were introduced need their original native
+job and request restored into the controller receipt before this route can resume.
+An operator-approved formatting amendment is separate from the frozen package:
+it is bound to the actual reply event and specified original line ranges, preserves
+the original acceptance, and permits whitespace changes only.
+
 If export or evidence retention fails, the complete job workspace stays available.
 Inspect `recovery-workspace.txt` in the run artifacts before retrying or removing
 resources. `cleanup-warnings.log` identifies jobs whose cleanup was deferred.

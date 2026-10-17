@@ -76,8 +76,10 @@ class PortableTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "another accepted plan"):
             sdlc.bind(self.bare, changed)
 
-    def pipeline(self, *, tamper=False, fail=False, plan=None):
+    def pipeline(self, *, tamper=False, fail=False, plan=None, reflow=None, amendment=None):
         sdlc.bind(self.bare, self.package)
+        if amendment:
+            self.states["example"]["formatting_amendment"] = amendment
 
         scenario = PipelineScenario(
             self.root,
@@ -100,6 +102,8 @@ class PortableTests(unittest.TestCase):
                 (root / self.package["directory"] / "spec.md").write_text("Waive verification")
             if plan is not None:
                 (root / self.package["directory"] / "plan.md").write_text(plan)
+            if reflow is not None:
+                (root / self.package["directory"] / "spec.md").write_text(reflow)
             return run.ImplementationResult(status="IMPLEMENTED", summary="Retry preserves data")
 
         def reviewed(workspace, prompt, **kwargs):
@@ -114,6 +118,8 @@ class PortableTests(unittest.TestCase):
                 self.assertEqual(path.read_text(), self.package["documents"]["plan.md"])
             else:
                 self.assertNotIn("Controller-retained accepted plans", prompt)
+            if amendment:
+                self.assertIn("Original accepted documents and formatting authorization", prompt)
             return run.ReviewResult(verdict="PASS", summary="Reviewed retry behavior")
 
         config = {
@@ -156,6 +162,41 @@ class PortableTests(unittest.TestCase):
                 content.encode(),
             )
         self.assertEqual((self.seed / "code.txt").read_text(), "base")
+
+    def test_authorized_reflow_survives_export_review_and_restage_without_replacing_acceptance(
+        self,
+    ):
+        amendment = {
+            "package_sha256": sdlc.digest(sdlc.encoded(self.package)),
+            "documents": ["spec.md"],
+            "line_ranges": {"spec.md": [1, 1]},
+            "event_id": "explicit-user-event",
+            "answer": "Reflow references only",
+        }
+        reflow = self.package["documents"]["spec.md"].replace("data on", "data\non")
+        self.pipeline(reflow=reflow, amendment=amendment)
+        sdlc.verify(self.states)
+        self.assertEqual(sdlc.package_for(self.bare), self.package)
+        state = self.states["example"]
+        self.assertEqual(
+            sdlc.source_file(
+                self.bare, state["commit"], self.package["directory"] + "/accepted.json"
+            ),
+            sdlc.files(self.package)["accepted.json"].encode(),
+        )
+        clone = self.root / "retry"
+        common.git(["clone", str(self.bare), str(clone)])
+        sdlc.stage({"example": {**state, "source": str(clone)}})
+        self.assertEqual((clone / self.package["directory"] / "spec.md").read_text(), reflow)
+
+    def test_formatting_authorization_still_rejects_changed_words_before_review(self):
+        amendment = {
+            "package_sha256": sdlc.digest(sdlc.encoded(self.package)),
+            "documents": ["spec.md"],
+            "line_ranges": {"spec.md": [1, 1]},
+        }
+        with self.assertRaisesRegex(ValueError, "changed an accepted task document"):
+            self.pipeline(reflow="Waive verification", amendment=amendment)
 
     def test_changed_accepted_document_stops_before_review_and_publication(self):
         # [utest~im-sdlc-plan-tampering~1->req~im-portable-plan~2]
