@@ -191,6 +191,12 @@ Evidence limit: Existing test demonstrates lock contention within a process; cro
 
 Only recorded failed or waiting tasks with a new explicit user resume: answer may continue. Consumed answers and ordinary chat messages must not redispatch work; pausing a repository schedule disables immediate reply dispatch.
 
+Single-repository manual submissions, including accepted planning packages, must
+resume in their existing report thread without requiring an issue snapshot or
+an already published PR. Retain the submitted specification, bases, configuration
+and declared inputs; consume the answer before execution and continue from the
+retained task branch. Reject changed submission identity or repository binding.
+
 Covers:
 - `intent~im-authorized-work~1`
 
@@ -1169,6 +1175,13 @@ UTF-8 regular file. Retain the original plan for comparison by the existing revi
 when changed, preserve the current plan on repair, and identify both in handoffs.
 A retained task must not silently adopt a different accepted package. Existing
 request-only and issue workflows retain their authorization and need no package.
+
+An operator may bind a formatting-only amendment to a fresh explicit user reply,
+the exact accepted package and named original line ranges in intent/spec documents.
+Only whitespace reflow within those ranges is permitted; preserve all words,
+requirement IDs/revisions, original package bytes and acceptance metadata. Retain
+the authorization separately and supply the originals and amendment to independent
+review. This does not waive trace validation, tests or review.
 
 Covers:
 - `intent~im-deliver-changes~1`

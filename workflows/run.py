@@ -239,6 +239,7 @@ def build_group(
     publish_draft=None,
     input_artifacts_declared=None,
     work_package=None,
+    continuation=None,
 ):
     """Single-repository and grouped tasks share this pipeline and native workspaces."""
     identifier(task)
@@ -256,6 +257,19 @@ def build_group(
     with ExitStack() as locks:
         for config in sorted(configs, key=lambda c: c["project"]):
             locks.enter_context(lock(config["project"] + ".build"))
+        if continuation and continuation.get("on_start"):
+            continuation["on_start"]()
+        if (
+            reporting.ACTIVE
+            and issue is None
+            and len(configs) == 1
+            and not configs[0].get("repair_pr")
+        ):
+            from submissions import remember
+
+            remember(
+                configs, task, request, bases, publish_draft, input_artifacts_declared, work_package
+            )
         input_record = locks.enter_context(
             input_artifacts.prepared(
                 input_artifacts_declared, artifact, task=task, bases=bases, request=request
@@ -283,6 +297,12 @@ def build_group(
                     "work_package_sha256": sdlc.digest(sdlc.encoded(package)),
                 }
                 (artifact / "work-package.json").write_bytes(sdlc.encoded(package))
+                amendment = (continuation or {}).get("formatting_amendment")
+                if amendment is not None:
+                    if amendment["package_sha256"] != sdlc.digest(sdlc.encoded(package)):
+                        raise ValueError("Formatting amendment does not match the accepted package")
+                    states[project]["formatting_amendment"] = amendment
+                    (artifact / "formatting-amendment.json").write_bytes(sdlc.encoded(amendment))
             if config["repository"] and states[project]["base"] != bases[project]:
                 git(
                     ["--git-dir", str(repository), "fetch", "--no-tags", "origin", bases[project]],
@@ -293,6 +313,15 @@ def build_group(
                     base=bases[project],
                     merge_base=bases[project],
                 )
+        if continuation:
+            request += (
+                "\n\nController-retained maintainer responses for this task:\n"
+                + "\n\n".join(continuation["answers"])
+                + "\n\nPrevious stop (diagnostic context):\n"
+                + continuation["failure"]
+                + "\nContinue from the retained implementation. Preserve completed code and proofs; "
+                "apply only the authorized correction, then rerun all required gates."
+            )
         return execute_build(
             configs, task, request, credential, issue, publish_draft, artifact, states
         )

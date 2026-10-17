@@ -28,6 +28,23 @@ def queue_reply(conversation_id):
             # as the scheduler and requires a known task conversation.
             with lock(config["project"] + ".reply-queue", blocking=True):
                 reply = reporting.resume_reply(config, path.stem)
+                if (
+                    reply
+                    and reply.get("snapshot") is None
+                    and not record.get("submission")
+                    and not record.get("continuation_id")
+                    and not any(
+                        s.get("pull_request")
+                        for s in record.get("result", {}).get("repositories", {}).values()
+                    )
+                ):
+                    reporting.post(
+                        conversation_id,
+                        "Continuation could not start: this older manual task has no retained submission receipt. "
+                        "The coordinator must restore its original native job/request before retrying; "
+                        "your answer and existing work are preserved.",
+                    )
+                    return False
                 if not reply:
                     continuation = continuations.capture(config, path.stem, record)
                     if continuation:

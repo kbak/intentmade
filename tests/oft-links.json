@@ -608,5 +608,11 @@
   ],
   "test_run_guard.RunGuardTests.test_paused_disabled_and_older_active_runs_block_shutdown": [
     "utest~im-interrupted-run-deploy-guard~1"
+  ],
+  "test_submissions.SubmissionTests.test_frozen_submission_resumes_once_with_original_inputs_and_thread": [
+    "utest~im-submitted-resume~1"
+  ],
+  "test_submissions.SubmissionTests.test_formatting_authorization_is_event_package_and_line_bound": [
+    "utest~im-package-formatting-amendment~1"
   ]
 }
