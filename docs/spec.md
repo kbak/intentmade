@@ -740,6 +740,17 @@ Existing assertions: [test_author_permission_bot_allowlist_and_own_generated_rev
 
 Record each feedback revision before repair so repeated polls do not repeat it. Failed or interrupted repairs require explicit continuation. Recheck feedback before publication and withhold a stale repair.
 
+Maintenance preserves the existing implementation. For an initial base-only
+update without feedback, CI failures, a resume reply or approved follow-up, skip
+the implementation agent only when the retained branch matches the captured PR
+head and Git merges the captured base successfully without conflicts. Other
+maintenance uses a focused repair prompt with actual conflicts and current
+diagnostics, retaining the full authoritative request outside candidate source.
+Do not repeat feature discovery or require a duplicate full worker feedback check:
+the controller runs the complete configured validation once per attempt and fresh
+independent review before publication. Retain head/base identities, conflict paths
+and the chosen maintenance mode. Failure and stale-revision gates remain mandatory.
+
 Covers:
 - `intent~im-review-changes~1`
 
@@ -747,9 +758,9 @@ Needs: impl, utest
 
 Documentation: [docs/workflows.md](../docs/workflows.md).
 
-Implementation: [remember](../workflows/feedback.py), [verify_revision](../workflows/followup.py), [maintain](../workflows/followup.py).
+Implementation: [remember](../workflows/feedback.py), [verify_revision](../workflows/followup.py), [maintain](../workflows/followup.py), [maintenance selection and repair context](../workflows/maintenance.py).
 
-Existing assertions: [test_green_ci_admits_feedback_once_and_interruption_requires_resume](../tests/test_feedback.py), [test_feedback_change_before_publication_is_rejected](../tests/test_feedback.py).
+Existing assertions: [test_green_ci_admits_feedback_once_and_interruption_requires_resume](../tests/test_feedback.py), [test_feedback_change_before_publication_is_rejected](../tests/test_feedback.py), [clean merges, focused repairs and validation gates](../tests/test_maintenance.py).
 
 Evidence limit: Rolling repair budgets and verified GitHub artifact-service retries remain deferred detail.
 

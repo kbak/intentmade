@@ -98,6 +98,15 @@ Maintenance takes priority over requested reviews and new issues. The scheduler
 does not independently review its own published PRs; repairs still pass the
 normal tests and independent review before pushing.
 
+An initial base-only update that merges cleanly uses Git without an implementation
+agent. Conflicts, CI failures and eligible feedback use a focused maintenance
+conversation that preserves existing work and consults the authoritative request
+as needed. It runs useful targeted checks; the complete configured check runs once
+under controller control, followed by fresh independent review. No prior passing
+test or review waives current validation. Retained `maintenance-N.json` records
+the chosen mode, actual conflicts and captured PR head/base. A retained branch
+ahead of the captured PR head requires repair inspection rather than this shortcut.
+
 ### Issue authorization
 
 New issue intake defaults to `issue_intake: "manual"`. Submit a reviewed issue:

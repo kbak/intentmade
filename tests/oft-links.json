@@ -475,6 +475,21 @@
   "test_progress.ProgressTests.test_timing_heartbeat_and_stopped_clock": [
     "utest~im-canvas-progress-timing~1"
   ],
+  "test_maintenance.MaintenanceTests.test_clean_merge_skips_agent_but_runs_validation_and_fresh_review": [
+    "utest~im-maintenance-clean-merge~1"
+  ],
+  "test_maintenance.MaintenanceTests.test_conflicts_get_a_pointed_prompt_and_preserve_the_full_contract": [
+    "utest~im-maintenance-conflict-repair~1"
+  ],
+  "test_maintenance.MaintenanceTests.test_failed_validation_never_reviews_or_publishes_clean_merge": [
+    "utest~im-maintenance-validation-gate~1"
+  ],
+  "test_maintenance.MaintenanceTests.test_shortcut_excludes_new_scope_failures_retained_changes_and_later_attempts": [
+    "utest~im-maintenance-shortcut-guards~1"
+  ],
+  "test_maintenance.MaintenanceTests.test_traceability_maintenance_runs_only_one_controller_check": [
+    "utest~im-maintenance-single-validation~1"
+  ],
   "test_progress.ProgressTests.test_worker_validation_detail_preserves_stage_clocks_and_controller_results": [
     "utest~im-canvas-worker-validation~1"
   ],
