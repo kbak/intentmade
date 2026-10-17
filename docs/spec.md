@@ -394,6 +394,13 @@ requires receipts bound to the deployed source and policy.
 ### Bound repair and preserve the approved request
 `req~im-bounded-repair~1`
 
+A matched-source check that reports provisioning exit 75 or an explicit command
+timeout may use the bounded retry to rerun validation on the retained commit,
+without invoking an implementation agent. Preserve the commit, original request,
+failure logs and scope; ordinary assertion/trace/source failures still require
+the existing repair path. Success still requires current controller checks and
+fresh independent review. Exhaustion retains the source and concrete failure.
+
 Run implementation and configured validation with at most the configured repair attempts after the initial attempt. Repairs retain the original approved request and failed-check context. Exhausted test failures stop before independent review; blocked review infrastructure does not spend a code repair attempt.
 
 Covers:
@@ -865,6 +872,13 @@ Implementation: [check](../workflows/traceability/__init__.py), [collect](../wor
 Existing assertions: [test_candidate_cannot_weaken_the_frozen_floor](../tests/test_traceability.py), [test_exported_contents_must_match_tested_dirty_contents](../tests/test_traceability.py), [test_missing_evidence_cannot_complete_even_with_passing_review](../tests/test_traceability.py), [test_failed_current_invocation_cannot_reuse_a_passing_bundle](../tests/test_traceability.py), [test_modified_worker_scope_cannot_replace_controller_policy](../tests/test_traceability.py).
 
 Evidence limit: Digests match contents; unsigned evidence still relies on trusted execution/custody. Passing structural checks do not prove semantic adequacy.
+
+An explicitly enabled `validation_baseline_manifest` supplies deployment check
+adapters with the complete frozen-base file/mode/digest inventory and its SHA-256.
+Retain that inventory externally and restore it from controller-owned bytes before
+each controller check. Adapters may select a reviewed documentation validation
+policy only by comparing the complete candidate with that inventory; an agent's
+classification or worker-edited inventory cannot authorize reduced checks.
 
 ### Require semantic accounting beyond a green trace graph
 `req~im-trace-assessment~1`

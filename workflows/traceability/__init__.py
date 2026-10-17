@@ -84,8 +84,33 @@ def prepare(configs, states, root, artifact, attempt):
             "scratch": scratch,
             "timeout": scope["tests"]["timeout_seconds"] + 600,
         }
+        if config.get("validation_baseline_manifest"):
+            from intentbond.common import canonical
+            from intentbond.snapshot import snapshot
+
+            with tempfile.TemporaryDirectory() as directory:
+                baseline = snapshot(
+                    Path(states[project]["repository"]),
+                    states[project]["base"],
+                    Path(directory) / "base",
+                )
+            data = canonical({"base": baseline.commit, "manifest": baseline.manifest})
+            (output / f"validation-base-{attempt}.json").write_bytes(data)
+            selected[project]["baseline_data"] = data
+            selected[project]["baseline_path"] = worker_root / "validation-base.json"
+            job_files.write_text(root, selected[project]["baseline_path"], data.decode())
         states[project]["traceability"] = {"status": "not_run", "scope_identity": identity}
     return selected
+
+
+def validation_environment(paths):
+    """Bind deployment check adapters to the controller's immutable base inventory."""
+    if "baseline_data" not in paths:
+        return {}
+    return {
+        "FACTORY_VALIDATION_BASE_MANIFEST": str(paths["baseline_path"]),
+        "FACTORY_VALIDATION_BASE_SHA256": hashlib.sha256(paths["baseline_data"]).hexdigest(),
+    }
 
 
 def instructions(selected, states, environments):
@@ -143,6 +168,11 @@ def check(workspace, state, paths, env):
     from .invocation import begin, finish
     from .openhands import check as portable_check
 
+    # Feedback is worker-controlled. Restore the trusted base before the current
+    # controller invocation and pass its identity independently of worker files.
+    if "baseline_data" in paths:
+        job_files.write_text(paths["root"], paths["baseline_path"], paths["baseline_data"].decode())
+        env = {**env, **validation_environment(paths)}
     # Allocate only when the controller invokes the check, after implementation.
     # The checker itself requires a nonexistent output directory. Agent feedback
     # and previous invocations must never supply this invocation's bundle.
@@ -223,6 +253,7 @@ def collect(state, paths, check_exit_code):
             diagnostics=evidence["diagnostics"],
             review=evidence.get("review"),
             candidate=evidence.get("candidate"),
+            tests=evidence.get("tests", {}),
             scope=read_json(paths["scope"]),
             changes=read_json(target / "review.json")["changes"]
             if (target / "review.json").is_file()
@@ -258,6 +289,25 @@ def collect(state, paths, check_exit_code):
         record.update(status="error", diagnostics=[str(exc)])
         (target / "collection-error.txt").write_text(str(exc) + "\n")
         return check_exit_code if check_exit_code not in (None, 0, 4) else 2
+
+
+# [impl->req~im-bounded-repair~1]
+def infrastructure_failures(results, states):
+    """Only typed provisioning exits and checker deadlines qualify for replay."""
+    failed = [project for project, code in results.items() if code != 0]
+    if not failed:
+        return []
+    for project in failed:
+        tests = states.get(project, {}).get("traceability", {}).get("tests", {})
+        if tests.get("source_status") != "matched" or not (
+            tests.get("exit_code") == 75
+            or (
+                tests.get("status") == "error"
+                and str(tests.get("error", "")).startswith("Command timed out after ")
+            )
+        ):
+            return []
+    return failed
 
 
 # [impl->req~im-trace-source-gate~1]

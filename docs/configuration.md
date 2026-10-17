@@ -267,3 +267,19 @@ adapters. Defaults and paths are listed in [.env.example](../.env.example).
 Groups select task scope. To restrict repository access, use separate instances
 with appropriately scoped GitHub credentials. Keep one enabled scheduler owner
 per repository across instances.
+
+### Validation baseline and nested check budgets
+
+`validation_baseline_manifest: true` on an opted-in repository supplies its test
+adapter with `FACTORY_VALIDATION_BASE_MANIFEST` and
+`FACTORY_VALIDATION_BASE_SHA256`. The manifest contains every frozen-base source
+path, mode and content hash, independent of candidate edits. The controller
+restores it before validation and retains it with run artifacts. Deployment
+adapters own any reviewed documentation policy; this option alone skips no tests.
+
+Project checks retain their own explicit `tests.timeout_seconds` in the trusted
+traceability scope. Set this separately from `run_timeout_seconds`: increasing
+the outer run budget does not extend a 900-second command deadline. Use the
+repository's scope pin or a reviewed deployment-owned scope to choose the check
+budget. Infrastructure retries preserve the candidate and do not call another
+implementation agent; failed assertions and source drift retain normal repair.
