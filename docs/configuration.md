@@ -16,6 +16,7 @@ Set `worker_agent_profile` there to select an existing Canvas agent profile;
 see [native OpenHands and Codex configuration](agents.md).
 
 The optional deployment-owned `implementation_workflows` map selects `opengauss`
+(managed proof guidance and Lean tools) or `lean-mcp` (tools alone)
 for named Lean repositories, for example `{"clafer-lean": "opengauss"}`. It affects
 only writable implementation sessions with Codex ACP and requires the optional
 proof image. See [OpenGauss setup](agents.md#optional-opengauss-proof-workflow).

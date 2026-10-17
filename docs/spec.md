@@ -552,13 +552,16 @@ Existing assertions: [profile and stage boundaries](../tests/test_native_harness
 ### Run an optional OpenGauss proof workflow
 `req~im-opengauss-workflow~1`
 
-An operator may select `opengauss` in deployment-owned `implementation_workflows`
+An operator may select `opengauss` or `lean-mcp` in deployment-owned `implementation_workflows`
 for a single registered repository. Capture that choice before worker creation;
 reject grouped work and native OpenHands profiles for this adapter. Defaults,
 repository policy and submitted jobs cannot select this deployment setting.
 
-Use OpenGauss's pinned managed Codex `/autoprove` guidance and pinned Lean skills/MCP
-through the existing Codex ACP implementation session. Resolve the actual session
+For `opengauss`, use OpenGauss's pinned managed Codex `/autoprove` guidance and
+pinned Lean skills/MCP through the existing Codex ACP implementation session.
+For `lean-mcp`, provide the same pinned MCP tools without registering Lean skills
+or generating managed workflow instructions. Preserve existing factory instructions,
+skills and MCP entries in both modes. Reject unknown runtime modes explicitly. Resolve the actual session
 worktree on new/load/resume/fork, and keep generated context outside source. Keep
 the captured model/reasoning, authentication home/proxy, ACP accounting, deadlines
 and cancellation. Do not stage another login or silently fall back to another
@@ -567,7 +570,7 @@ fail startup. Keep target statements, definitions and assumptions fixed in this
 proof-only workflow; unsupported semantic choices require input and review.
 
 Supply workflow instructions additively, retaining factory and IntentBond context.
-Only writable implementation gets the Lean MCP server and managed workflow;
+Only writable implementation gets the selected proof tools and guidance;
 independent review, browser QA and reports retain their ordinary stage authority.
 The original validation, repair, independent review and publication gates still
 determine acceptance. Pin upstream sources and all MCP dependencies in an optional

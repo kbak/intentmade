@@ -632,5 +632,8 @@
   ],
   "test_traceability.TraceabilityPipelineTests.test_review_reference_index_honors_frozen_exclusions_for_git_and_archives": [
     "utest~im-review-index-exclusions~1"
+  ],
+  "test_opengauss.OpenGaussTests.test_tools_only_keeps_stage_boundaries_without_managed_guidance": [
+    "utest~im-opengauss-tools-only~1"
   ]
 }

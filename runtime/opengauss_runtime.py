@@ -30,10 +30,23 @@ def install_skill(assets=ROOT):
 
 
 # [impl->req~im-opengauss-workflow~1]
-def prepare(project, assets=ROOT):
+def prepare(project, assets=ROOT, mode="autoprove"):
     project = Path(project).resolve(strict=True)
     if not any((project / name).is_file() for name in ("lakefile.lean", "lakefile.toml")):
         raise ValueError("OpenGauss requires the ACP session cwd to be a Lean project")
+    if mode not in ("autoprove", "lean-mcp"):
+        raise ValueError("Unsupported proof workflow")
+    mcp = {
+        "command": str(assets / "venv/bin/lean-lsp-mcp"),
+        "args": [],
+        "env": {"LEAN_PROJECT_PATH": str(project)},
+    }
+    if not Path(mcp["command"]).is_file():
+        raise ValueError("Pinned Lean MCP runtime is incomplete")
+    if mode == "lean-mcp":
+        # The ablation adds only the same pinned MCP tools: no skill registration,
+        # managed workflow generation or secondary planning/tracking instructions.
+        return {"instructions": "", "skills": [], "mcp": mcp}
     # Import only the source installed in the optional immutable runtime. Never
     # import Python from the candidate project or resolve floating dependencies.
     sys.path.insert(0, str(assets / "source"))
@@ -98,11 +111,7 @@ Return the factory's requested structured response when the workflow ends.
     result = {
         "instructions": guidance,
         "skills": [{"path": str(skill), "enabled": True}],
-        "mcp": {
-            "command": str(assets / "venv/bin/lean-lsp-mcp"),
-            "args": [],
-            "env": {"LEAN_PROJECT_PATH": str(project)},
-        },
+        "mcp": mcp,
     }
     config_path.write_text(
         json.dumps(
@@ -126,7 +135,11 @@ if __name__ == "__main__":
         if sys.argv[1] == "--install-skill":
             install_skill()
         else:
-            print(json.dumps(prepare(sys.argv[1])))
+            print(
+                json.dumps(
+                    prepare(sys.argv[1], mode=sys.argv[2] if len(sys.argv) > 2 else "autoprove")
+                )
+            )
     except Exception as exc:
         # Keep candidate text and provider environment out of startup diagnostics.
         print(f"OpenGauss preparation failed ({type(exc).__name__})", file=sys.stderr)

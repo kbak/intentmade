@@ -108,6 +108,62 @@ class OpenGaussTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "implementation-only"):
             agent.worker_agent("read-only", "factory-implementation")
 
+    def test_tools_only_keeps_stage_boundaries_without_managed_guidance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "defaults.json").write_text("{}")
+            (directory / "deployment.json").write_text(
+                json.dumps({"implementation_workflows": {"clafer": "lean-mcp"}})
+            )
+            self.assertEqual(
+                deployment.settings(directory)["implementation_workflows"], {"clafer": "lean-mcp"}
+            )
+        selected = self.select()
+        with patch.object(
+            deployment,
+            "settings",
+            return_value={"implementation_workflows": {"clafer": "lean-mcp"}},
+        ):
+            harness.select_implementation(selected, [{"project": "clafer"}])
+        token = harness.CURRENT.set(selected)
+        self.addCleanup(harness.CURRENT.reset, token)
+        implementation = agent.worker_agent("agent-full-access", "factory-implementation")
+        # [utest~im-opengauss-tools-only~1->req~im-opengauss-workflow~1]
+        self.assertEqual(
+            implementation.acp_command, ["/opt/factory/opengauss-codex-acp", "--lean-mcp"]
+        )
+        self.assertEqual(implementation.acp_model, "fixture/high")
+        self.assertEqual(selected.identity["implementation_workflow"], "lean-mcp")
+        self.assertEqual(
+            agent.worker_agent("read-only", "factory-review").acp_command, ["codex-acp"]
+        )
+        self.assertEqual(selected.settings.acp_command, ["codex-acp"])
+        with self.assertRaisesRegex(ValueError, "implementation-only"):
+            agent.worker_agent("read-only", "factory-implementation")
+
+    def test_tools_only_validates_runtime_and_project_without_importing_gauss(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            project, assets = root / "project", root / "assets"
+            project.mkdir()
+            (project / "lakefile.toml").write_text('name = "fixture"\n')
+            binary = assets / "venv/bin/lean-lsp-mcp"
+            binary.parent.mkdir(parents=True)
+            binary.touch()
+            prepared = opengauss_runtime.prepare(project, assets, mode="lean-mcp")
+            self.assertEqual(prepared["instructions"], "")
+            self.assertEqual(prepared["skills"], [])
+            self.assertEqual(prepared["mcp"]["env"], {"LEAN_PROJECT_PATH": str(project)})
+            self.assertFalse((assets / "source").exists())
+            with self.assertRaisesRegex(ValueError, "Unsupported"):
+                opengauss_runtime.prepare(project, assets, mode="unknown")
+            binary.unlink()
+            with self.assertRaisesRegex(ValueError, "incomplete"):
+                opengauss_runtime.prepare(project, assets, mode="lean-mcp")
+            (project / "lakefile.toml").unlink()
+            with self.assertRaisesRegex(ValueError, "Lean project"):
+                opengauss_runtime.prepare(project, assets, mode="lean-mcp")
+
     def test_unsupported_harness_and_group_fail_before_worker_allocation(self):
         with patch.object(
             deployment,
@@ -144,12 +200,12 @@ if (process.env.FACTORY_OPENGAUSS) {
 }
 """.replace("URL_PLACEHOLDER", json.dumps(hook.as_uri()))
         # [utest~im-opengauss-hook-failure~1->req~im-opengauss-workflow~1]
-        for enabled in (False, True):
+        for mode in (None, "autoprove", "lean-mcp", "unknown"):
             environment = dict(os.environ)
             environment.pop("FACTORY_COORDINATOR", None)
             environment.pop("FACTORY_OPENGAUSS", None)
-            if enabled:
-                environment["FACTORY_OPENGAUSS"] = "autoprove"
+            if mode:
+                environment["FACTORY_OPENGAUSS"] = mode
             subprocess.run(
                 ["/acp-node/bin/node", "--input-type=module", "-e", program],
                 env=environment,

@@ -89,10 +89,12 @@ def settings(config_dir=None):
     if not isinstance(workflows, dict) or any(
         not isinstance(name, str)
         or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}", name)
-        or workflow != "opengauss"
+        or workflow not in ("opengauss", "lean-mcp")
         for name, workflow in workflows.items()
     ):
-        raise ValueError("implementation_workflows must map repository names to opengauss")
+        raise ValueError(
+            "implementation_workflows must map repository names to opengauss or lean-mcp"
+        )
     runtime = options.get("worker_runtime", {})
     if not isinstance(runtime, dict):
         raise ValueError("worker_runtime must be an object")

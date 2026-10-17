@@ -48,6 +48,7 @@ async def lean_probe(project):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--lean", action="store_true")
+    parser.add_argument("--tools-only", action="store_true")
     args = parser.parse_args()
     calls = []
 
@@ -81,6 +82,13 @@ def main():
             before_auth = auth.read_bytes()
             before_config = (home / "config.toml").read_bytes()
             command = "/opt/factory/opengauss-codex-acp"
+            if args.tools_only:
+                wrapper = root / "tools-only-acp"
+                wrapper.write_text(
+                    '#!/bin/sh\nexec /opt/factory/opengauss-codex-acp --lean-mcp "$@"\n'
+                )
+                wrapper.chmod(0o755)
+                command = str(wrapper)
             params = {"cwd": str(project), "mcpServers": []}
             with adapter(root, home, command, "agent-full-access") as request:
                 result = request("session/new", params)
@@ -98,20 +106,27 @@ def main():
             assert calls, "Scripted model was not reached"
             for call in calls:
                 context = json.dumps(call)
-                assert "- lean4:" in context, "Pinned Lean skill missing from native skill catalog"
-                for required in (
-                    str(project),
-                    "/lean4:autoprove",
-                    "--max-cycles=1",
-                    "IntentBond",
-                    "Factory accepted task fixture",
-                ):
+                for required in (str(project), "Factory accepted task fixture"):
                     assert required in context, required
+                if args.tools_only:
+                    assert "- lean4:" not in context, "Tools-only installed Lean guidance"
+                    assert "/lean4:autoprove" not in context, "Tools-only added managed workflow"
+                    assert not (home / "skills/lean4").exists()
+                else:
+                    for required in (
+                        "- lean4:",
+                        "/lean4:autoprove",
+                        "--max-cycles=1",
+                        "IntentBond",
+                    ):
+                        assert required in context, required
                 assert "lean_goal" in json.dumps(call.get("tools", {})), (
                     f"Lean MCP tools unavailable; request keys={list(call)}, model={call.get('model')}, choice={call.get('tool_choice')}"
                 )
             print(
-                "PASS: actual worktree, managed autonomous workflow, factory task and Lean MCP reach native ACP",
+                "PASS: actual worktree, "
+                + ("tools-only wiring" if args.tools_only else "managed autonomous workflow")
+                + ", factory task and Lean MCP reach native ACP",
                 flush=True,
             )
             for method in ("session/load", "session/resume", "session/fork"):

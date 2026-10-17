@@ -273,7 +273,8 @@
         "utest~im-opengauss-stage-boundaries",
         "utest~im-opengauss-unsupported",
         "utest~im-opengauss-hook-failure",
-        "utest~im-opengauss-skill-registration"
+        "utest~im-opengauss-skill-registration",
+        "utest~im-opengauss-tools-only"
       ]
     }
   },
