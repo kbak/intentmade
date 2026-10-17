@@ -16,8 +16,12 @@ export function factorySessionRequest(request) {
 }
 
 export function factorySessionConfig(config, request) {
-  if (process.env.FACTORY_OPENGAUSS === "autoprove") {
-    const prepared = spawnSync("python", ["/opt/factory/opengauss_runtime.py", request.cwd], {
+  if (process.env.FACTORY_OPENGAUSS) {
+    const mode = process.env.FACTORY_OPENGAUSS;
+    if (!["autoprove", "lean-mcp"].includes(mode)) {
+      throw new Error("OpenGauss preparation failed; unsupported proof workflow");
+    }
+    const prepared = spawnSync("python", ["/opt/factory/opengauss_runtime.py", request.cwd, mode], {
       encoding: "utf8", timeout: 15000, maxBuffer: 1024 * 1024,
     });
     if (prepared.error || prepared.status !== 0) {

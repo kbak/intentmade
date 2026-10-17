@@ -242,12 +242,14 @@ def worker_agent(mode, skill=None, mcp_config=None, traceability=False):
             # The same Codex ACP transport retains model, authentication,
             # accounting and cancellation. Only writable implementation opts in.
             if (
-                selected.implementation_workflow == "opengauss"
+                selected.implementation_workflow in ("opengauss", "lean-mcp")
                 and skill == "factory-implementation"
             ):
                 if mode != "agent-full-access":
                     raise ValueError("OpenGauss is an implementation-only workflow")
                 settings.acp_command = ["/opt/factory/opengauss-codex-acp"]
+                if selected.implementation_workflow == "lean-mcp":
+                    settings.acp_command.append("--lean-mcp")
         return settings.create_agent()
     return ACPAgent(
         acp_command=["codex-acp"],

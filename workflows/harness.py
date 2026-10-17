@@ -104,5 +104,5 @@ def select_implementation(selected, configs):
         return
     if len(configs) != 1 or selected.native:
         raise ValueError("OpenGauss requires one repository and a Codex ACP worker profile")
-    selected.implementation_workflow = "opengauss"
-    selected.identity["implementation_workflow"] = "opengauss"
+    selected.implementation_workflow = configured[configs[0]["project"]]
+    selected.identity["implementation_workflow"] = selected.implementation_workflow

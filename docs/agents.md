@@ -97,7 +97,13 @@ mapping until the optional image is available in that worker runtime. Update the
 controller to the matching tooling revision too, so it validates and captures the
 new deployment setting before refreshing workflows.
 
-The adapter invokes OpenGauss's pinned managed `/autoprove` instruction generators
+Select `lean-mcp` instead of `opengauss` in the same mapping to provide only the
+pinned Lean MCP server. This mode retains the factory's instructions and skills,
+without installing the Lean skill or adding managed `/autoprove` guidance. It
+uses the same Codex profile, authentication and stage boundaries. Both modes
+require the optional runtime. Neither mode changes validation or review gates.
+
+The `opengauss` adapter invokes OpenGauss's pinned managed `/autoprove` instruction generators
 at Codex's session boundary, after the actual worktree is known. It supplies the
 matching skill and `factory-lean-lsp` MCP server, while retaining OpenHands' native
 ACP transport, Codex model/reasoning selection, login/proxy, usage events and
