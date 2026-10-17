@@ -309,17 +309,7 @@ class FollowupTests(unittest.TestCase):
         scenario = PipelineScenario(self.root)
 
         def implement(workspace, *args, **kwargs):
-            self.assertEqual(
-                (Path(workspace.working_dir) / "base.txt").read_text(), "new main behavior"
-            )
-            self.assertEqual(
-                (Path(workspace.working_dir) / "feature.txt").read_text(), "retained task change"
-            )
-            return run.ImplementationResult(
-                status="IMPLEMENTED",
-                summary="Preserve scanning on the updated base.",
-                title="fix: restore scanning",
-            )
+            self.fail("A clean base update must not invoke implementation")
 
         def review(configs, states, request, results, transcript=None, **kwargs):
             self.assertEqual(states["example"]["base"], base)
@@ -338,19 +328,23 @@ class FollowupTests(unittest.TestCase):
             patch.object(followup, "failure_context", return_value=""),
             patch.object(run, "github", side_effect=lambda *args, **kwargs: copy.deepcopy(pr)),
             patch.object(run, "task_repository", return_value=(repository, self.record["branch"])),
-            scenario.activate(implement=implement),
+            scenario.activate(implement=implement) as hooks,
             patch.object(run, "review_changes", side_effect=review),
             patch.object(run.issues, "_push_branch", side_effect=push) as pushed,
             patch.object(run.issues, "_open_pull_request") as opened,
         ):
             self.assertTrue(followup.maintain(CONFIG, copy.deepcopy(pr), action, ""))
         pushed.assert_called_once()
+        hooks.converse.assert_not_called()
         opened.assert_not_called()
         common.git(
             ["--git-dir", str(repository), "merge-base", "--is-ancestor", base, pr["head"]["sha"]]
         )
         self.assertEqual(followup.read(CONFIG, 42)["head"], pr["head"]["sha"])
         self.assertEqual(json.loads((artifact / "result.json").read_text())["validation"], "PASSED")
+        self.assertEqual(
+            json.loads((artifact / "maintenance-0.json").read_text())["mode"], "clean_base_update"
+        )
 
 
 class ArtifactRetryTests(unittest.TestCase):

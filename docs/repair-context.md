@@ -21,7 +21,12 @@ The worker receives read-only paths and must read the authoritative contract.
 At most 24 evidence files and a 64 KiB record carry forward; omitted evidence
 remains in the prior run and is listed in the record.
 
-Every attempt starts a fresh native implementation conversation. Provider state,
+Every attempt needing implementation starts a fresh native conversation. A clean
+base-only PR update can merge without an implementation agent; conflicts and
+feedback use the [focused maintenance path](workflows.md#github-scheduling).
+The complete authoritative request remains available outside candidate source.
+Maintenance assigns the full checker to the controller instead of duplicating
+the full check inside the repair conversation. Provider state,
 transcripts, credential stores, and ACP session IDs are not copied between workers.
 Current tests, source verification, and fresh independent review still run;
 review does not inherit implementation memory.

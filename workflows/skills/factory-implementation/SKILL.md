@@ -46,6 +46,13 @@ Use the repository's existing tests to verify affected behavior where useful
 during implementation. Distinguish checks you actually ran from the factory's
 subsequent validation. Return `IMPLEMENTED` only when implementation is complete.
 
+For an explicitly identified PR maintenance conversation, preserve the completed
+implementation and focus on the supplied conflicts, failures and approved feedback.
+Consult the retained authoritative contract and affected source as needed; do not
+redo feature discovery, source research or planning. When the caller assigns full
+validation to the controller, run only useful focused checks here. The controller
+will run the complete frozen checker and fresh independent review after the repair.
+
 Write the summary for a PR reviewer: explain the problem and resulting behavior
 across all changes since the listed base, including retained work from earlier
 attempts. Omit orchestration details, local artifact paths, tool branding and

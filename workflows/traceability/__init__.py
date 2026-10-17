@@ -115,7 +115,7 @@ def validation_environment(paths):
     }
 
 
-def instructions(selected, states, environments):
+def instructions(selected, states, environments, *, feedback=True):
     if not selected:
         return ""
     sections = [
@@ -125,6 +125,8 @@ def instructions(selected, states, environments):
         "criteria. Unapproved proposals and unresolved questions are not implementation scope. "
         "If the handoff conflicts with the frozen scope or existing promises without "
         "authorizing that change, use the existing NEEDS_INPUT process.\n\n"
+    ]
+    sections.append(
         "Traceability checks: run the following command for feedback after edits. "
         "Finish candidate documents and reports before checking; do not change inputs during validation. "
         "Use this wrapper for every feedback invocation so rejected bundles are retained. "
@@ -133,7 +135,12 @@ def instructions(selected, states, environments):
         "may use impact.json, implementation-review.json, verify-result.json or verify.log; "
         "they remain worker claims. Keep other scratch files outside invocation directories "
         "and do not add files to the portable evidence bundle."
-    ]
+        if feedback
+        else "Maintenance validation is assigned to the controller: it runs the full frozen checker "
+        "once after the repair returns, followed by fresh independent review. Use targeted "
+        "checks when useful; do not duplicate the full project or IntentBond feedback check. "
+        "Preserve the existing requirements and scope; update only what the authorized repair affects."
+    )
     for project, paths in selected.items():
         state = states[project]
         command = shlex.join(
@@ -160,7 +167,11 @@ def instructions(selected, states, environments):
             "the parsed policy; do not compare it to a file hash. Exact source exports retain all "
             "formatting. A null source identity means the old task captured only policy values. "
             "These identities describe the controller-selected scope and do not authorize changing it."
-            + f"\n```sh\n{command}\n```"
+            + (
+                f"\n```sh\n{command}\n```"
+                if feedback
+                else f"\nFrozen scope: {paths['worker_scope']}"
+            )
         )
     return "\n\n".join(sections)
 

@@ -14,6 +14,7 @@ import browser_qa
 import deployment
 import execution
 import input_artifacts
+import maintenance
 import measurements
 import repair_context
 import reporting
@@ -425,17 +426,22 @@ def implementation_attempt(
     ):
         prepare_sources(root, states)
         sdlc.stage(states)
+        maintenance_action = maintenance.action_for(configs)
+        maintenance_contract = root / "maintenance-contract.md"
+        if maintenance_action:
+            maintenance_contract.write_text(contract)
         if attempt and continuation is None:
             prompt += stage_test_evidence(configs, artifact, attempt - 1, root)
         trace_runs = traceability.prepare(configs, states, root, artifact, attempt)
         active = root / "active"
         active.mkdir()
         exports = {}
+        maintenance_detail = ""
         try:
             with (
                 worker(root, configs) as workspace,
                 reporting.implementation_activity(
-                    lambda: traceability.feedback_activity(trace_runs)
+                    lambda: traceability.feedback_activity(trace_runs) or maintenance_detail
                 ),
             ):
                 repair_context.note_runtime()
@@ -450,6 +456,10 @@ def implementation_attempt(
                         )
                         state["worktree"] = workspace.working_dir
                         worker_git(workspace, ["branch", "-M", state["branch"]], state["worktree"])
+                        if maintenance_action:
+                            state["maintenance_start"] = worker_git(
+                                workspace, ["rev-parse", "HEAD"], state["worktree"]
+                            ).stdout.strip()
                         if state.get("merge_base"):
                             merged = worker_git(
                                 workspace,
@@ -468,6 +478,7 @@ def implementation_attempt(
                                     "Could not merge the current base: " + merged.stderr[-2000:]
                                 )
                             state["merge_output"] = (merged.stdout + merged.stderr)[-4000:]
+                            state["merge_exit_code"] = merged.exit_code
                         (active / project).symlink_to(state["worktree"], target_is_directory=True)
                     workspace.working_dir = (
                         str(active) if len(states) > 1 else next(iter(states.values()))["worktree"]
@@ -490,12 +501,38 @@ def implementation_attempt(
                             env["TMPDIR"] = str(trace_runs[project]["scratch"])
                             env.update(traceability.validation_environment(trace_runs[project]))
                         environments[project] = env
+                    maintenance_run = maintenance.prepare(
+                        workspace,
+                        configs,
+                        states,
+                        artifact,
+                        attempt,
+                        validation_only=validation_only,
+                    )
+                    clean_base_update = bool(
+                        maintenance_run and maintenance_run["mode"] == "clean_base_update"
+                    )
+                    if maintenance_run:
+                        maintenance_detail = maintenance_run["mode"].replace("_", " ")
+                        reporting.progress_stage("implementation", detail=maintenance_detail)
+                        if not validation_only and not clean_base_update:
+                            prompt = maintenance.repair_prompt(
+                                maintenance_run,
+                                maintenance_contract,
+                                prompt.removeprefix(contract),
+                                maintenance_action,
+                            )
                     implementation = (
                         ImplementationResult(
                             status="IMPLEMENTED",
                             summary="Reused the retained candidate unchanged; retried validation infrastructure only.",
                         )
                         if validation_only
+                        else ImplementationResult(
+                            status="IMPLEMENTED",
+                            summary="Merged the captured base into the retained PR with Git; preserved the existing implementation without an implementation agent.",
+                        )
+                        if clean_base_update
                         else converse(
                             workspace,
                             prompt
@@ -504,12 +541,14 @@ def implementation_attempt(
                             + task_context(states)
                             + input_artifacts.instructions()
                             + sdlc.instructions(states)
-                            + traceability.instructions(trace_runs, states, environments)
+                            + traceability.instructions(
+                                trace_runs, states, environments, feedback=not maintenance_action
+                            )
                             + "\nBase-branch merge results (resolve any conflicts, preserving both sides' intended behavior):\n"
                             + "\n".join(s.get("merge_output", "") for s in states.values())
                             + "\nApply the factory-implementation skill to the approved specification.",
                             "agent-full-access",
-                            "Implementation",
+                            "PR maintenance" if maintenance_action else "Implementation",
                             conversation_id,
                             response_model=ImplementationResult,
                             skill="factory-implementation",
@@ -532,8 +571,11 @@ def implementation_attempt(
                             + "\n\n"
                             + "\n".join(f"- {q}" for q in implementation.questions)
                         )
+                    if maintenance_run:
+                        maintenance.require_resolved(workspace, states)
                     reporting.progress_stage(
-                        "implementation", "Reused" if validation_only else "Complete"
+                        "implementation",
+                        "Reused" if validation_only or clean_base_update else "Complete",
                     )
                     for config in configs:
                         project = config["project"]
@@ -804,7 +846,14 @@ def _execute_build(
                     configs, states, task, prompt, artifact, attempt, **recovery
                 )
             outcome["tests"] = results
-            reporting.progress_stage("implementation", "Reused" if validation_only else "Complete")
+            reused = validation_only or (
+                bool(states)
+                and all(
+                    state.get("maintenance", {}).get("mode") == "clean_base_update"
+                    for state in states.values()
+                )
+            )
+            reporting.progress_stage("implementation", "Reused" if reused else "Complete")
             reporting.progress_stage(
                 "tests",
                 "Not run"
