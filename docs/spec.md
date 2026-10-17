@@ -1030,6 +1030,10 @@ and retain previous attempts. Stopped tasks freeze their timers and show the
 failure or question and the explicit resume action. Progress retention or Canvas
 failures must not alter validation, publication, retry authority or the original
 workflow result. Do not add GitHub statuses or change PR content for this feature.
+During implementation, observe the latest worker feedback invocation and show
+its reported validation step in the implementation row. Clear the detail when
+the invocation records completion or implementation ends. These observations
+never mark project tests passed or replace the controller's independent check.
 
 Covers:
 - `intent~im-operate-reliably~1`

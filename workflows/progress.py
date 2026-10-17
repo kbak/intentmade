@@ -43,6 +43,7 @@ class TaskProgress:
         self.lock = threading.RLock()
         self.stop = threading.Event()
         self.emit = emit
+        self.activity = None
         self.data = {
             "task": task,
             "status": "Running",
@@ -106,6 +107,15 @@ class TaskProgress:
 
     def refresh(self, conversation=False):
         with self.lock:
+            stage = self.data["stages"].get("implementation", {})
+            if self.activity and stage.get("status") == "Running":
+                try:
+                    detail = self.activity()
+                    if stage.get("detail", "") != detail:
+                        stage["detail"] = detail
+                        conversation = True
+                except Exception as exc:
+                    print(f"Worker activity unavailable: {type(exc).__name__}", flush=True)
             data = self.snapshot()
             text = self.render(data)
             try:

@@ -14,6 +14,39 @@ from openhands.automation.schemas import RunPhaseRequest
 
 
 class ProgressTests(unittest.TestCase):
+    def test_worker_validation_detail_preserves_stage_clocks_and_controller_results(self):
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch.object(progress.time, "monotonic") as clock,
+        ):
+            clock.return_value = 10
+            emit = Mock()
+            tracker = progress.TaskProgress("task", temp, ("implementation", "tests"), 1, emit)
+            tracker.stage("implementation")
+            observe = Mock(return_value="Worker validation: app / Axiom audit")
+            with patch.object(reporting, "_PROGRESS") as current:
+                current.get.return_value = tracker
+                with reporting.implementation_activity(observe):
+                    clock.return_value = 40
+                    tracker.refresh()
+                    # [utest~im-canvas-worker-validation~1->req~im-canvas-progress~1]
+                    self.assertIn("Worker validation: app / Axiom audit", emit.call_args.args[1])
+                    self.assertEqual(
+                        tracker.snapshot()["stages"]["implementation"]["elapsed_seconds"], 30
+                    )
+                    self.assertEqual(tracker.snapshot()["stages"]["tests"]["status"], "Waiting")
+                    tracker.refresh()
+                    self.assertIsNone(emit.call_args.args[1])
+                    observe.return_value = ""
+                    tracker.refresh()
+                    self.assertNotIn("Worker validation", emit.call_args.args[1])
+                    observe.side_effect = OSError("worker report unavailable")
+                    tracker.refresh()
+                    tracker.stage("implementation", "Complete")
+                    tracker.stage("tests", "Failed")
+                    self.assertEqual(tracker.snapshot()["stages"]["tests"]["status"], "Failed")
+                self.assertIsNone(tracker.activity)
+
     def test_timing_heartbeat_and_stopped_clock(self):
         with (
             tempfile.TemporaryDirectory() as temp,
