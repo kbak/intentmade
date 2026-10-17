@@ -66,11 +66,20 @@ readers so they cannot introduce hooks or additional executors.
 
 ## Optional OpenGauss proof workflow
 
-Build the optional image on top of a matching factory image (use its immutable ID):
+Keep the ordinary workflow as the default. Select `lean-mcp` when an accepted
+proof task benefits from local goal, diagnostic or candidate feedback; tool use
+is optional. Select `opengauss` when the task calls for its managed proof loop.
+Choose the mode before dispatch and retain that choice with the task evidence.
+
+Build the optional image on top of a matching factory image. Record the immutable
+image ID behind a local tag before building, or use a registry digest. BuildKit
+accepts a local image tag in `FROM`; a bare local `sha256:...` image ID is not a
+registry reference.
 
 ```sh
+docker image inspect intentmade:traceability-matched --format '{{.Id}}'
 docker build -f docker/opengauss.Dockerfile \
-  --build-arg BASE_IMAGE=sha256:YOUR_MATCHING_FACTORY_IMAGE \
+  --build-arg BASE_IMAGE=intentmade:traceability-matched \
   -t intentmade:opengauss .
 ```
 
@@ -125,7 +134,7 @@ alternatives, not cumulative progress.
 
 Only writable implementation uses this workflow. Independent review, reports and
 browser QA use their existing stage configuration. The proof workflow preserves
-target statements, definitions and assumptions; select small accepted proof tasks
+target statements, definitions and assumptions; use accepted proof obligations
 and request input when new semantic choices are needed. IntentBond context,
 controller checks, independent review and publication rules still apply.
 Generated nonsecret context lives in the worker's temporary directory, outside
@@ -141,7 +150,10 @@ The probe checks actual worktree selection, MCP registration, loaded/resumed/for
 sessions and preservation of fixture credentials/configuration. It uses a scripted
 local provider and proves protocol behavior, not model quality or subscription access.
 Follow with one bounded live smoke in a separate test deployment. Record all
-attempts, accepted proofs, elapsed time, available usage and review effort; missing
+attempts, actual tool use, accepted proofs, elapsed time, available usage and review
+effort. Separate proof development, validation and integration costs; account for
+coordinator preparation when comparing complete workflows. Shared model/profile
+settings and a few successful runs do not establish a parallel speedup. Missing
 usage and billed subscription cost remain unknown.
 
 ## Conversation activity
