@@ -275,7 +275,18 @@
         "utest~im-opengauss-hook-failure",
         "utest~im-opengauss-skill-registration",
         "utest~im-opengauss-tools-only",
-        "utest~im-native-cleanup-primary-error"
+        "utest~im-native-cleanup-primary-error",
+        "utest~im-task-concurrency-processes",
+        "utest~im-task-concurrency-identity",
+        "utest~im-task-concurrency-limits",
+        "utest~im-task-concurrency-group",
+        "utest~im-task-concurrency-dispatch",
+        "utest~im-task-concurrency-no-replay",
+        "utest~im-task-concurrency-authority",
+        "utest~im-task-concurrency-scan",
+        "utest~im-task-concurrency-submission",
+        "utest~im-task-concurrency-continuation",
+        "utest~im-task-concurrency-metadata"
       ]
     }
   },

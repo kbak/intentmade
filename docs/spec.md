@@ -16,7 +16,7 @@ The boundary column identifies areas needing more detailed requirements or check
 
 | Capability | Requirements | Boundary / remaining work |
 | --- | --- | --- |
-| Authorization and scheduling | [deployment-authority](#keep-deployment-authority-separate), [approval-snapshot](#bind-issue-approval-to-content), [issue-ownership](#claim-eligible-issues-and-preserve-prior-ownership), [issue-deduplication](#retain-failed-issue-attempts-across-polls), [repository-locks](#serialize-work-for-each-repository), [explicit-resume](#resume-only-from-a-fresh-explicit-answer), [thread-follow-up](#continue-approved-pr-scope-in-the-same-conversation), [task-identity](#bind-retained-tasks-to-their-repository-and-base-branch), [branch-prefix](#normalize-branch-prefix-separators-before-creating-task-state) | Account/team review eligibility, poll priority, daily budgets and naming details need more detailed requirements. |
+| Authorization and scheduling | [deployment-authority](#keep-deployment-authority-separate), [approval-snapshot](#bind-issue-approval-to-content), [issue-ownership](#claim-eligible-issues-and-preserve-prior-ownership), [issue-deduplication](#retain-failed-issue-attempts-across-polls), [repository-locks](#run-independent-tasks-concurrently), [explicit-resume](#resume-only-from-a-fresh-explicit-answer), [thread-follow-up](#continue-approved-pr-scope-in-the-same-conversation), [task-identity](#bind-retained-tasks-to-their-repository-and-base-branch), [branch-prefix](#normalize-branch-prefix-separators-before-creating-task-state) | Account/team review eligibility, poll priority, daily budgets and naming details need more detailed requirements. |
 | Build, repair and publication | [publication-gate](#publish-only-validated-changes-as-drafts), [bounded-repair](#bound-repair-and-preserve-the-approved-request), [needs-input](#stop-on-unanswered-product-questions), [group-publication](#validate-the-whole-group-before-sequential-publication) | Scripted lifecycle; no live model or GitHub publication. |
 | Custody and resource boundaries | [git-transfer](#import-commits-without-worker-git-configuration), [failed-work-retention](#preserve-work-when-export-or-retention-fails), [safe-controller-writes](#write-job-files-without-following-worker-links), [bounded-git](#bound-git-imports-and-retained-patches), [disk-admission](#reject-new-jobs-when-disk-is-low), [worker-credentials](#use-the-selected-backend-credential-boundary) | Archive expansion, kernel isolation, VM networking and resource enforcement need separate requirement/probe decomposition. |
 | Independent review and maintenance | [review-evidence](#derive-review-verdicts-from-native-evidence-and-complete-coverage), [immutable-pr-comparison](#review-the-captured-base-and-head), [pr-publication](#recheck-review-identity-and-ci-before-posting), [review-retry](#reconcile-uncertain-review-publication), [review-report-integrity](#preserve-findings-through-report-consolidation), [feedback-authority](#accept-maintenance-feedback-only-from-eligible-sources), [feedback-lifecycle](#deduplicate-and-recheck-maintenance-feedback) | Native read-only enforcement, model finding quality and live API behavior are not established by scripted tests. |
@@ -81,7 +81,7 @@ implementation links and assertion links collectively support review.
 ### Keep deployment authority separate
 `req~im-deployment-authority~1`
 
-Repository registrations must not override deployment runtime, resource limits or factory-wide authorization requirements. Current operator label-approval requirements apply to automatic issue jobs at scheduling, build and publication boundaries. Explicit operator submissions carry their own content-bound authority and do not require a repository label.
+Repository registrations must not override deployment runtime, resource limits, task capacity or factory-wide authorization requirements. Current operator label-approval requirements apply to automatic issue jobs at scheduling, build and publication boundaries. Explicit operator submissions carry their own content-bound authority and do not require a repository label.
 
 Covers:
 - `intent~im-authorized-work~1`
@@ -168,23 +168,47 @@ Implementation: [poll](../workflows/monitor.py).
 
 Existing assertions: [test_failures_remain_deduplicated_after_history_pruning_and_metadata_changes](../tests/test_automatic_issues.py), [test_attempt_is_persisted_before_work_and_relabeling_permits_retry](../tests/test_scheduler.py).
 
-### Serialize work for each repository
+### Run independent tasks concurrently
 `req~im-repository-locks~1`
 
-Acquire the repository build locks before preparing a grouped build. A busy repository must prevent the group from starting; unrelated repositories may be handled independently.
+Independent tasks, including tasks in the same repository, execute in separate
+native jobs and isolated worktrees. A repository scan reserves and dispatches
+ready work, then releases its scan lock before implementation, validation,
+independent read-only review or publication. Explicit issue runs do not acquire
+the repository scan lock.
+
+Before touching a task's store, ownership or report, exclusively acquire its
+repository/task identity. Use the repository identity across registration aliases.
+Acquire all grouped task identities before preparing any repository, release all
+partial acquisitions on failure, and keep the same task exclusive through its
+complete lifecycle. Nested pipeline calls reuse the task's capacity reservation.
+
+Enforce current operator-controlled deployment and per-repository capacity limits.
+Capacity waiting must report a queued phase and must not reserve another group's
+partial capacity. Kernel locks release task and capacity ownership when a process
+exits. Count existing active slots when a limit is lowered; do not terminate
+already admitted work.
+
+Scheduled work and each explicit answer receive a distinct immutable native recipe.
+Persist attempt/budget reservations before dispatch. Repeated scans or an ambiguous
+dispatch response must not replay that recipe; a new explicit answer is required
+for an uncertain dispatch. Recheck delayed issue approval snapshots, PR identity,
+readiness and answer identity before executing. Parallel admission does not waive
+existing tests, traceability, publication checks or read-only review permissions.
 
 Covers:
 - `intent~im-operate-reliably~1`
 
 Needs: impl, utest
 
-Documentation: [docs/configuration.md](../docs/configuration.md).
+Documentation: [configuration](configuration.md#task-concurrency), [workflows](workflows.md).
 
-Implementation: [build_group](../workflows/run.py), [lock](../workflows/common.py).
+Implementation: [execution](../workflows/execution.py), [native queue](../workflows/native_queue.py), [build_group](../workflows/run.py).
 
-Existing assertions: [test_group_acquires_all_repository_locks_before_preparing_work](../tests/test_factory.py).
+Existing assertions: [process admission and crash recovery](../tests/test_execution.py), [native dispatch and delayed authority](../tests/test_native_queue.py), [scheduler dispatch](../tests/test_automatic_issues.py), [group acquisition](../tests/test_factory.py).
 
-Evidence limit: Existing test demonstrates lock contention within a process; cross-process fairness and crash recovery are not established here.
+Evidence limit: process fixtures exercise local contention and exit recovery; they
+do not establish scheduling fairness or a performance speedup on a live deployment.
 
 ### Resume only from a fresh explicit answer
 `req~im-explicit-resume~1`

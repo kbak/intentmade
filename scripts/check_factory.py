@@ -60,6 +60,8 @@ def main(argv=None):
         f"{os.getuid()}:{os.getgid()}",
         "--tmpfs",
         f"/projects/artifacts:uid={os.getuid()},gid={os.getgid()},mode=0700",
+        "--tmpfs",
+        f"/workspaces:uid={os.getuid()},gid={os.getgid()},mode=0700",
         "--entrypoint",
         "python",
         "-e",

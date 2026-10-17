@@ -53,7 +53,7 @@ new-issue intake. Public examples start with scheduling disabled.
 repository. Without `issue_label`, open, unassigned issues can request work. With
 a label, anyone able to apply it can authorize work; the label is not personal
 approval by the factory operator. An automatic scheduler retains task limits,
-repository locks and failed-attempt deduplication.
+task exclusion, short scan locks, bounded worker capacity and failed-attempt deduplication.
 
 `authorization.require_issue_approval: true` in the operator's deployment settings
 requires the label gate for automatic intake at scheduling, build and

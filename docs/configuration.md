@@ -217,10 +217,47 @@ PR creation is sequential. If publication stops partway through, inspect the
 recorded PR URLs and continue with the same group and task ID. Scheduled issue
 work remains scoped to the issue's own repository.
 
+### Task concurrency
+
+Set worker capacity in operator-owned `config/deployment.json`:
+
+```json
+{
+  "concurrency": {
+    "max_tasks": 2,
+    "max_tasks_per_repository": 2,
+    "repositories": {"large-project": 1}
+  }
+}
+```
+
+The defaults permit two active tasks across the deployment and two in any one
+repository. `repositories` uses registered project names to override the default
+repository limit. Limits must be integers from 1 to 128. Captured jobs and
+repository registrations cannot grant themselves extra capacity. Choose limits
+that fit each worker VM's CPU and memory allocation; admission does not resize VMs.
+An active grouped task uses one deployment slot and one slot in each repository.
+
+`max_tasks_per_poll` controls dispatches per scan, rather than concurrent workers.
+Scans finish after reserving and dispatching native child jobs, so one task's long
+validation does not hold the repository scan lock. Explicit issue submissions use
+the same capacity pool. Pending jobs report that they are queued for capacity;
+concurrent attempts on one task remain exclusive. Kernel locks release capacity
+on process exit. Lowering a limit admits no additional work until the number of
+active tasks is below it; existing work continues.
+
+Each task retains its captured source, artifacts and read-only independent review.
+Two PRs may overlap or need integration after another PR merges; parallel execution
+does not imply automatic conflict resolution or permit dependent tasks to use
+unmerged work. The coordinator must submit dependencies in the appropriate order.
+If native dispatch acknowledgement is lost, inspect its retained recipe/run before
+retrying. The scheduler never automatically dispatches the same recipe twice; use
+a fresh explicit answer after resolving an interruption.
+
 ### Separate instances
 
-One Canvas can manage multiple repositories and groups. Work is serialized per
-repository; unrelated repositories can run concurrently.
+One Canvas can manage multiple repositories and groups. Independent tasks use
+separate native jobs and worktrees, including tasks in the same repository.
 
 For separate instances, give each distinct `COMPOSE_PROJECT_NAME`,
 `CANVAS_PORT`, `FACTORY_CONFIG_DIR` and `FACTORY_DATA_DIR` values using `.env`

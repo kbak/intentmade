@@ -19,5 +19,10 @@
   },
   "authorization": {
     "require_issue_approval": true
+  },
+  "concurrency": {
+    "max_tasks": 2,
+    "max_tasks_per_repository": 2,
+    "repositories": {}
   }
 }

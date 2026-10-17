@@ -24,7 +24,7 @@ The original exception and detailed review evidence remain available for recover
 UTC timestamps identify events; elapsed durations use a monotonic clock. Task
 timing covers the instrumented build/review, including its worker setup and
 teardown. It excludes earlier scheduler discovery and, for builds, waiting for
-the repository lock. OpenHands retains the encompassing automation run timing.
+task ownership or worker capacity. OpenHands retains the encompassing automation run timing.
 
 Stage durations are inclusive: `implementation_and_tests` includes the nested
 `tests` stage; review and browser stages include their agent sessions. Do not sum

@@ -381,7 +381,7 @@ def retry_issue(project, number, answer=None, *, initial=False):
 
     config = projects()[project]
     # Serialize submissions, but let a different issue queue behind a running
-    # build. Execution takes the repository locks before touching task stores.
+    # build. Execution owns only this task plus bounded worker capacity.
     with lock(project + ".queue"):
         record = read_report(config, "issue-" + str(number))
         if initial or deployment.issue_intake(config) == "manual":

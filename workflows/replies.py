@@ -71,12 +71,12 @@ def queue_reply(conversation_id):
                     receipt, json.dumps({"answer_id": reply["id"], "run_id": run["id"]}), mode=0o644
                 )
             # Do not advance the question timestamp or consume the answer here.
-            # Execution rechecks it under the repository lock. If the HTTP
+            # Execution rechecks it under the task lock. If the HTTP
             # acknowledgement is lost, even a duplicate run cannot apply it twice.
             reporting.post(
                 conversation_id,
                 "Your explicit request has queued a continuation in this thread. The factory will recheck the task "
-                "before starting it. If the repository is busy, the continuation will wait; "
+                "before starting it. If this task is active or worker capacity is full, the continuation will wait; "
                 "implementation and independent read-only review run separately.",
             )
             return True

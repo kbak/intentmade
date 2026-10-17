@@ -2,6 +2,7 @@
 
 import json
 
+import execution
 import reporting
 import sdlc
 from common import lock
@@ -68,7 +69,7 @@ def remember(configs, task, request, bases, publish_draft=None, inputs=None, pac
 # [impl->req~im-portable-plan~2]
 def authorize_formatting(config, task, event_id, line_ranges):
     """Operator-only amendment: bind named formatting changes to a real user reply."""
-    with lock(config["project"] + ".poll"):
+    with execution.state(config, task), lock(config["project"] + ".poll"):
         record = reporting.read_report(config, task)
         payload = validate(record["submission"], config, task)
         reply = reporting.resume_reply(config, task)
@@ -101,14 +102,26 @@ def authorize_formatting(config, task, event_id, line_ranges):
 
 
 # [impl->req~im-explicit-resume~1]
-def process(config, credential, limit, on_start=lambda: None):
-    """Called under the repository poll lock; ordinary builds retain the build lock."""
+def process(
+    config,
+    credential,
+    limit,
+    on_start=lambda: None,
+    *,
+    enqueue=None,
+    selected=None,
+    answer_id=None,
+    submission_sha256=None,
+):
+    """Scans enqueue briefly; the selected child owns task state during execution."""
     from run import build_group
 
     count, waiting = 0, 0
     for path in sorted(reporting.report_path(config, "unused").parent.glob("*.json")):
         if count >= limit:
             break
+        if selected is not None and path.stem != selected:
+            continue
         record = json.loads(path.read_text())
         if not record.get("submission") or record.get("snapshot") is not None:
             continue
@@ -116,10 +129,28 @@ def process(config, credential, limit, on_start=lambda: None):
             s.get("pull_request") for s in record.get("result", {}).get("repositories", {}).values()
         ):
             continue
+        if submission_sha256 is not None and record["submission"]["sha256"] != submission_sha256:
+            raise ValueError("Queued submission identity changed; no continuation started")
         reply = reporting.resume_reply(config, path.stem)
         if not reply or reply["id"] == record.get("answer_id"):
             continue
+        if answer_id is not None and reply["id"] != answer_id:
+            raise ValueError("The queued submission answer changed; no continuation started")
         payload = validate(record["submission"], config, path.stem)
+        if enqueue is not None:
+            if enqueue(
+                config,
+                {
+                    "kind": "submission",
+                    "key": path.stem,
+                    "task": path.stem,
+                    "submission_sha256": record["submission"]["sha256"],
+                    "answer_id": reply["id"],
+                },
+                on_start=on_start,
+            ):
+                count += 1
+            continue
         amendment = record.get("formatting_amendment")
         if amendment and (
             amendment["submission_sha256"] != record["submission"]["sha256"]

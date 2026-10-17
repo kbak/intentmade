@@ -6,6 +6,7 @@ import os
 import time
 from pathlib import Path
 
+import execution
 import httpx
 import reporting
 from common import api, lock
@@ -137,77 +138,83 @@ def reconcile(config):
 def _reconcile(config):
     for path in reporting.report_path(config, "unused").parent.glob("*.json"):
         try:
-            record = json.loads(path.read_text())
-        except (OSError, ValueError) as exc:
-            print(f"Run health report unavailable: {type(exc).__name__}", flush=True)
-            continue
-        pending = record.get("interruption", {})
-        if pending.get("run_id") != record.get("run_id"):
-            pending = {}
-        if not record.get("run_id") or (
-            record.get("status") not in ACTIVE and (not pending or pending.get("notified"))
-        ):
-            continue
-        try:
-            run = find_run(record["run_id"], record.get("automation_id"))
-            if not run or run.get("conversation_id") not in {None, record.get("conversation_id")}:
-                continue
-            reason = pending.get("reason") or stopped_reason(run)
-            if not reason:
-                continue
-            # A late completion/new continuation must win over this old snapshot.
-            fresh = json.loads(path.read_text())
-            if fresh != record:
-                continue
-            marker = f"Run `{run['id']}` was interrupted."
-            message = (
-                marker + " " + reason + "\n\nWorkspaces, task branches and evidence are preserved. "
-                "Inspect the retained work, then reply `resume: retry` to continue the same task. "
-                "No automatic retry was started."
-            )
-            if run["status"] == "RUNNING":
-                try:
-                    api(
-                        "POST",
-                        f"/api/automation/v1/runs/{run['id']}/complete",
-                        json={
-                            "status": "FAILED",
-                            "error": reason,
-                            "conversation_id": record.get("conversation_id"),
-                        },
-                    )
-                except httpx.HTTPStatusError as exc:
-                    if exc.response.status_code != 409:
-                        raise
-                    # The normal completion callback may have won the race.
-                    continue
-            elif run["status"] not in {"FAILED", "CANCELLED"}:
-                continue
-            record.update(
-                status="FAILED",
-                updated_at=reporting.now(),
-                failure=message,
-                interruption={"run_id": run["id"], "reason": reason, "notified": False},
-            )
-            reporting.write_report(config, path.stem, record)
+            with execution.state(config, path.stem):
+                _reconcile_task(config, path)
+        except BlockingIOError:
+            continue  # An active task owns its report; it is not lost execution.
+
+
+def _reconcile_task(config, path):
+    try:
+        record = json.loads(path.read_text())
+    except (OSError, ValueError) as exc:
+        print(f"Run health report unavailable: {type(exc).__name__}", flush=True)
+        return
+    pending = record.get("interruption", {})
+    if pending.get("run_id") != record.get("run_id"):
+        pending = {}
+    if not record.get("run_id") or (
+        record.get("status") not in ACTIVE and (not pending or pending.get("notified"))
+    ):
+        return
+    try:
+        run = find_run(record["run_id"], record.get("automation_id"))
+        if not run or run.get("conversation_id") not in {None, record.get("conversation_id")}:
+            return
+        reason = pending.get("reason") or stopped_reason(run)
+        if not reason:
+            return
+        # A late completion/new continuation must win over this old snapshot.
+        fresh = json.loads(path.read_text())
+        if fresh != record:
+            return
+        marker = f"Run `{run['id']}` was interrupted."
+        message = (
+            marker + " " + reason + "\n\nWorkspaces, task branches and evidence are preserved. "
+            "Inspect the retained work, then reply `resume: retry` to continue the same task. "
+            "No automatic retry was started."
+        )
+        if run["status"] == "RUNNING":
             try:
-                retain_interruption(path.stem, run["id"], message)
-            except (OSError, ValueError, KeyError) as exc:
-                print(
-                    f"Interrupted progress retention unavailable: {type(exc).__name__}", flush=True
-                )
-            conversation = record.get("conversation_id")
-            if conversation:
-                if not notice_exists(conversation, marker):
-                    reporting.post(conversation, "**INTERRUPTED — action needed**\n\n" + message)
                 api(
-                    "PATCH",
-                    f"/api/conversations/{conversation}",
-                    json={"title": f"{config['project']} — {path.stem} — INTERRUPTED"},
+                    "POST",
+                    f"/api/automation/v1/runs/{run['id']}/complete",
+                    json={
+                        "status": "FAILED",
+                        "error": reason,
+                        "conversation_id": record.get("conversation_id"),
+                    },
                 )
-                record["interruption"]["notified"] = True
-                reporting.write_report(config, path.stem, record)
-        except (OSError, ValueError, httpx.HTTPError) as exc:
-            # Unavailable evidence is not proof of a dead worker. Failed notice
-            # delivery stays pending so the next scan can finish it.
-            print(f"Run health reconciliation deferred: {type(exc).__name__}", flush=True)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 409:
+                    raise
+                # The normal completion callback may have won the race.
+                return
+        elif run["status"] not in {"FAILED", "CANCELLED"}:
+            return
+        record.update(
+            status="FAILED",
+            updated_at=reporting.now(),
+            failure=message,
+            interruption={"run_id": run["id"], "reason": reason, "notified": False},
+        )
+        reporting.write_report(config, path.stem, record)
+        try:
+            retain_interruption(path.stem, run["id"], message)
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"Interrupted progress retention unavailable: {type(exc).__name__}", flush=True)
+        conversation = record.get("conversation_id")
+        if conversation:
+            if not notice_exists(conversation, marker):
+                reporting.post(conversation, "**INTERRUPTED — action needed**\n\n" + message)
+            api(
+                "PATCH",
+                f"/api/conversations/{conversation}",
+                json={"title": f"{config['project']} — {path.stem} — INTERRUPTED"},
+            )
+            record["interruption"]["notified"] = True
+            reporting.write_report(config, path.stem, record)
+    except (OSError, ValueError, httpx.HTTPError) as exc:
+        # Unavailable evidence is not proof of a dead worker. Failed notice
+        # delivery stays pending so the next scan can finish it.
+        print(f"Run health reconciliation deferred: {type(exc).__name__}", flush=True)

@@ -213,7 +213,7 @@ class InitialReviewContextTests(unittest.TestCase):
                 patch.object(run, "DATA", root),
                 patch.object(run, "evidence", return_value=root / "artifacts"),
                 patch.object(run, "job_id", return_value="fixture"),
-                patch.object(run, "lock", return_value=nullcontext()),
+                patch.object(run.execution, "task", return_value=nullcontext()),
                 patch.object(run, "git", return_value=Mock(stdout="base\n")),
                 patch.object(run, "task_repository", side_effect=task_store),
                 patch.object(run, "execute_build") as execute,
