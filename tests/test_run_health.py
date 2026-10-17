@@ -8,6 +8,8 @@ from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
 
+import common
+import execution
 import httpx
 import reporting
 import run_health
@@ -45,6 +47,14 @@ class RunHealthTests(unittest.TestCase):
         }
         self.events, self.calls, self.outputs = [], [], []
         self.start = 1792182430.0  # 20:27:10 UTC, after the interrupted dispatch.
+
+    def test_active_task_exclusion_prevents_reconciliation_from_overwriting_its_report(self):
+        # [utest~im-task-concurrency-metadata~1->req~im-repository-locks~1]
+        with patch.object(common, "DATA", self.root), patch.object(run_health, "api") as api:
+            with common.lock("task-" + execution.task_key(self.config, "issue-15")):
+                run_health.reconcile(self.config)
+            api.assert_not_called()
+            self.assertEqual(reporting.read_report(self.config, "issue-15"), self.report)
 
     def api(self, method, path, **kwargs):
         self.calls.append((method, path, kwargs))

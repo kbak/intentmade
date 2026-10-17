@@ -647,5 +647,38 @@
   ],
   "test_docker_sandboxes.RuntimeLifecycleTests.test_cleanup_error_retains_primary_failure_and_diagnostic": [
     "utest~im-native-cleanup-primary-error~1"
+  ],
+  "test_execution.ExecutionTests.test_independent_tasks_overlap_and_capacity_waits_then_recovers_after_crash": [
+    "utest~im-task-concurrency-processes~1"
+  ],
+  "test_execution.ExecutionTests.test_same_task_is_exclusive_even_under_repository_alias": [
+    "utest~im-task-concurrency-identity~1"
+  ],
+  "test_execution.ExecutionTests.test_repository_override_preserves_capacity_for_other_repositories": [
+    "utest~im-task-concurrency-limits~1"
+  ],
+  "test_execution.ExecutionTests.test_group_failure_releases_earlier_task_locks_and_capacity": [
+    "utest~im-task-concurrency-group~1"
+  ],
+  "test_native_queue.NativeQueueTests.test_each_task_gets_an_independent_native_recipe_without_running_in_scan": [
+    "utest~im-task-concurrency-dispatch~1"
+  ],
+  "test_native_queue.NativeQueueTests.test_lost_dispatch_acknowledgement_does_not_replay_without_a_new_answer": [
+    "utest~im-task-concurrency-no-replay~1"
+  ],
+  "test_native_queue.NativeQueueTests.test_child_rechecks_issue_snapshot_before_claiming_or_building": [
+    "utest~im-task-concurrency-authority~1"
+  ],
+  "test_automatic_issues.AutomaticSchedulerTests.test_native_scan_dispatches_multiple_tasks_without_executing_them": [
+    "utest~im-task-concurrency-scan~1"
+  ],
+  "test_submissions.SubmissionTests.test_scan_queues_submission_without_consuming_the_answer_or_building": [
+    "utest~im-task-concurrency-submission~1"
+  ],
+  "test_continuations.ContinuationTests.test_scan_queues_follow_up_and_does_not_fail_an_active_child": [
+    "utest~im-task-concurrency-continuation~1"
+  ],
+  "test_run_health.RunHealthTests.test_active_task_exclusion_prevents_reconciliation_from_overwriting_its_report": [
+    "utest~im-task-concurrency-metadata~1"
   ]
 }

@@ -207,7 +207,7 @@ Native Automate owns run status and logs. Empty/busy scans report SKIPPED. A run
 waiting for an answer also reports SKIPPED and links to its NEEDS_INPUT report;
 Canvas has no native waiting-for-input automation status. Evidence is in /projects/artifacts;
 task Git branches persist in /workspaces/tasks. Do not edit task stores manually,
-modify immutable evidence, bypass a repository lock, or bypass test/review failure.
+modify immutable evidence, bypass task exclusion or worker capacity, or bypass test/review failure.
 Never expose credentials or pass the parent settings key or GitHub token to workers.
 
 Every build writes handoff.md and handoff.json alongside its evidence, including

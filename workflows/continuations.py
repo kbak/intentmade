@@ -199,8 +199,18 @@ def digest(package):
 
 
 # [impl->req~im-thread-follow-up~1]
-def process(config, credential, limit, on_start=lambda: None):
-    """Called under the poll lock; maintenance acquires the shared build lock."""
+def process(
+    config,
+    credential,
+    limit,
+    on_start=lambda: None,
+    *,
+    enqueue=None,
+    selected=None,
+    answer_id=None,
+    package_sha256=None,
+):
+    """Capture under the scan lock, then execute each approved task in its own run."""
     paths = [
         path
         for path in reporting.report_path(config, "unused").parent.glob("*.json")
@@ -217,7 +227,11 @@ def process(config, credential, limit, on_start=lambda: None):
     for record in sorted(records, key=lambda item: timestamp(item["package"]["approved_at"])):
         if count >= limit:
             break
+        if selected is not None and record["id"] != selected:
+            continue
         package = record["package"]
+        if package_sha256 is not None and record["sha256"] != package_sha256:
+            raise ValueError("Queued follow-up identity changed; no work started")
         if digest(package) != record["sha256"]:
             raise ValueError("Retained follow-up scope changed; no work started")
         if record["status"] not in {"QUEUED", "STARTED", "FAILED", "NEEDS_INPUT"}:
@@ -234,6 +248,29 @@ def process(config, credential, limit, on_start=lambda: None):
             or current_report.get("snapshot") != package["snapshot"]
         ):
             raise ValueError("Follow-up conversation or snapshot changed; no work started")
+        if enqueue is not None:
+            reply = (
+                reporting.resume_reply(config, package["report_task"])
+                if record["status"] != "QUEUED"
+                else None
+            )
+            fresh = reply and reply["id"] != record.get("answer_id")
+            if record["status"] in {"FAILED", "NEEDS_INPUT"} and not fresh:
+                continue
+            if enqueue(
+                config,
+                {
+                    "kind": "continuation",
+                    "key": record["id"],
+                    "package_sha256": record["sha256"],
+                    "answer_id": reply["id"] if fresh else record.get("answer_id"),
+                },
+                on_start=on_start,
+            ):
+                count += 1
+            continue
+        if selected is not None and answer_id is None and record["status"] != "QUEUED":
+            raise ValueError("Queued follow-up already advanced; a fresh answer is required")
         report = reporting.TaskReport(config, package["report_task"], package["snapshot"])
         if record["status"] == "STARTED":
             record["status"] = "FAILED"
@@ -250,6 +287,8 @@ def process(config, credential, limit, on_start=lambda: None):
                 continue
         elif record["status"] != "QUEUED":
             continue
+        if answer_id is not None and (reply or {}).get("id") != answer_id:
+            raise ValueError("The queued follow-up answer changed; no work started")
         record.update(status="STARTED", answer_id=(reply or {}).get("id"))
         save(config, record)
         count += 1

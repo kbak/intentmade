@@ -16,6 +16,7 @@ FIELDS = {
     "dogwood",
     "cedar",
     "run_timeout_seconds",
+    "concurrency",
 }
 LEGACY_FIELDS = {"worker_runtime", "resource_limits"}
 CURRENT_RUN_TIMEOUT = ContextVar("factory_run_timeout", default=None)
@@ -25,6 +26,23 @@ def validate_run_timeout(value):
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError("run_timeout_seconds must be a positive integer")
     return value
+
+
+def validate_concurrency(value):
+    fields = {"max_tasks", "max_tasks_per_repository", "repositories"}
+    if not isinstance(value, dict) or set(value) - fields:
+        raise ValueError("concurrency must contain supported capacity settings")
+    result = {"max_tasks": 2, "max_tasks_per_repository": 2, "repositories": {}, **value}
+    repositories = result["repositories"]
+    if not isinstance(repositories, dict) or any(
+        not isinstance(name, str) or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}", name)
+        for name in repositories
+    ):
+        raise ValueError("concurrency.repositories must map registered project names to limits")
+    for limit in [result["max_tasks"], result["max_tasks_per_repository"], *repositories.values()]:
+        if type(limit) is not int or not 1 <= limit <= 128:
+            raise ValueError("concurrency limits must be integers from 1 to 128")
+    return result
 
 
 def read(path):
@@ -83,6 +101,8 @@ def settings(config_dir=None):
     agent_profile = options.get("worker_agent_profile", "factory-codex")
     if not isinstance(agent_profile, str) or not agent_profile.strip():
         raise ValueError("worker_agent_profile must name a saved OpenHands agent profile")
+    if "concurrency" in defaults:
+        raise ValueError("Set concurrency in deployment.json")
     if "implementation_workflows" in defaults:
         raise ValueError("Set implementation_workflows in deployment.json")
     workflows = options.get("implementation_workflows", {})
@@ -105,6 +125,7 @@ def settings(config_dir=None):
         if isinstance(path, str) and path.strip() and not Path(path).is_absolute():
             runtime[key] = str((host_directory / path).resolve())
     return {
+        "concurrency": validate_concurrency(options.get("concurrency", {})),
         "run_timeout_seconds": validate_run_timeout(options.get("run_timeout_seconds", 7200)),
         "worker_agent_profile": agent_profile,
         "implementation_workflows": dict(workflows),

@@ -92,6 +92,29 @@ class AutomaticSchedulerTests(unittest.TestCase):
         self.assertEqual(self.state["count"], 1002)
         self.label_lookup.assert_not_called()
 
+    def test_native_scan_dispatches_multiple_tasks_without_executing_them(self):
+        # [utest~im-task-concurrency-scan~1->req~im-repository-locks~1]
+        self.items += [{**ISSUE, "number": 1406}]
+        with (
+            patch.object(monitor.native_queue, "enqueue", return_value=True) as enqueue,
+            patch.object(
+                approval, "approved_issue", return_value=({}, {"content_sha256": "frozen"})
+            ),
+        ):
+            monitor.poll(CONFIG, "offline-token", dispatch=True)
+        self.build.assert_not_called()
+        self.assertEqual(
+            [call.args[1]["item"]["number"] for call in enqueue.call_args_list], [1402, 1406]
+        )
+        self.assertTrue(
+            all(
+                call.args[1]["snapshot"]["content_sha256"] == "frozen"
+                for call in enqueue.call_args_list
+            )
+        )
+        self.assertEqual(self.state["count"], 1002)
+        self.assertEqual(set(self.state["done"].values()), {"dispatched"})
+
     def test_assigned_closed_issues_and_pull_requests_are_excluded(self):
         self.items = [
             {**ISSUE, "assignees": [{"login": "someone"}]},

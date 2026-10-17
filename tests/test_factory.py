@@ -674,12 +674,12 @@ class PipelineTests(unittest.TestCase):
             patch.object(run, "task_repository") as prepare,
         ):
             configs = [{**CONFIG, "project": p} for p in ("first", "second")]
-            with common.lock("second.build"):
+            with common.lock("task-" + run.execution.task_key(configs[1], "task")):
                 # [utest~im-factory-PipelineTests-group_acquires_all_repository_locks_before_preparing_work~1->req~im-repository-locks~1]
                 with self.assertRaises(BlockingIOError):
                     run.build_group(configs, "task", "spec", {"first": "sha", "second": "sha"})
             prepare.assert_not_called()
-            with common.lock("first.build"):
+            with common.lock("task-" + run.execution.task_key(configs[0], "task")):
                 pass  # The earlier lock was released after the second acquisition failed.
 
 

@@ -102,6 +102,44 @@ class SubmissionTests(unittest.TestCase):
         self.assertEqual(submissions.process(CONFIG, "credential", 1), (0, 0))
         self.build.assert_called_once()
 
+    def test_scan_queues_submission_without_consuming_the_answer_or_building(self):
+        # [utest~im-task-concurrency-submission~1->req~im-repository-locks~1]
+        before = reporting.read_report(CONFIG, self.task)
+        reservations = []
+
+        def enqueue(config, work, *, on_start):
+            self.assertEqual(work["answer_id"], "explicit-user-event")
+            self.assertEqual(work["submission_sha256"], self.submission["sha256"])
+            on_start()
+            self.assertEqual(reservations, ["reserved"])
+            return True
+
+        self.assertEqual(
+            submissions.process(
+                CONFIG, "credential", 1, lambda: reservations.append("reserved"), enqueue=enqueue
+            ),
+            (1, 0),
+        )
+        self.build.assert_not_called()
+        self.assertEqual(reporting.read_report(CONFIG, self.task), before)
+        with self.assertRaisesRegex(ValueError, "answer changed"):
+            submissions.process(CONFIG, "credential", 1, selected=self.task, answer_id="stale")
+        with self.assertRaisesRegex(ValueError, "identity changed"):
+            submissions.process(
+                CONFIG,
+                "credential",
+                1,
+                selected=self.task,
+                answer_id="explicit-user-event",
+                submission_sha256="wrong",
+            )
+        self.assertEqual(
+            submissions.process(
+                CONFIG, "credential", 1, selected=self.task, answer_id="explicit-user-event"
+            ),
+            (1, 0),
+        )
+
     def test_missing_answer_tampered_submission_and_retargeted_repository_do_not_build(self):
         self.reply.return_value = None
         self.assertEqual(submissions.process(CONFIG, "credential", 1), (0, 0))

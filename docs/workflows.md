@@ -81,7 +81,10 @@ remaining conversation, publication and native-KV integration tradeoffs.
 An enabled repository has a **Factory — NAME** automation. Defaults poll every
 ten minutes, allow two task attempts per poll, and have no daily cap. Set
 `daily_tasks` to a positive integer for a UTC-day limit, or `null` for no cap.
-Work is serialized per repository; unrelated repositories can run concurrently.
+Each ready task is dispatched into a separate native run and isolated worktree.
+Independent tasks in the same repository can overlap, subject to the deployment’s
+[capacity limits](configuration.md#task-concurrency). The scan lock covers queue
+bookkeeping; task execution and review do not retain it.
 
 | Work | Eligibility |
 | --- | --- |
@@ -132,7 +135,7 @@ resume: YOUR ANSWER
 ```
 
 The native **Resume** automation queues the continuation immediately, waiting for
-any active repository run. It consumes the reply once under the repository lock;
+available worker capacity. It consumes the reply once under its task lock;
 the scheduled scan provides a fallback. Pausing the repository schedule also
 prevents new reply dispatches. Ordinary chat messages do not restart work.
 
@@ -168,7 +171,7 @@ only the controller dispatches workers.
 
 Follow-ups use retained source and preserve the original accepted package. The
 approved scope is recorded separately and accompanies later maintenance. The
-existing repository locks and scheduler budgets apply. If another run changes
+existing task locks, capacity limits and scheduler budgets apply. If another run changes
 the PR after capture, inspect the new revision and send a new `implement:` action;
 the factory will not silently apply stale approval. Use `resume:` to retry a
 failed follow-up within its already accepted scope.

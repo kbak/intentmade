@@ -96,6 +96,43 @@ class ContinuationTests(unittest.TestCase):
     def capture(self):
         return continuations.capture(CONFIG, self.task, self.report, "fixture-token")
 
+    def test_scan_queues_follow_up_and_does_not_fail_an_active_child(self):
+        # [utest~im-task-concurrency-continuation~1->req~im-repository-locks~1]
+        self.events = [self.event("implement: Add the approved independent feature")]
+        captured = self.capture()
+        started = []
+
+        def enqueue(config, work, *, on_start):
+            self.assertEqual(work["key"], captured["id"])
+            self.assertEqual(work["package_sha256"], captured["sha256"])
+            on_start()
+            return True
+
+        with patch.object(followup, "maintain") as maintain:
+            self.assertEqual(
+                continuations.process(
+                    CONFIG, "credential", 1, lambda: started.append("reserved"), enqueue=enqueue
+                ),
+                (1, 0),
+            )
+            self.assertEqual(started, ["reserved"])
+            maintain.assert_not_called()
+            path = continuations.directory(CONFIG) / (captured["id"] + ".json")
+            state = json.loads(path.read_text())
+            self.assertEqual(state["status"], "QUEUED")
+            with self.assertRaisesRegex(ValueError, "identity changed"):
+                continuations.process(
+                    CONFIG, "credential", 1, selected=captured["id"], package_sha256="wrong"
+                )
+            state["status"] = "STARTED"
+            path.write_text(json.dumps(state))
+            self.assertEqual(
+                continuations.process(CONFIG, "credential", 1, enqueue=lambda *a, **kw: False),
+                (0, 0),
+            )
+            self.assertEqual(json.loads(path.read_text())["status"], "STARTED")
+            self.assertEqual(reporting.read_report(CONFIG, self.task), self.report)
+
     def test_deleted_reports_do_not_stop_scans_or_authorize_partial_history(self):
         # [utest~im-follow-up-deleted-report~1->req~im-thread-follow-up~1]
         response = httpx.Response(404, request=httpx.Request("GET", "http://canvas/events"))

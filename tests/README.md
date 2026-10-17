@@ -56,7 +56,7 @@ python3 scripts/check_factory.py --image "$FACTORY_TEST_IMAGE" \
 ```
 
 The runner rejects a stale image's build manifest. It uses an offline disposable
-container without credentials or the host Docker socket; it does not start or
+container with private temporary lock/receipt storage, without credentials or the host Docker socket; it does not start or
 reconfigure your factory. Each report path must be new.
 
 For a full IntentBond check, record the baseline before editing. Make an explicit

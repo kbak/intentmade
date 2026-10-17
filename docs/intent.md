@@ -151,8 +151,10 @@ and [execution provenance](execution-provenance.md).
 ### Run and recover automation predictably
 `intent~im-operate-reliably~1`
 
-Operators need concurrent work, startup retries and finite recipes to have bounded,
-understandable behavior. Completion records and measurements should preserve
+Operators need independent tasks to progress concurrently in isolated worktrees,
+including tasks within the same repository. Resource limits should bound active
+workers without making one long task monopolize a repository. Startup retries and
+finite recipes also need bounded, understandable behavior. Completion records and measurements should preserve
 failures and uncertainty so an operator can recover without accidentally replaying
 work or mistaking an incomplete attempt for success.
 

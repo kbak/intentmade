@@ -12,6 +12,7 @@ from typing import Literal
 import authorization
 import browser_qa
 import deployment
+import execution
 import input_artifacts
 import measurements
 import repair_context
@@ -20,7 +21,7 @@ import sdlc
 import traceability
 from agent import AgentExecutionError, StructuredResponseError, converse, worktree
 from cleanup import job_directory
-from common import DATA, api, evidence, git, github, identifier, issues, job_id, lock, token
+from common import DATA, api, evidence, git, github, identifier, issues, job_id, token
 from lifecycle import TaskLifecycle, failure_status
 from naming import branch_name, change_title, pull_request_title
 from openhands.sdk.workspace.repo import RepoSource, clone_repos
@@ -254,9 +255,7 @@ def build_group(
 
         check_issue_authorization(configs[0])
     artifact = evidence(job_id() + "-" + task)
-    with ExitStack() as locks:
-        for config in sorted(configs, key=lambda c: c["project"]):
-            locks.enter_context(lock(config["project"] + ".build"))
+    with execution.task(configs, task), ExitStack() as locks:
         if continuation and continuation.get("on_start"):
             continuation["on_start"]()
         if (

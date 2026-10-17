@@ -5,12 +5,13 @@ import json
 import re
 import time
 
+import execution
 import feedback
 import httpx
 import input_artifacts
 import reporting
 import sdlc
-from common import DATA, evidence, git, github, identifier, issues, job_id, lock
+from common import DATA, evidence, git, github, identifier, issues, job_id
 from lifecycle import TaskLifecycle
 from naming import pull_request_title
 from openhands.sdk.utils.files import atomic_write_text
@@ -98,18 +99,24 @@ def adopt_reports(config):
         repository = DATA / "tasks" / config["project"] / (task + ".git")
         if not repository.exists() or str(repository) != state.get("repository"):
             continue
-        track(
-            {**config, "issue_approval": report.get("snapshot")},
-            task,
-            repository,
-            state["branch"],
-            {"html_url": url},
-            "",
-            int(task[6:]),
-        )
-        record = read(config, int(match[1]))
-        record["answers"] = report.get("answers", [])
-        save(config, record)
+        try:
+            with execution.state(config, task):
+                if read(config, int(match[1])):
+                    continue
+                track(
+                    {**config, "issue_approval": report.get("snapshot")},
+                    task,
+                    repository,
+                    state["branch"],
+                    {"html_url": url},
+                    "",
+                    int(task[6:]),
+                )
+                record = read(config, int(match[1]))
+                record["answers"] = report.get("answers", [])
+                save(config, record)
+        except BlockingIOError:
+            continue
 
 
 def snapshot(config, record):
@@ -219,6 +226,17 @@ def artifact_retries(config, pr, credential, record):
 
 
 def plan(config, pr, credential):
+    record = read(config, pr["number"])
+    if not record:
+        return None
+    try:
+        with execution.state(config, record.get("task", f"pr-{pr['number']}")):
+            return _plan(config, pr, credential)
+    except BlockingIOError:
+        return None
+
+
+def _plan(config, pr, credential):
     record = read(config, pr["number"])
     if not record or pr.get("state") != "open":
         return None
@@ -399,7 +417,9 @@ def maintain(config, pr, action, credential):
     task = record["task"]
     artifact = evidence(job_id() + "-" + task)
     continuation = action.get("continuation")
-    with lock(config["project"] + ".build", blocking=bool(continuation)):
+    from execution import task as task_execution
+
+    with task_execution([config], task):
         record = read(config, pr["number"])
         if continuation and (
             not record
