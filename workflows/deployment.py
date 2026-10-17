@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
@@ -11,6 +12,7 @@ FIELDS = {
     "resource_limits",
     "authorization",
     "worker_agent_profile",
+    "implementation_workflows",
     "dogwood",
     "cedar",
     "run_timeout_seconds",
@@ -81,6 +83,16 @@ def settings(config_dir=None):
     agent_profile = options.get("worker_agent_profile", "factory-codex")
     if not isinstance(agent_profile, str) or not agent_profile.strip():
         raise ValueError("worker_agent_profile must name a saved OpenHands agent profile")
+    if "implementation_workflows" in defaults:
+        raise ValueError("Set implementation_workflows in deployment.json")
+    workflows = options.get("implementation_workflows", {})
+    if not isinstance(workflows, dict) or any(
+        not isinstance(name, str)
+        or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}", name)
+        or workflow != "opengauss"
+        for name, workflow in workflows.items()
+    ):
+        raise ValueError("implementation_workflows must map repository names to opengauss")
     runtime = options.get("worker_runtime", {})
     if not isinstance(runtime, dict):
         raise ValueError("worker_runtime must be an object")
@@ -93,6 +105,7 @@ def settings(config_dir=None):
     return {
         "run_timeout_seconds": validate_run_timeout(options.get("run_timeout_seconds", 7200)),
         "worker_agent_profile": agent_profile,
+        "implementation_workflows": dict(workflows),
         "worker_runtime": validate_runtime(runtime),
         "resource_limits": validate_limits(options.get("resource_limits", {})),
         "authorization": {"require_issue_approval": required},

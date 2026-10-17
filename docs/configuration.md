@@ -15,6 +15,12 @@ for manual and automatic issue intake.
 Set `worker_agent_profile` there to select an existing Canvas agent profile;
 see [native OpenHands and Codex configuration](agents.md).
 
+The optional deployment-owned `implementation_workflows` map selects `opengauss`
+for named Lean repositories, for example `{"clafer-lean": "opengauss"}`. It affects
+only writable implementation sessions with Codex ACP and requires the optional
+proof image. See [OpenGauss setup](agents.md#optional-opengauss-proof-workflow).
+Repository registrations and submitted jobs cannot set this map.
+
 `run_timeout_seconds` sets the deployment's default run budget (7,200 seconds
 when omitted). Set it in `deployment.json`, and optionally override it in
 `repositories/NAME.json`; use `36000` for ten hours. Groups use the longest

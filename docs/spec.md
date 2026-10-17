@@ -549,6 +549,43 @@ Implementation: [operator selection](../workflows/deployment.py), [profile activ
 
 Existing assertions: [profile and stage boundaries](../tests/test_native_harness.py), [captured model and missing-profile rejection](../tests/test_agent_profile.py), [operator-only configuration](../tests/test_deployment.py).
 
+### Run an optional OpenGauss proof workflow
+`req~im-opengauss-workflow~1`
+
+An operator may select `opengauss` in deployment-owned `implementation_workflows`
+for a single registered repository. Capture that choice before worker creation;
+reject grouped work and native OpenHands profiles for this adapter. Defaults,
+repository policy and submitted jobs cannot select this deployment setting.
+
+Use OpenGauss's pinned managed Codex `/autoprove` guidance and pinned Lean skills/MCP
+through the existing Codex ACP implementation session. Resolve the actual session
+worktree on new/load/resume/fork, and keep generated context outside source. Keep
+the captured model/reasoning, authentication home/proxy, ACP accounting, deadlines
+and cancellation. Do not stage another login or silently fall back to another
+model, paid API or ordinary worker. Missing runtime or non-Lean session roots
+fail startup. Keep target statements, definitions and assumptions fixed in this
+proof-only workflow; unsupported semantic choices require input and review.
+
+Supply workflow instructions additively, retaining factory and IntentBond context.
+Only writable implementation gets the Lean MCP server and managed workflow;
+independent review, browser QA and reports retain their ordinary stage authority.
+The original validation, repair, independent review and publication gates still
+determine acceptance. Pin upstream sources and all MCP dependencies in an optional
+image, preserve their licenses, and retain source/image identities. This adapter
+does not claim to reproduce OpenGauss's interactive launcher or published benchmark.
+
+Covers:
+- `intent~im-deliver-changes~1`
+- `intent~im-protect-work~1`
+
+Needs: impl, utest
+
+Implementation: [selection](../workflows/harness.py), [stage construction](../workflows/agent.py),
+[session hook](../runtime/factory-context.mjs), [upstream adapter](../runtime/opengauss_runtime.py).
+
+Validation: [selection and stage regressions](../tests/test_opengauss.py) and the
+separate optional-runtime protocol probe documented in [agents](agents.md).
+
 ### Restrict native OpenHands review tools
 `req~im-native-read-only~1`
 

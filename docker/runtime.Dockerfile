@@ -99,7 +99,7 @@ RUN mkdir /tmp/agency-agents && \
 COPY runtime/ /tmp/factory-build-inputs/runtime/
 COPY docker/runtime.Dockerfile /tmp/factory-build-inputs/docker/runtime.Dockerfile
 COPY docker/openhands-requirements.txt /tmp/factory-build-inputs/docker/openhands-requirements.txt
-COPY docker/traceability.Dockerfile docker/intentbond-requirements.txt docker/traceability-requirements.txt /tmp/factory-build-inputs/docker/
+COPY docker/traceability.Dockerfile docker/opengauss.Dockerfile docker/intentbond-requirements.txt docker/traceability-requirements.txt /tmp/factory-build-inputs/docker/
 COPY upstream.lock.json .dockerignore /tmp/factory-build-inputs/
 RUN python /tmp/factory-build-inputs/runtime/build_inputs.py /tmp/factory-build-inputs /opt/factory/runtime-build.json && \
     rm -rf /tmp/factory-build-inputs && chmod a+r /opt/factory/runtime-build.json

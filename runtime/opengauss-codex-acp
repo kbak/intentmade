@@ -1,0 +1,9 @@
+#!/bin/sh
+# Keep OpenHands' native Codex authentication and lifecycle; no new credential home.
+python /opt/factory/opengauss_runtime.py --install-skill || exit $?
+export FACTORY_OPENGAUSS=autoprove
+export LEAN4_PLUGIN_ROOT=/opt/factory/opengauss/lean4-skills/plugins/lean4
+export LEAN4_SCRIPTS="$LEAN4_PLUGIN_ROOT/lib/scripts"
+export LEAN4_REFS="$LEAN4_PLUGIN_ROOT/skills/lean4/references"
+export PATH="$LEAN4_PLUGIN_ROOT/bin:$PATH"
+exec /opt/factory/codex-acp "$@"
