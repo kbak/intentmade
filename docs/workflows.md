@@ -7,6 +7,14 @@ catalog. Discuss the scope, tradeoffs, and acceptance criteria, then explicitly
 approve the specification and ask to implement it. The coordinator can submit
 an intent/spec/plan package for substantial work using the [portable workflow](portable-workflow.md).
 For bounded changes, the approved issue/request and brief inline planning suffice.
+The coordinator carries an implementation request across clarification replies:
+once the remaining questions are resolved within the authorized scope, it submits
+the task without asking for the same approval again. If a discussion reaches a
+concrete plan without implementation authorization, it asks whether to start.
+At handoff, it reports either the verified task/run IDs and current status, the
+specific decision still needed, or the blocker preventing submission. An issue
+edit or completed planning turn alone does not mean implementation was queued.
+
 You can supply an approved file directly:
 
 ```sh
