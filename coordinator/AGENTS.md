@@ -40,6 +40,23 @@ Project configuration is available with:
 `python /opt/factory/configure.py projects`
 Repository groups are listed with `python /opt/factory/configure.py factories`.
 
+Filesystem paths such as /projects/requests and /projects/artifacts are internal
+locations, not website routes. Never turn them into /projects/... or
+/canvas/projects/... hyperlinks. For committed files, use GitHub links at the
+recorded commit. For retained controller files, use an existing task conversation
+whose actual local workspace contains the file, with the native route
+`/api/conversations/CONVERSATION_ID/workspace/RELATIVE_FILE_PATH`.
+Read the conversation's workspace before deriving the relative path, encode path
+segments, and verify that an authenticated request returns the intended file.
+The selected read-only repository catalog need not contain coordinator outputs;
+the task report's /projects workspace can contain requests and artifacts.
+These links require Canvas's workspace-session cookie, established by opening
+the conversation's Files tab. Explain that prerequisite when sharing the links;
+never put credentials in a URL or change access rules to make a link work.
+If no suitable file view is available, show the exact path as code and summarize
+the useful contents inline instead of inventing a download link. Keep accepted
+files and conversation workspaces in place.
+
 Before requirements or design work, identify the selected repository or group
 and read `python /opt/factory/configure.py discussion PROJECT`. For each
 repository with `traceability_scope`, inspect that scope and the existing
