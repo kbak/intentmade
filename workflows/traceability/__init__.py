@@ -14,6 +14,8 @@ from pathlib import Path
 
 import job_files
 
+from traceability.activity import feedback_activity  # noqa: F401 (public progress observation)
+
 
 # [impl->req~im-trace-opt-in~1]
 def scope_for(config):

@@ -432,7 +432,12 @@ def implementation_attempt(
         active.mkdir()
         exports = {}
         try:
-            with worker(root, configs) as workspace:
+            with (
+                worker(root, configs) as workspace,
+                reporting.implementation_activity(
+                    lambda: traceability.feedback_activity(trace_runs)
+                ),
+            ):
                 repair_context.note_runtime()
                 prompt = repair_context.prompt(continuation, decision, prompt)
                 try:

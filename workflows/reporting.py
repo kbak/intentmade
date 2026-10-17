@@ -179,6 +179,22 @@ def progress_attempt(index):
         progress.begin_attempt(index)
 
 
+@contextmanager
+def implementation_activity(observe):
+    """Observe worker feedback without changing stage results or acceptance gates."""
+    tracker = _PROGRESS.get()
+    if tracker:
+        with tracker.lock:
+            previous = tracker.activity
+            tracker.activity = observe
+    try:
+        yield
+    finally:
+        if tracker:
+            with tracker.lock:
+                tracker.activity = previous
+
+
 # [impl->req~im-agent-profile~1]
 # [impl->req~im-native-read-only~1]
 def report_agent():

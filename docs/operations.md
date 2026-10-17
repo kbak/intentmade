@@ -110,6 +110,10 @@ the current worker phase. Generated updates and questions do not launch the
 report assistant. If that assistant previously failed, later updates identify
 its error separately from the task status. Explicit `resume:` replies still
 continue eligible failed or waiting tasks through native automation.
+When a traceability worker runs its feedback check, the implementation row shows
+`Worker validation` and the latest reported check step. The detail refreshes with
+the 30-second timer and clears after feedback finishes. Worker reports describe
+activity; project test results still come from the later controller check.
 
 Each enabled repository scan also checks unfinished task reports independently
 of the long run budget. Proven local process loss or a failed/cancelled native
