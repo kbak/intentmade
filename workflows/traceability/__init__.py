@@ -289,6 +289,7 @@ def review_scope(config, changed_paths):
     }
 
 
+# [impl->req~im-trace-assessment~1]
 def requirement_index(source, scope, candidate, base=None, *, archive=False):
     """Resolve review citations through OFT before an agent sees the source."""
     from intentbond.common import CheckError, within
@@ -307,7 +308,15 @@ def requirement_index(source, scope, candidate, base=None, *, archive=False):
                 validate_jar(jar)
                 capture = archive_snapshot if archive else snapshot
                 snap = capture(Path(source), commit, root / label)
-                items, _, _ = export_items(snap, scope["inputs"], jar, "java", root, label)
+                items, _, _ = export_items(
+                    snap,
+                    scope["inputs"],
+                    jar,
+                    "java",
+                    root,
+                    label,
+                    scope.get("trace_exclude", ()),
+                )
                 ids = [
                     item["id"]
                     for item in items

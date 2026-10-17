@@ -629,5 +629,8 @@
   ],
   "test_docker_sandboxes.RuntimeLifecycleTests.test_failed_creation_retains_failed_phase_and_original_error": [
     "utest~im-native-startup-failure~1"
+  ],
+  "test_traceability.TraceabilityPipelineTests.test_review_reference_index_honors_frozen_exclusions_for_git_and_archives": [
+    "utest~im-review-index-exclusions~1"
   ]
 }

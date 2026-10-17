@@ -833,7 +833,7 @@ Evidence limit: Digests match contents; unsigned evidence still relies on truste
 ### Require semantic accounting beyond a green trace graph
 `req~im-trace-assessment~1`
 
-Independent review of an opted-in change must account for all selected changed paths using requirement identities from the relevant source index. Missing relationships require concrete remediation and block as CHANGES_REQUESTED; uncertain or absent assessments are incomplete and block. Existing links may suffice without inventing new IDs.
+Independent review of an opted-in change must account for all selected changed paths using requirement identities from the relevant source index. Build candidate and historical citation indexes with the same frozen tracing inputs and exclusions as the checker, for both Git and archive snapshots. Exclusions affect artifact import only; retain full captured source identity. Missing relationships require concrete remediation and block as CHANGES_REQUESTED; uncertain or absent assessments are incomplete and block. Existing links may suffice without inventing new IDs.
 
 Covers:
 - `intent~im-trust-evidence~1`
@@ -842,7 +842,7 @@ Needs: impl, utest
 
 Documentation: [docs/traceability.md](../docs/traceability.md).
 
-Implementation: [validate_assessments](../workflows/review.py), [evaluate](../workflows/review.py).
+Implementation: [requirement_index](../workflows/traceability/__init__.py), [validate_assessments](../workflows/review.py), [evaluate](../workflows/review.py).
 
 Existing assertions: [test_existing_relationships_pass_without_new_ids](../tests/test_traceability_review.py), [test_concrete_gap_blocks_even_if_reviewer_labels_overall_result_pass](../tests/test_traceability_review.py), [test_uncertain_is_incomplete_not_covered_or_a_fabricated_defect](../tests/test_traceability_review.py), [test_absent_required_assessment_cannot_pass](../tests/test_traceability_review.py).
 
