@@ -572,8 +572,10 @@ worktree on new/load/resume/fork, and keep generated context outside source. Kee
 the captured model/reasoning, authentication home/proxy, ACP accounting, deadlines
 and cancellation. Do not stage another login or silently fall back to another
 model, paid API or ordinary worker. Missing runtime or non-Lean session roots
-fail startup. Keep target statements, definitions and assumptions fixed in this
-proof-only workflow; unsupported semantic choices require input and review.
+fail startup. Native worker inventory, removal and CLI reaping failures remain
+explicit: fail a successful run, or retain a cleanup diagnostic alongside the
+original startup/workflow exception when that run already failed. Keep target
+statements, definitions and assumptions fixed in this proof-only workflow; unsupported semantic choices require input and review.
 
 Supply workflow instructions additively, retaining factory and IntentBond context.
 Only writable implementation gets the selected proof tools and guidance;
@@ -593,7 +595,8 @@ Implementation: [selection](../workflows/harness.py), [stage construction](../wo
 [session hook](../runtime/factory-context.mjs), [upstream adapter](../runtime/opengauss_runtime.py).
 
 Validation: [selection and stage regressions](../tests/test_opengauss.py) and the
-separate optional-runtime protocol probe documented in [agents](agents.md).
+separate optional-runtime protocol and failure/cancellation probes documented in
+[agents](agents.md).
 
 ### Restrict native OpenHands review tools
 `req~im-native-read-only~1`

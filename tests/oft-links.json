@@ -644,5 +644,8 @@
   ],
   "test_opengauss.OpenGaussTests.test_tools_only_keeps_stage_boundaries_without_managed_guidance": [
     "utest~im-opengauss-tools-only~1"
+  ],
+  "test_docker_sandboxes.RuntimeLifecycleTests.test_cleanup_error_retains_primary_failure_and_diagnostic": [
+    "utest~im-native-cleanup-primary-error~1"
   ]
 }
