@@ -614,5 +614,8 @@
   ],
   "test_submissions.SubmissionTests.test_formatting_authorization_is_event_package_and_line_bound": [
     "utest~im-package-formatting-amendment~1"
+  ],
+  "test_assurance.AssuranceIntegrationTests.test_authorized_reflow_passes_the_full_assurance_gate_with_original_acceptance_retained": [
+    "utest~im-assurance-formatting-amendment~1"
   ]
 }

@@ -1183,6 +1183,11 @@ requirement IDs/revisions, original package bytes and acceptance metadata. Retai
 the authorization separately and supply the originals and amendment to independent
 review. This does not waive trace validation, tests or review.
 
+The portable assurance adapter must revalidate an amendment against the checked
+candidate and record its derived accepted hash through an explicit, context-bound
+decision. Preserve the original accepted hash and the user event alongside that
+decision; do not relax the immutable-artifact policy for other changes.
+
 Covers:
 - `intent~im-deliver-changes~1`
 - `intent~im-authorized-work~1`
