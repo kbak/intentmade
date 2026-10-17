@@ -33,6 +33,14 @@ not that its tests or review passed. Use the recorded outcomes for that conclusi
 Hard termination can leave an unfinished record with null completion/duration;
 do not count that as success or zero elapsed time.
 
+Native worker setup records `worker_profile`, `worker_native_*` CLI operations,
+`worker_api_readiness` and `worker_provenance`. `agent_conversation_create` records
+the remote conversation allocation separately from its subsequent execution.
+Native CLI phase records omit arguments and environment values. Project warmup and
+first model activity remain separate observations; a ready HTTP server does not
+establish that Lean, MCP or a proof session is ready. Failed phases remain visible
+alongside cleanup.
+
 Agent measurements snapshot OpenHands conversation statistics before and after
 each invocation. This avoids counting a resumed conversation's prior usage again.
 The record preserves input, output, cache, and reasoning counts separately,

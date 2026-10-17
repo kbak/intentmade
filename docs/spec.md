@@ -555,6 +555,46 @@ Implementation: [operator selection](../workflows/deployment.py), [profile activ
 
 Existing assertions: [profile and stage boundaries](../tests/test_native_harness.py), [captured model and missing-profile rejection](../tests/test_agent_profile.py), [operator-only configuration](../tests/test_deployment.py).
 
+### Run an optional OpenGauss proof workflow
+`req~im-opengauss-workflow~1`
+
+An operator may select `opengauss` or `lean-mcp` in deployment-owned `implementation_workflows`
+for a single registered repository. Capture that choice before worker creation;
+reject grouped work and native OpenHands profiles for this adapter. Defaults,
+repository policy and submitted jobs cannot select this deployment setting.
+
+For `opengauss`, use OpenGauss's pinned managed Codex `/autoprove` guidance and
+pinned Lean skills/MCP through the existing Codex ACP implementation session.
+For `lean-mcp`, provide the same pinned MCP tools without registering Lean skills
+or generating managed workflow instructions. Preserve existing factory instructions,
+skills and MCP entries in both modes. Reject unknown runtime modes explicitly. Resolve the actual session
+worktree on new/load/resume/fork, and keep generated context outside source. Keep
+the captured model/reasoning, authentication home/proxy, ACP accounting, deadlines
+and cancellation. Do not stage another login or silently fall back to another
+model, paid API or ordinary worker. Missing runtime or non-Lean session roots
+fail startup. Keep target statements, definitions and assumptions fixed in this
+proof-only workflow; unsupported semantic choices require input and review.
+
+Supply workflow instructions additively, retaining factory and IntentBond context.
+Only writable implementation gets the selected proof tools and guidance;
+independent review, browser QA and reports retain their ordinary stage authority.
+The original validation, repair, independent review and publication gates still
+determine acceptance. Pin upstream sources and all MCP dependencies in an optional
+image, preserve their licenses, and retain source/image identities. This adapter
+does not claim to reproduce OpenGauss's interactive launcher or published benchmark.
+
+Covers:
+- `intent~im-deliver-changes~1`
+- `intent~im-protect-work~1`
+
+Needs: impl, utest
+
+Implementation: [selection](../workflows/harness.py), [stage construction](../workflows/agent.py),
+[session hook](../runtime/factory-context.mjs), [upstream adapter](../runtime/opengauss_runtime.py).
+
+Validation: [selection and stage regressions](../tests/test_opengauss.py) and the
+separate optional-runtime protocol probe documented in [agents](agents.md).
+
 ### Restrict native OpenHands review tools
 `req~im-native-read-only~1`
 
@@ -802,7 +842,7 @@ Evidence limit: Digests match contents; unsigned evidence still relies on truste
 ### Require semantic accounting beyond a green trace graph
 `req~im-trace-assessment~1`
 
-Independent review of an opted-in change must account for all selected changed paths using requirement identities from the relevant source index. Missing relationships require concrete remediation and block as CHANGES_REQUESTED; uncertain or absent assessments are incomplete and block. Existing links may suffice without inventing new IDs.
+Independent review of an opted-in change must account for all selected changed paths using requirement identities from the relevant source index. Build candidate and historical citation indexes with the same frozen tracing inputs and exclusions as the checker, for both Git and archive snapshots. Exclusions affect artifact import only; retain full captured source identity. Missing relationships require concrete remediation and block as CHANGES_REQUESTED; uncertain or absent assessments are incomplete and block. Existing links may suffice without inventing new IDs.
 
 Covers:
 - `intent~im-trust-evidence~1`
@@ -811,7 +851,7 @@ Needs: impl, utest
 
 Documentation: [docs/traceability.md](../docs/traceability.md).
 
-Implementation: [validate_assessments](../workflows/review.py), [evaluate](../workflows/review.py).
+Implementation: [requirement_index](../workflows/traceability/__init__.py), [validate_assessments](../workflows/review.py), [evaluate](../workflows/review.py).
 
 Existing assertions: [test_existing_relationships_pass_without_new_ids](../tests/test_traceability_review.py), [test_concrete_gap_blocks_even_if_reviewer_labels_overall_result_pass](../tests/test_traceability_review.py), [test_uncertain_is_incomplete_not_covered_or_a_fabricated_defect](../tests/test_traceability_review.py), [test_absent_required_assessment_cannot_pass](../tests/test_traceability_review.py).
 
@@ -912,6 +952,14 @@ Evidence limit: The regression checks both direct and descendant process termina
 `req~im-measurement-outcomes~1`
 
 Metrics preserve failed attempts after later success and distinguish returned stages from successful validation. Missing/reset usage and zero or absent cost remain unknown. Measurement failure must not change authorization or replace the original workflow failure.
+Native worker measurements separate profile resolution, native CLI operations,
+API readiness and runtime provenance; conversation creation is recorded separately
+from agent execution. Phase records contain names, outcomes and timings, excluding
+command arguments, environment values and credentials. Failed startup phases remain
+visible after cleanup. These inclusive timings do not establish proof readiness or
+replace project/compiler warmup measurements.
+Probe an authenticated, initialized native API route with a bounded reusable
+client; public OpenAPI schema generation is not a worker-readiness prerequisite.
 
 Covers:
 - `intent~im-operate-reliably~1`

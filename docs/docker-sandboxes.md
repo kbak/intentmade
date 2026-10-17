@@ -5,6 +5,11 @@ one local Docker Sandboxes VM. OpenHands still supplies `RemoteWorkspace`,
 conversations and file APIs. Docker owns worker OAuth and credential refresh.
 The default backend remains `DockerWorkspace`.
 
+Worker readiness probes the upstream authenticated conversation-list API with a
+bounded reusable client. It waits for initialized services and fails on rejected
+session keys; it does not generate the full public OpenAPI schema on every new
+worker. Metrics separate native CLI setup from API readiness and project warmup.
+
 The adapter targets **sbx 0.46.0 and native v2 Kits**. A Kit describes the
 workload; the Docker Sandboxes runtime supplies VM isolation. The tested v3
 runtime does not apply the privileged capability needed by this nested Docker

@@ -77,15 +77,15 @@ class Model(http.server.BaseHTTPRequestHandler):
 
 
 @contextmanager
-def adapter(cwd, home):
+def adapter(cwd, home, command="/opt/factory/codex-acp", mode="read-only"):
     with tempfile.TemporaryFile(mode="w+") as errors:
         process = subprocess.Popen(
-            ["/opt/factory/codex-acp"],
+            [command],
             cwd=cwd,
             env={
                 **os.environ,
                 "CODEX_HOME": str(home),
-                "INITIAL_AGENT_MODE": "read-only",
+                "INITIAL_AGENT_MODE": mode,
                 # The factory launcher must enforce explicit MCP precedence.
                 "DISABLE_MCP_CONFIG_FILTERING": "false",
             },

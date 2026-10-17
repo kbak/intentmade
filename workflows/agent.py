@@ -239,6 +239,17 @@ def worker_agent(mode, skill=None, mcp_config=None, traceability=False):
                 raise ValueError("Unsupported native factory stage mode")
         else:
             settings.acp_session_mode = mode
+            # The same Codex ACP transport retains model, authentication,
+            # accounting and cancellation. Only writable implementation opts in.
+            if (
+                selected.implementation_workflow in ("opengauss", "lean-mcp")
+                and skill == "factory-implementation"
+            ):
+                if mode != "agent-full-access":
+                    raise ValueError("OpenGauss is an implementation-only workflow")
+                settings.acp_command = ["/opt/factory/opengauss-codex-acp"]
+                if selected.implementation_workflow == "lean-mcp":
+                    settings.acp_command.append("--lean-mcp")
         return settings.create_agent()
     return ACPAgent(
         acp_command=["codex-acp"],
@@ -268,14 +279,15 @@ def converse(
 ):
     if execution_receipt is not None:
         execution_receipt.clear()
-    conversation = Conversation(
-        agent=worker_agent(mode, skill, mcp_config, traceability),
-        workspace=workspace,
-        delete_on_close=False,
-        conversation_id=UUID(conversation_id) if conversation_id else None,
-        secrets={} if harness.native() else workspace.get_secrets(names=["CODEX_AUTH_JSON"]),
-        visualizer=None,
-    )
+    with measurements.stage("agent_conversation_create"):
+        conversation = Conversation(
+            agent=worker_agent(mode, skill, mcp_config, traceability),
+            workspace=workspace,
+            delete_on_close=False,
+            conversation_id=UUID(conversation_id) if conversation_id else None,
+            secrets={} if harness.native() else workspace.get_secrets(names=["CODEX_AUTH_JSON"]),
+            visualizer=None,
+        )
     started = time.monotonic()
     usage_before = measurements.usage_snapshot(conversation) if measurements.CURRENT.get() else None
     usage_event_ids = {e["id"] for e in measurements.usage_evidence(conversation)}

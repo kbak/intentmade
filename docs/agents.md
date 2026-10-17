@@ -64,6 +64,86 @@ output. Unavailable evidence must be reported and prevents a complete review.
 Ambient repository/user plugins are disabled for factory workers and report
 readers so they cannot introduce hooks or additional executors.
 
+## Optional OpenGauss proof workflow
+
+Build the optional image on top of a matching factory image (use its immutable ID):
+
+```sh
+docker build -f docker/opengauss.Dockerfile \
+  --build-arg BASE_IMAGE=sha256:YOUR_MATCHING_FACTORY_IMAGE \
+  -t intentmade:opengauss .
+```
+
+It includes pinned OpenGauss and `lean4-skills` sources with their MIT licenses,
+and an isolated hash-locked `lean-lsp-mcp` environment. The ordinary factory image
+does not install these optional dependencies. Select the optional worker image
+through the existing DockerWorkspace image setting or Docker Sandboxes Kit, then
+add an operator-owned mapping to `config/deployment.json`:
+
+```json
+{"implementation_workflows": {"your-lean-project": "opengauss"}}
+```
+
+Provision the project's pinned Lean/Lake toolchain on the worker's PATH before
+the first LSP call. Keep this project-specific bootstrap in the deployment image;
+the optional generic image does not select a Lean version for every project.
+
+This supplements the selected Codex ACP profile; keep its model and reasoning
+settings there. It is supported for a single repository on either Codex runtime.
+Grouped tasks and native OpenHands profiles fail before worker allocation. Other
+repositories keep their usual workflow. Remove the mapping to revert subsequent
+workers; refresh workflows after changing deployment settings. Do not enable a
+mapping until the optional image is available in that worker runtime. Update the
+controller to the matching tooling revision too, so it validates and captures the
+new deployment setting before refreshing workflows.
+
+Select `lean-mcp` instead of `opengauss` in the same mapping to provide only the
+pinned Lean MCP server. This mode retains the factory's instructions and skills,
+without installing the Lean skill or adding managed `/autoprove` guidance. It
+uses the same Codex profile, authentication and stage boundaries. Both modes
+require the optional runtime. Neither mode changes validation or review gates.
+
+The `opengauss` adapter invokes OpenGauss's pinned managed `/autoprove` instruction generators
+at Codex's session boundary, after the actual worktree is known. It supplies the
+matching skill and `factory-lean-lsp` MCP server, while retaining OpenHands' native
+ACP transport, Codex model/reasoning selection, login/proxy, usage events and
+cancellation. New, loaded, resumed and forked sessions use their actual cwd.
+It registers an immutable Lean skill link in the existing Codex home, without
+replacing an operator skill or modifying authentication/configuration files.
+It does not run the interactive Gauss frontend or create another credential home.
+The adapter uses pinned internal OpenGauss helpers; pin upgrades require its
+protocol probe. This adapted configuration is not a reproduction of FormalQualBench.
+
+The adapter equips one implementation worker; concurrent proof scheduling remains
+the coordinator's job. For parallel experiments, freeze common definitions and
+exact theorem interfaces, then assign complementary proof obligations and explicit
+file ownership. Plan ownership of shared exports, module inventory and canonical
+documentation before starting workers. Preserve the supplied per-worker checks and
+run full validation of the integrated package; include integration, conflicts and
+validation in the comparison. Multiple implementations of one ticket are
+alternatives, not cumulative progress.
+
+Only writable implementation uses this workflow. Independent review, reports and
+browser QA use their existing stage configuration. The proof workflow preserves
+target statements, definitions and assumptions; select small accepted proof tasks
+and request input when new semantic choices are needed. IntentBond context,
+controller checks, independent review and publication rules still apply.
+Generated nonsecret context lives in the worker's temporary directory, outside
+source, and is removed with the worker. Upstream skills can create project-local
+scratch state; the accepted work package and review must keep runtime artifacts
+out of source commits.
+
+Run `python /tests/check_opengauss.py` in a disposable optional-image container
+with `tests/` mounted read-only at `/tests`, `--network none`, and
+`PYTHONPATH=/opt/factory/workflows:/tests`. Add `--lean` with the project
+Lean toolchain on PATH to exercise real goal inspection and proof compilation.
+The probe checks actual worktree selection, MCP registration, loaded/resumed/forked
+sessions and preservation of fixture credentials/configuration. It uses a scripted
+local provider and proves protocol behavior, not model quality or subscription access.
+Follow with one bounded live smoke in a separate test deployment. Record all
+attempts, accepted proofs, elapsed time, available usage and review effort; missing
+usage and billed subscription cost remain unknown.
+
 ## Conversation activity
 
 Canvas groups consecutive routine Codex/ACP calls, including successful Guardian

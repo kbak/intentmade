@@ -74,6 +74,13 @@ Operators should also be able to choose Codex or OpenHands' own harness through
 existing OpenHands profiles. Keep workflow authorization, isolated execution,
 independent review and evidence requirements consistent across those choices.
 
+For Lean proof tasks, operators may add OpenGauss's managed proof workflow to
+Codex implementation sessions, or select the Lean tools alone to assess their
+benefit separately from managed proof guidance. Preserve the existing credential boundary and
+review gates while assessing whether the specialized workflow improves accepted
+proofs and effort. Mathematical definitions and assumptions remain reviewed
+project decisions.
+
 Use Cedar as the sole authorization decision maker for current-fact controller
 gates, preserving the working runtime and validation behavior. Use readable,
 reusable policy expressions without a temporal engine or durable store.

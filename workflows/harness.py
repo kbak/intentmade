@@ -18,6 +18,7 @@ class Selection:
     settings: object
     identity: dict
     read_roots: list[str]
+    implementation_workflow: str | None = None
 
     @property
     def native(self):
@@ -92,3 +93,16 @@ def resolve(payload, name, roots=()):
 def native():
     selected = CURRENT.get()
     return selected is not None and selected.native
+
+
+# [impl->req~im-opengauss-workflow~1]
+def select_implementation(selected, configs):
+    """Capture an operator's proof workflow before allocating a worker."""
+    configured = deployment.settings().get("implementation_workflows", {})
+    choices = {configured.get(config.get("project")) for config in configs}
+    if choices == {None}:
+        return
+    if len(configs) != 1 or selected.native:
+        raise ValueError("OpenGauss requires one repository and a Codex ACP worker profile")
+    selected.implementation_workflow = configured[configs[0]["project"]]
+    selected.identity["implementation_workflow"] = selected.implementation_workflow

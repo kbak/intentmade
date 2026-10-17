@@ -617,5 +617,32 @@
   ],
   "test_assurance.AssuranceIntegrationTests.test_authorized_reflow_passes_the_full_assurance_gate_with_original_acceptance_retained": [
     "utest~im-assurance-formatting-amendment~1"
+  ],
+  "test_opengauss.OpenGaussTests.test_operator_selection_is_validated_and_never_part_of_repository_policy": [
+    "utest~im-opengauss-selection~1"
+  ],
+  "test_opengauss.OpenGaussTests.test_only_selected_implementation_changes_and_model_and_context_survive": [
+    "utest~im-opengauss-stage-boundaries~1"
+  ],
+  "test_opengauss.OpenGaussTests.test_unsupported_harness_and_group_fail_before_worker_allocation": [
+    "utest~im-opengauss-unsupported~1"
+  ],
+  "test_opengauss.OpenGaussTests.test_native_session_hook_preserves_transport_configuration_and_fails_closed": [
+    "utest~im-opengauss-hook-failure~1"
+  ],
+  "test_opengauss.OpenGaussTests.test_skill_registration_is_idempotent_and_preserves_existing_login_and_conflicts": [
+    "utest~im-opengauss-skill-registration~1"
+  ],
+  "test_docker_sandboxes.RuntimeLifecycleTests.test_startup_phases_retain_readiness_and_cleanup_without_credentials": [
+    "utest~im-native-startup-measurements~1"
+  ],
+  "test_docker_sandboxes.RuntimeLifecycleTests.test_failed_creation_retains_failed_phase_and_original_error": [
+    "utest~im-native-startup-failure~1"
+  ],
+  "test_traceability.TraceabilityPipelineTests.test_review_reference_index_honors_frozen_exclusions_for_git_and_archives": [
+    "utest~im-review-index-exclusions~1"
+  ],
+  "test_opengauss.OpenGaussTests.test_tools_only_keeps_stage_boundaries_without_managed_guidance": [
+    "utest~im-opengauss-tools-only~1"
   ]
 }

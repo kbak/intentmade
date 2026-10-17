@@ -75,12 +75,14 @@ def worker(root, config):
     from urllib.parse import quote
 
     name = harness.profile_name()
-    profile = api("GET", "/api/agent-profiles/" + quote(name, safe=""))["profile"]
+    with measurements.stage("worker_profile"):
+        profile = api("GET", "/api/agent-profiles/" + quote(name, safe=""))["profile"]
     configs = config if isinstance(config, list) else [config]
     profile_roots = sorted(
         {"/factory-tests/" + c["test_profile"] for c in configs if c.get("test_profile")}
     )
     selected = harness.resolve(profile, name, [str(root), "/factory-inputs", *profile_roots])
+    harness.select_implementation(selected, configs)
     require_disk_space(root)
     name = root.name
     options = docker_sandboxes.settings()
@@ -116,15 +118,16 @@ def worker(root, config):
         with runtime as workspace:
             workspace.api_key = settings["OH_SESSION_API_KEYS_0"]
             workspace.reset_client()
-            manifest = provenance.capture(
-                workspace,
-                intended={
-                    "worker_image": getattr(workspace, "server_image", None),
-                    "worker_runtime": options,
-                    "agent_profile": selected.identity,
-                },
-                source={"job": name},
-            )
+            with measurements.stage("worker_provenance"):
+                manifest = provenance.capture(
+                    workspace,
+                    intended={
+                        "worker_image": getattr(workspace, "server_image", None),
+                        "worker_runtime": options,
+                        "agent_profile": selected.identity,
+                    },
+                    source={"job": name},
+                )
             job_files.write_text(
                 root,
                 Path(settings["FACTORY_EXECUTION_MANIFEST"]),
