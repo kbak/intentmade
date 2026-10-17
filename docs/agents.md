@@ -108,6 +108,15 @@ It does not run the interactive Gauss frontend or create another credential home
 The adapter uses pinned internal OpenGauss helpers; pin upgrades require its
 protocol probe. This adapted configuration is not a reproduction of FormalQualBench.
 
+The adapter equips one implementation worker; concurrent proof scheduling remains
+the coordinator's job. For parallel experiments, freeze common definitions and
+exact theorem interfaces, then assign complementary proof obligations and explicit
+file ownership. Plan ownership of shared exports, module inventory and canonical
+documentation before starting workers. Preserve the supplied per-worker checks and
+run full validation of the integrated package; include integration, conflicts and
+validation in the comparison. Multiple implementations of one ticket are
+alternatives, not cumulative progress.
+
 Only writable implementation uses this workflow. Independent review, reports and
 browser QA use their existing stage configuration. The proof workflow preserves
 target statements, definitions and assumptions; select small accepted proof tasks

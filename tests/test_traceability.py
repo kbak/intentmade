@@ -147,6 +147,37 @@ class TraceabilityPipelineTests(unittest.TestCase):
         self.assertEqual(indexed["candidate"]["source"]["commit"], commit)
         self.assertEqual(indexed["base"]["source"]["commit"], self.scenario.states["pilot"]["base"])
 
+    def test_review_reference_index_honors_frozen_exclusions_for_git_and_archives(self):
+        source = self.scenario.root / "seed"
+        fixture = source / "fixtures" / "handoff.md"
+        fixture.parent.mkdir()
+        fixture.write_text((Path(__file__).parent / "fixtures/traceability-handoff.md").read_text())
+        common.git(["add", "."], cwd=source)
+        common.git(["commit", "-m", "include malformed non-project fixture"], cwd=source)
+        base = common.git(["rev-parse", "HEAD"], cwd=source).stdout.strip()
+        (source / "session.py").write_text((source / "session.py").read_text() + "\n# candidate\n")
+        common.git(["add", "."], cwd=source)
+        common.git(["commit", "-m", "candidate"], cwd=source)
+        candidate = common.git(["rev-parse", "HEAD"], cwd=source).stdout.strip()
+        scope = {**self.scenario.config["traceability_scope"], "inputs": ["."]}
+        for archive in (False, True):
+            with self.subTest(archive=archive):
+                kwargs = {"archive": True} if archive else {"base": base}
+                failed = traceability.requirement_index(source, scope, candidate, **kwargs)
+                self.assertIn("error", failed["candidate"])
+                indexed = traceability.requirement_index(
+                    source, {**scope, "trace_exclude": ["fixtures"]}, candidate, **kwargs
+                )
+                # [utest~im-review-index-exclusions~1->req~im-trace-assessment~1]
+                for label in ["candidate"] if archive else ["candidate", "base"]:
+                    self.assertNotIn("error", indexed[label])
+                    self.assertIn("req~session-expiration~1", indexed[label]["ids"])
+                    self.assertNotIn("req~explicit-logout~1", indexed[label]["ids"])
+                    self.assertEqual(
+                        indexed[label]["source"]["commit"],
+                        candidate if label == "candidate" else base,
+                    )
+
     def test_archive_requirement_index_needs_no_git_and_rejects_absolute_symlinks(self):
         source = self.scenario.root / "archive"
         shutil.copytree(self.scenario.root / "seed", source, ignore=shutil.ignore_patterns(".git"))

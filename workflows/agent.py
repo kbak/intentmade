@@ -277,14 +277,15 @@ def converse(
 ):
     if execution_receipt is not None:
         execution_receipt.clear()
-    conversation = Conversation(
-        agent=worker_agent(mode, skill, mcp_config, traceability),
-        workspace=workspace,
-        delete_on_close=False,
-        conversation_id=UUID(conversation_id) if conversation_id else None,
-        secrets={} if harness.native() else workspace.get_secrets(names=["CODEX_AUTH_JSON"]),
-        visualizer=None,
-    )
+    with measurements.stage("agent_conversation_create"):
+        conversation = Conversation(
+            agent=worker_agent(mode, skill, mcp_config, traceability),
+            workspace=workspace,
+            delete_on_close=False,
+            conversation_id=UUID(conversation_id) if conversation_id else None,
+            secrets={} if harness.native() else workspace.get_secrets(names=["CODEX_AUTH_JSON"]),
+            visualizer=None,
+        )
     started = time.monotonic()
     usage_before = measurements.usage_snapshot(conversation) if measurements.CURRENT.get() else None
     usage_event_ids = {e["id"] for e in measurements.usage_evidence(conversation)}
