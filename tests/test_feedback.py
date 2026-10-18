@@ -120,7 +120,21 @@ class FeedbackTests(unittest.TestCase):
                     "key": "feedback-attempt",
                 }
 
-                def build(configs, task, request, credential, issue, publish, artifact, states):
+                def build(
+                    configs,
+                    task,
+                    request,
+                    credential,
+                    issue,
+                    publish,
+                    artifact,
+                    states,
+                    *,
+                    validation_request,
+                    resume_review,
+                ):
+                    self.assertEqual(validation_request, "Approved spec")
+                    self.assertFalse(resume_review)
                     self.assertEqual(
                         followup.read(self.config, 42)["feedback"]["review:1"]["status"], "STARTED"
                     )

@@ -26,6 +26,7 @@ services:
       - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/artifacts:/projects/artifacts
       - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/workspaces:/workspaces
       - ${FACTORY_CONFIG_DIR:?Set FACTORY_CONFIG_DIR in .env}:/opt/factory/config:ro
+      - ${FACTORY_PROFILES_DIR:?Set FACTORY_PROFILES_DIR in .env}:/profiles:ro
       - ./coordinator/AGENTS.md:/projects/AGENTS.md:ro
       - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/secrets/canvas-key:/run/secrets/canvas-key:ro
       - ${FACTORY_DATA_DIR:?Set FACTORY_DATA_DIR in .env}/secrets/encryption-key:/run/secrets/encryption-key:ro

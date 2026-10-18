@@ -157,6 +157,9 @@ workers without making one long task monopolize a repository. Startup retries an
 finite recipes also need bounded, understandable behavior. Completion records and measurements should preserve
 failures and uncertainty so an operator can recover without accidentally replaying
 work or mistaking an incomplete attempt for success.
+An independent review outage should not repeat completed implementation and
+validation when the controller can verify that their source, inputs, checking
+policy and retained evidence still apply.
 
 While work is running, operators should be able to see its current stage, elapsed
 time, repair attempt and any input needed in Canvas. Progress should remain useful

@@ -566,12 +566,17 @@ def maintain(config, pr, action, credential):
                 if approved.get("authorization") == "operator":
                     build_config["issue_intake"] = "manual"
                 request = request or content["title"] + "\n\n" + content["body"]
-            request += "\n\nMaintainer responses:\n" + "\n\n".join(record.get("answers", []))
+            from validation_checkpoint import is_retry, responses
+
+            answers = responses(record.get("answers", []))
+            if answers:
+                request += "\n\nMaintainer responses:\n" + "\n\n".join(answers)
             if record.get("scope_extensions"):
                 request += (
                     "\n\nExplicitly approved follow-up scope (in approval order). These extend the original task and supersede conflicting original implementation details. Preserve the original accepted planning snapshots; update living project guidance and requirements for the approved behavior:\n"
                     + json.dumps(record["scope_extensions"], indent=2)
                 )
+            validation_request = request
             if continuation:
                 (artifact / "follow-up.json").write_text(json.dumps(continuation, indent=2) + "\n")
                 request += (
@@ -627,7 +632,16 @@ def maintain(config, pr, action, credential):
             ) as inputs:
                 input_artifacts.bind_task(repository, inputs)
                 result = execute_build(
-                    [build_config], task, request, credential, issue, True, artifact, states
+                    [build_config],
+                    task,
+                    request,
+                    credential,
+                    issue,
+                    True,
+                    artifact,
+                    states,
+                    validation_request=validation_request,
+                    resume_review=is_retry((action.get("reply") or {}).get("answer")),
                 )
             if states[config["project"]]["commit"] == action["head"] and action["failures"]:
                 raise NeedsInput(
