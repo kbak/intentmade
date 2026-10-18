@@ -725,5 +725,11 @@
   ],
   "test_followup.FollowupTests.test_review_retry_publishes_retained_merge_without_repeating_validation": [
     "utest~im-review-validation-maintenance~1"
+  ],
+  "test_review_completion.ReviewCompletionTests.test_pending_reviewer_finishes_and_collection_is_bounded": [
+    "utest~im-native-review-completion~1"
+  ],
+  "test_review_completion.ReviewCompletionTests.test_collection_and_native_failure_reasons_reach_blocked_result": [
+    "utest~im-native-review-diagnostics~1"
   ]
 }

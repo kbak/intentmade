@@ -555,6 +555,13 @@ Evidence limit: Backend control flow is scripted. Live proxy behavior, native VM
 
 Independent review must have the expected completed reviewer execution, valid structured findings and coverage for every selected file. Codex supplies native parent/child identity; native OpenHands uses a separate reviewer conversation with identity, completion and results captured by the controller and bound to its review run. Agent prose cannot supply an execution receipt. Missing or malformed evidence blocks publication. The controller computes blockers and verdicts rather than accepting a coordinator success claim.
 
+If a Codex coordinator finishes while its required native reviewer is still
+running, retain the worker and collect that reviewer's result for up to ten
+minutes, matching the pinned ACP child-wait budget. Cancellation and app-server
+loss stop collection; native reads share the same deadline. Timeout, terminal
+failure and missing evidence remain explicit infrastructure failures. This wait
+does not start another reviewer or repeat implementation and validation.
+
 Identify configured read-only test-profile directories in review context so their
 optional README can locate locally provisioned project-pinned guidance and references.
 These references do not alter review authority or waive missing required evidence.
@@ -566,9 +573,11 @@ Needs: impl, utest
 
 Documentation: [SECURITY.md](../SECURITY.md).
 
-Implementation: [evaluate and validate_coverage](../workflows/review.py), [controller receipt capture](../workflows/agent.py), [review execution](../workflows/review.py).
+Implementation: [evaluate and validate_coverage](../workflows/review.py), [controller receipt capture](../workflows/agent.py), [native completion collection](../runtime/factory-review.mjs), [review execution](../workflows/review.py).
 
 Existing assertions: [test_incomplete_unverified_or_invalid_reviews_cannot_pass](../tests/test_specialist_review.py), [test_coordinator_cannot_override_native_results](../tests/test_specialist_review.py), [test_missing_duplicate_wrong_and_unavailable_coverage_block](../tests/test_ocr_review.py), [native OpenHands receipt validation](../tests/test_native_harness.py).
+
+Collection assertions: [pending completion, bounded reads and cancellation](../tests/test_review_completion.py).
 
 Evidence limit: Unit tests use synthetic events and controller receipts. The separate [native OpenHands protocol probe](../tests/check_native_harness.py) uses a scripted local provider and is not part of the required JUnit execution links. Reviewer accuracy and resistance to misleading source text remain unmeasured.
 

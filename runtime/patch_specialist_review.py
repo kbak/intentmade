@@ -12,7 +12,7 @@ REPLACEMENT = """    if (params.prompt.some((block) => block.type === "text" && 
     const clearRecoveredSessionFailure = async (handler) => {
       if (sessionState.factorySpecialistReview) {
         const session = new ACPSessionConnection(this.connection, sessionState.sessionId);
-        await emitFactoryReviewEvidence(this.codexAcpClient, (update) => session.update(update), sessionState.sessionId, sessionState.currentTurnId);
+        await emitFactoryReviewEvidence(this.codexAcpClient, (update) => session.update(update), sessionState.sessionId, sessionState.currentTurnId, { signal: subagentWaitSignal });
       }
 """
 

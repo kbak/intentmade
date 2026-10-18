@@ -4,6 +4,7 @@ Run inside the factory image as documented in tests/README.md. This verifies
 orchestration and native evidence, not the quality of a model's code review.
 """
 
+import argparse
 import http.server
 import json
 import os
@@ -23,7 +24,11 @@ from review_report import ReviewReport
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--early-finish", action="store_true")
+    args = parser.parse_args()
     barrier = threading.Barrier(1, timeout=15)
+    parent_returned = threading.Event()
     finished, verified, failures = set(), set(), []
     parent_requests = 0
     context = stage_context("factory-review")
@@ -89,6 +94,9 @@ def main():
                     assert 'access="read"' in environment, "Child sandbox was not advertised"
                     # The scripted reviewer reaches the model endpoint.
                     barrier.wait()
+                    if args.early_finish:
+                        assert parent_returned.wait(15), "Coordinator did not finish early"
+                        time.sleep(2)
                     verified.add(key)
                 except Exception as exc:
                     failures.append(f"{key}: {type(exc).__name__}: {exc}")
@@ -137,11 +145,15 @@ def main():
                         )
                         for key, role in zip(("code",), ROLES)
                     ]
-                elif parent_requests == 2 or (len(finished) < 1 and parent_requests < 6):
+                elif not args.early_finish and (
+                    parent_requests == 2 or (len(finished) < 1 and parent_requests < 6)
+                ):
                     items = [
                         function("wait_agent", f"wait_{parent_requests}", {"timeout_ms": 10000})
                     ]
                 answer = '{"summary":"Alibaba reviewer completed."}'
+                if not items:
+                    parent_returned.set()
             if not items:
                 items = [
                     {
@@ -246,6 +258,13 @@ requires_openai_auth = false
             assert len(result.reviews) == 1
             assert len(result.reviews[0].non_blocking_findings) == 1
             assert not result.reviews[0].blocking_findings
+            if args.early_finish:
+                assert any(
+                    event.kind == "ACPToolCallEvent"
+                    and event.title == "Factory specialist review"
+                    and event.status == "in_progress"
+                    for event in conversation.state.events
+                ), "Fixture did not exercise collection while the reviewer was still running"
             conversation.close()
             stage = "report"
             conversation = Conversation(

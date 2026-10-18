@@ -180,6 +180,9 @@ delivery, Alibaba reviewer selection, inherited model/permissions, and
 retained reports. Offline OCR tests cover Git ranges, source archives, and required
 file accounting. It checks the protocol, not model review quality. Rebuild and
 rerun after changing the runtime, Codex/ACP pins, or bundled roles.
+Also run it with `--early-finish` to verify that the adapter collects a delayed
+reviewer result after its coordinator returns without waiting. Ordinary suite
+tests cover collection deadlines, cancellation, failed reads and native failures.
 
 ## Sandbox and network probes
 
