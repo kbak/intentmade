@@ -209,6 +209,10 @@ commit and trusted scope. Completion requires a successful current invocation,
 matching source, passing tests, independent review, and applicable browser QA. A
 failed invocation cannot consume an earlier passing bundle. Changed source
 suppresses the test attestation even when the subprocess succeeded.
+An explicit incomplete-review retry can instead [reuse a verified controller
+checkpoint](repair-context.md#retry-an-incomplete-review): it matches the current
+source, policy, inputs and validation environment and rechecks retained evidence.
+It never substitutes an older result after a failed newer invocation.
 
 Specification and test edits enter the existing review stage. Reviewers receive
 the authorized task, baseline, scope, and changes. They assess changed

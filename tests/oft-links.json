@@ -701,5 +701,29 @@
   ],
   "test_run_health.RunHealthTests.test_active_task_exclusion_prevents_reconciliation_from_overwriting_its_report": [
     "utest~im-task-concurrency-metadata~1"
+  ],
+  "test_validation_checkpoint.ValidationCheckpointTests.test_explicit_retry_reuses_tests_and_requires_fresh_review": [
+    "utest~im-review-validation-retry~1"
+  ],
+  "test_validation_checkpoint.ValidationCheckpointTests.test_corrupt_evidence_falls_back_to_full_validation": [
+    "utest~im-review-validation-evidence~1"
+  ],
+  "test_validation_checkpoint.ValidationCheckpointTests.test_request_policy_source_inputs_environment_and_group_must_match": [
+    "utest~im-review-validation-identity~1"
+  ],
+  "test_validation_checkpoint.ValidationCheckpointTests.test_non_retry_and_failed_new_check_cannot_reuse_older_success": [
+    "utest~im-review-validation-invalidation~1"
+  ],
+  "test_validation_checkpoint.ValidationCheckpointTests.test_fresh_review_findings_trigger_normal_repair_and_validation": [
+    "utest~im-review-validation-repair~1"
+  ],
+  "test_validation_checkpoint.ValidationCheckpointTests.test_retry_is_control_input_and_substantive_answers_remain_bound": [
+    "utest~im-review-validation-request~1"
+  ],
+  "test_validation_checkpoint.ValidationCheckpointTests.test_traceability_restart_reverifies_evidence_without_rerunning_tests": [
+    "utest~im-review-validation-traceability~1"
+  ],
+  "test_followup.FollowupTests.test_review_retry_publishes_retained_merge_without_repeating_validation": [
+    "utest~im-review-validation-maintenance~1"
   ]
 }

@@ -102,8 +102,10 @@ An initial base-only update that merges cleanly uses Git without an implementati
 agent. Conflicts, CI failures and eligible feedback use a focused maintenance
 conversation that preserves existing work and consults the authoritative request
 as needed. It runs useful targeted checks; the complete configured check runs once
-under controller control, followed by fresh independent review. No prior passing
-test or review waives current validation. Retained `maintenance-N.json` records
+under controller control, followed by fresh independent review. An explicit
+retry after incomplete review can [reuse verified controller validation](repair-context.md#retry-an-incomplete-review)
+for the unchanged candidate and checking environment. Fresh independent review
+remains required. Retained `maintenance-N.json` records
 the chosen mode, actual conflicts and captured PR head/base. A retained branch
 ahead of the captured PR head requires repair inspection rather than this shortcut.
 

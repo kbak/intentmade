@@ -402,6 +402,8 @@ the existing repair path. Success still requires current controller checks and
 fresh independent review. Exhaustion retains the source and concrete failure.
 
 Run implementation and configured validation with at most the configured repair attempts after the initial attempt. Repairs retain the original approved request and failed-check context. Exhausted test failures stop before independent review; blocked review infrastructure does not spend a code repair attempt.
+An explicit retry of incomplete review may reuse the successful validation
+checkpoint under [review-validation-reuse](#reuse-validated-work-after-an-incomplete-review).
 
 Covers:
 - `intent~im-deliver-changes~1`
@@ -747,8 +749,9 @@ head and Git merges the captured base successfully without conflicts. Other
 maintenance uses a focused repair prompt with actual conflicts and current
 diagnostics, retaining the full authoritative request outside candidate source.
 Do not repeat feature discovery or require a duplicate full worker feedback check:
-the controller runs the complete configured validation once per attempt and fresh
-independent review before publication. Retain head/base identities, conflict paths
+the controller runs the complete configured validation once per attempt, except
+for verified [review retries](#reuse-validated-work-after-an-incomplete-review),
+and fresh independent review before publication. Retain head/base identities, conflict paths
 and the chosen maintenance mode. Failure and stale-revision gates remain mandatory.
 
 Covers:
@@ -763,6 +766,53 @@ Implementation: [remember](../workflows/feedback.py), [verify_revision](../workf
 Existing assertions: [test_green_ci_admits_feedback_once_and_interruption_requires_resume](../tests/test_feedback.py), [test_feedback_change_before_publication_is_rejected](../tests/test_feedback.py), [clean merges, focused repairs and validation gates](../tests/test_maintenance.py).
 
 Evidence limit: Rolling repair budgets and verified GitHub artifact-service retries remain deferred detail.
+
+### Reuse validated work after an incomplete review
+`req~im-review-validation-reuse~1`
+
+After successful controller validation and an incomplete independent review,
+retain a controller-owned checkpoint. A new, explicitly authorized `retry` may
+resume without an implementation worker or another test run only when the exact
+task, repository group, branches, base and candidate commits, approved request,
+substantive maintainer answers, accepted package, inputs, checking configuration,
+maintenance feedback and CI context still match. A bare `retry` is control input;
+it does not amend the approved request. New work and substantive answers take the
+ordinary validation path.
+
+Bind the checkpoint to the controller code/runtime, resolved worker image
+identity, runtime Kit and mounted validation profile contents/modes. Docker uses
+its full image ID; Docker Sandboxes uses the unique native catalog entry's ID,
+repository, tag, creation time and size. Unknown or
+changed identities reject reuse. Verify retained evidence bytes and rerun
+IntentBond source/policy matching when enabled, without rerunning its tests.
+Copy matched evidence into the new run, retain its origin and label implementation
+and tests `Reused`. Configured browser QA and independent review run fresh;
+all current authorization and publication gates remain mandatory.
+
+Consume the checkpoint before proceeding so a later failed check or concrete
+review finding cannot fall back to older success. A further incomplete review
+may retain another checkpoint; findings use ordinary bounded repair and fresh
+checks. Missing, corrupt, stale or legacy evidence falls back to full validation
+with a recorded reason. Checkpoint retention errors preserve the original failure
+and never authorize reuse. Existing runs without checkpoints require validation.
+
+Covers:
+- `intent~im-operate-reliably~1`
+- `intent~im-trust-evidence~1`
+
+Needs: impl, utest
+
+Documentation: [repair context](repair-context.md).
+
+Implementation: [validation checkpoints](../workflows/validation_checkpoint.py),
+[build lifecycle](../workflows/run.py), [PR continuation](../workflows/followup.py).
+
+Assertions: [real Git and IntentBond restart regressions](../tests/test_validation_checkpoint.py).
+
+Evidence limit: Scripted reviews exercise recovery and publication gates;
+they do not establish provider availability or live review latency. Native catalog
+IDs may be abbreviated; they remain trusted runtime metadata, not full image
+digest attestations. Unsupported native image references disable reuse.
 
 ### Require browser checks, screenshots and unchanged source
 `req~im-browser-evidence~1`
@@ -869,7 +919,7 @@ Evidence limit: Factory activation uses a deployment-owned scope; keep it aligne
 ### Match controller evidence to exported source and policy
 `req~im-trace-source-gate~1`
 
-For enabled repositories, only the current successful controller invocation, retained evidence, trusted frozen scope and matching exported candidate may satisfy the traceability gate. Missing/stale evidence, a failed current invocation, candidate policy tampering or exported source drift must prevent completion.
+For enabled repositories, only the current successful controller invocation, retained evidence, trusted frozen scope and matching exported candidate may satisfy the traceability gate. An explicit incomplete-review retry may use a verified [validation checkpoint](#reuse-validated-work-after-an-incomplete-review) from that successful invocation. Missing/stale evidence, a failed newer invocation, candidate policy tampering or exported source drift must prevent completion.
 
 Covers:
 - `intent~im-trust-evidence~1`

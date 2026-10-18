@@ -12,6 +12,7 @@ import followup
 import monitor
 import naming
 import run
+import validation_checkpoint
 from pipeline_fixture import PipelineScenario
 
 CONFIG = {
@@ -269,9 +270,20 @@ class FollowupTests(unittest.TestCase):
                         plan.assert_not_called()
 
     def test_base_merge_is_tested_reviewed_and_pushed_to_the_existing_pr(self):
+        self.base_merge()
+
+    def test_review_retry_publishes_retained_merge_without_repeating_validation(self):
+        # [utest~im-review-validation-maintenance~1->req~im-review-validation-reuse~1,req~im-feedback-lifecycle~1]
+        self.base_merge(retry_review=True)
+
+    def base_merge(self, retry_review=False):
         seed, repository = self.root / "seed", self.root / "task.git"
         artifact = self.root / "artifact"
         artifact.mkdir()
+        retry_artifact = self.root / "retry-artifact"
+        retry_artifact.mkdir()
+        checks = self.root / "controller-checks"
+        config = {**CONFIG, "test_command": f"echo check >> {checks}"}
         common.git(["init", "-b", "main", str(seed)])
         common.git(["config", "user.name", "Fixture"], cwd=seed)
         common.git(["config", "user.email", "fixture@example.test"], cwd=seed)
@@ -311,9 +323,14 @@ class FollowupTests(unittest.TestCase):
         def implement(workspace, *args, **kwargs):
             self.fail("A clean base update must not invoke implementation")
 
+        reviewed = []
+
         def review(configs, states, request, results, transcript=None, **kwargs):
             self.assertEqual(states["example"]["base"], base)
             self.assertEqual(results, {"example": 0})
+            reviewed.append(states["example"]["commit"])
+            if retry_review and len(reviewed) == 1:
+                return run.ReviewResult(verdict="BLOCKED", summary="Model at capacity")
             return run.ReviewResult(verdict="PASS", summary="Reviewed against current main")
 
         def push(repo, branch, credential):
@@ -322,8 +339,9 @@ class FollowupTests(unittest.TestCase):
             ).stdout.strip()
 
         with (
-            patch.object(followup, "evidence", return_value=artifact),
-            patch.object(followup, "job_id", return_value="run"),
+            patch.object(followup, "evidence", side_effect=[artifact, retry_artifact]),
+            patch.object(followup, "job_id", side_effect=["run", "retry"]),
+            patch.object(validation_checkpoint, "environment", return_value={"image": "fixture"}),
             patch.object(followup, "github", side_effect=lambda *args, **kwargs: copy.deepcopy(pr)),
             patch.object(followup, "failure_context", return_value=""),
             patch.object(run, "github", side_effect=lambda *args, **kwargs: copy.deepcopy(pr)),
@@ -333,7 +351,12 @@ class FollowupTests(unittest.TestCase):
             patch.object(run.issues, "_push_branch", side_effect=push) as pushed,
             patch.object(run.issues, "_open_pull_request") as opened,
         ):
-            self.assertTrue(followup.maintain(CONFIG, copy.deepcopy(pr), action, ""))
+            if retry_review:
+                with self.assertRaisesRegex(RuntimeError, "review infrastructure blocked"):
+                    followup.maintain(config, copy.deepcopy(pr), action, "")
+                pushed.assert_not_called()
+                action["reply"] = {"answer": "retry", "id": "explicit-retry"}
+            self.assertTrue(followup.maintain(config, copy.deepcopy(pr), action, ""))
         pushed.assert_called_once()
         hooks.converse.assert_not_called()
         opened.assert_not_called()
@@ -341,7 +364,16 @@ class FollowupTests(unittest.TestCase):
             ["--git-dir", str(repository), "merge-base", "--is-ancestor", base, pr["head"]["sha"]]
         )
         self.assertEqual(followup.read(CONFIG, 42)["head"], pr["head"]["sha"])
-        self.assertEqual(json.loads((artifact / "result.json").read_text())["validation"], "PASSED")
+        completed = retry_artifact if retry_review else artifact
+        self.assertEqual(
+            json.loads((completed / "result.json").read_text())["validation"], "PASSED"
+        )
+        self.assertEqual(checks.read_text().splitlines(), ["check"])
+        if retry_review:
+            self.assertEqual(len(reviewed), 2)
+            self.assertEqual(reviewed[0], reviewed[1])
+            decision = json.loads((completed / "validation-selection.json").read_text())
+            self.assertEqual(decision["strategy"], "reuse_validation")
         self.assertEqual(
             json.loads((artifact / "maintenance-0.json").read_text())["mode"], "clean_base_update"
         )

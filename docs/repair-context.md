@@ -31,6 +31,26 @@ transcripts, credential stores, and ACP session IDs are not copied between worke
 Current tests, source verification, and fresh independent review still run;
 review does not inherit implementation memory.
 
+## Retry an incomplete review
+
+When controller validation succeeded but independent review could not finish,
+`resume: retry` can reuse a retained validation checkpoint. The controller checks
+the complete source/request/input/policy identity, current validation environment,
+and retained evidence bytes, and verifies IntentBond source agreement when enabled.
+Matching retries label implementation and project tests `Reused` and run fresh
+browser QA when configured, followed by fresh independent review. Review model
+selection is independent of the saved test results.
+
+The new run records its decision in `validation-selection.json`, copies the
+verified test evidence, and links the original `validation-checkpoint-N.json`.
+Changing source, base, substantive answers, inputs, checking configuration or
+environment invalidates reuse. Missing/corrupt checkpoints and runs produced
+before checkpoint support follow ordinary validation. A checkpoint is consumed
+before new work, so a later failure cannot reuse an earlier passing check.
+Repeated review outages can retain a new checkpoint; concrete review findings
+still trigger bounded repair and new tests. Publication always uses the current
+authorization and fresh review result.
+
 Each attempt has distinct artifacts. Repeating an executed attempt within the
 same native run is rejected; dispatch a new run to retry. Failure to save a repair
 record is reported as `continuation_error`. See [operations](operations.md#recover-retained-work)

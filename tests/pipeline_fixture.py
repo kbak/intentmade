@@ -130,6 +130,7 @@ class TraceabilityScenario(PipelineScenario):
         feedback=0,
         assessment=None,
         implementation_error=None,
+        resume_review=False,
     ):
         import review
         import review_report
@@ -238,6 +239,7 @@ class TraceabilityScenario(PipelineScenario):
                     False,
                     self.artifact,
                     self.states,
+                    resume_review=resume_review,
                 )
                 if "traceability_scope" in self.config:
                     self.case.assertEqual(

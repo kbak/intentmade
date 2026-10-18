@@ -20,6 +20,7 @@ import repair_context
 import reporting
 import sdlc
 import traceability
+import validation_checkpoint
 from agent import AgentExecutionError, StructuredResponseError, converse, worktree
 from cleanup import job_directory
 from common import DATA, api, evidence, git, github, identifier, issues, job_id, token
@@ -313,7 +314,11 @@ def build_group(
                     base=bases[project],
                     merge_base=bases[project],
                 )
+        validation_request = request
         if continuation:
+            answers = validation_checkpoint.responses(continuation["answers"])
+            if answers:
+                validation_request += "\n\nMaintainer responses:\n" + "\n\n".join(answers)
             request += (
                 "\n\nController-retained maintainer responses for this task:\n"
                 + "\n\n".join(continuation["answers"])
@@ -323,7 +328,20 @@ def build_group(
                 "apply only the authorized correction, then rerun all required gates."
             )
         return execute_build(
-            configs, task, request, credential, issue, publish_draft, artifact, states
+            configs,
+            task,
+            request,
+            credential,
+            issue,
+            publish_draft,
+            artifact,
+            states,
+            validation_request=validation_request,
+            resume_review=bool(
+                continuation
+                and continuation["answers"]
+                and validation_checkpoint.is_retry(continuation["answers"][-1])
+            ),
         )
 
 
@@ -771,7 +789,19 @@ def browser_checks(configs, states, request, artifact, attempt):
     return results
 
 
-def execute_build(configs, task, request, credential, issue, publish_draft, artifact, states):
+def execute_build(
+    configs,
+    task,
+    request,
+    credential,
+    issue,
+    publish_draft,
+    artifact,
+    states,
+    *,
+    validation_request=None,
+    resume_review=False,
+):
     local_report = None
     if reporting.ACTIVE and not reporting.ACTIVE.get("conversation_id"):
         local_report = reporting.TaskReport(configs[0], task)
@@ -790,7 +820,17 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
         report=local_report.update if local_report else None,
     ) as lifecycle:
         result = _execute_build(
-            configs, task, request, credential, issue, publish_draft, artifact, states, lifecycle
+            configs,
+            task,
+            request,
+            credential,
+            issue,
+            publish_draft,
+            artifact,
+            states,
+            lifecycle,
+            validation_request=validation_request,
+            resume_review=resume_review,
         )
         lifecycle.complete(
             "PASSED",
@@ -805,9 +845,29 @@ def execute_build(configs, task, request, credential, issue, publish_draft, arti
 # [impl->req~im-group-publication~1]
 # [impl->req~im-publication-gate~1]
 def _execute_build(
-    configs, task, request, credential, issue, publish_draft, artifact, states, lifecycle
+    configs,
+    task,
+    request,
+    credential,
+    issue,
+    publish_draft,
+    artifact,
+    states,
+    lifecycle,
+    *,
+    validation_request=None,
+    resume_review=False,
 ):
     repair_context.initialize(artifact, request)
+    validation_request = request if validation_request is None else validation_request
+    observed = validation_checkpoint.observe(configs) if states else None
+    checkpoint = (
+        validation_checkpoint.restore(configs, states, task, validation_request, artifact, observed)
+        if resume_review
+        else None
+    )
+    # Once an attempt starts, a later failure must never select an older success.
+    validation_checkpoint.clear(states)
     for state in states.values():
         state["commit_message"] = change_title(request)
     outcome = {
@@ -821,13 +881,19 @@ def _execute_build(
         lifecycle.save(outcome, handoff=True)
 
     prompt = request
+    review_pending = False
     repair_reason = "pr_maintenance" if any(c.get("repair_pr") for c in configs) else "initial"
     try:
         for attempt in range(min(c["repair_attempts"] for c in configs) + 1):
+            reuse_validation = attempt == 0 and checkpoint is not None
             validation_only = repair_reason == "validation_infrastructure"
             reporting.progress_attempt(attempt)
-            reporting.progress_stage("implementation", "Reused" if validation_only else "Running")
-            measurements.begin_attempt(attempt, repair_reason)
+            reporting.progress_stage(
+                "implementation", "Reused" if validation_only or reuse_validation else "Running"
+            )
+            measurements.begin_attempt(
+                attempt, "review_retry" if reuse_validation else repair_reason
+            )
             outcome.update(
                 phase="IMPLEMENTING" if attempt == 0 else "REPAIRING",
                 attempt=attempt,
@@ -836,27 +902,42 @@ def _execute_build(
             )
             save()
             phase(
-                f"{task}: retrying validation on the retained candidate (attempt {attempt + 1})"
+                f"{task}: reusing verified validation; retrying independent review"
+                if reuse_validation
+                else f"{task}: retrying validation on the retained candidate (attempt {attempt + 1})"
                 if validation_only
                 else f"{task}: {outcome['phase'].lower()} (attempt {attempt + 1})"
             )
-            with measurements.stage("implementation_and_tests"):
-                recovery = {"validation_only": True} if validation_only else {}
-                results, test_output = implementation_attempt(
-                    configs, states, task, prompt, artifact, attempt, **recovery
-                )
+            if reuse_validation:
+                results, test_output = checkpoint["tests"], checkpoint["test_output"]
+                for project, state in states.items():
+                    retain_patch(state, artifact / project / "changes.patch")
+                sdlc.verify(states)
+                outcome["validation_reuse"] = str(artifact / "validation-selection.json")
+            else:
+                with measurements.stage("implementation_and_tests"):
+                    recovery = {"validation_only": True} if validation_only else {}
+                    results, test_output = implementation_attempt(
+                        configs, states, task, prompt, artifact, attempt, **recovery
+                    )
             outcome["tests"] = results
-            reused = validation_only or (
-                bool(states)
-                and all(
-                    state.get("maintenance", {}).get("mode") == "clean_base_update"
-                    for state in states.values()
+            reused = (
+                reuse_validation
+                or validation_only
+                or (
+                    bool(states)
+                    and all(
+                        state.get("maintenance", {}).get("mode") == "clean_base_update"
+                        for state in states.values()
+                    )
                 )
             )
             reporting.progress_stage("implementation", "Reused" if reused else "Complete")
             reporting.progress_stage(
                 "tests",
-                "Not run"
+                "Reused"
+                if reuse_validation
+                else "Not run"
                 if not results
                 else "Passed"
                 if all(code == 0 for code in results.values())
@@ -931,6 +1012,7 @@ def _execute_build(
             save()
             phase(f"{task}: independent review (attempt {attempt + 1})")
             reporting.progress_stage("review")
+            review_pending = all(browser_qa.passed(r) for r in outcome["browser_qa"].values())
             with measurements.stage("review"):
                 review = review_changes(
                     configs,
@@ -948,6 +1030,7 @@ def _execute_build(
                     artifact=artifact,
                     attempt=attempt,
                 )
+            review_pending = review_pending and review.verdict == "BLOCKED"
             report = review.report()
             (artifact / f"review-{attempt}.md").write_text(report)
             (artifact / f"review-{attempt}.json").write_text(review.model_dump_json(indent=2))
@@ -961,6 +1044,7 @@ def _execute_build(
             )
             if review.verdict == "BLOCKED":
                 raise RuntimeError("Independent review infrastructure blocked: " + review.summary)
+            review_pending = False
             browser_passed = all(browser_qa.passed(r) for r in outcome["browser_qa"].values())
             validation_facts = {
                 "tests_passed": all(code == 0 for code in results.values()),
@@ -1032,6 +1116,22 @@ def _execute_build(
         )
         if isinstance(exc, (AgentExecutionError, StructuredResponseError)):
             outcome["response_failure"] = exc.details
+        if review_pending:
+            try:
+                validation_checkpoint.retain(
+                    configs,
+                    states,
+                    task,
+                    validation_request,
+                    artifact,
+                    attempt,
+                    results,
+                    test_output,
+                    observed,
+                )
+            except Exception as checkpoint_error:
+                # Preserve the review failure; unavailable evidence disables reuse.
+                outcome["validation_checkpoint_error"] = type(checkpoint_error).__name__
         try:
             repair_context.retain(
                 configs,
