@@ -12,6 +12,11 @@ controller-launched conversation and a retained `*-execution.json` receipt of it
 identity, completion and structured result. Both use the same findings and
 coverage gates. See [harness selection and permissions](agents.md).
 
+When a Codex coordinator returns before its reviewer, the adapter waits up to ten
+minutes for that existing reviewer and retains its native result. Cancellation,
+timeout or a failed reviewer leaves review blocked with the collection reason.
+The coordinator's summary cannot substitute for completed independent review.
+
 The reviewer runs in a fresh, read-only worker. Implementation reviews use Git
 ranges. Standalone PR reviews use GitHub's complete changed-file inventory,
 exact-commit source archives, and OCR rule resolution. The controller owns the

@@ -401,7 +401,11 @@ def evaluate(events, traceability=None, review_inputs=None, intent_projects=(), 
         event = evidence[-1]
         payload = event.get("raw_output") or {}
         if event.get("status") != "completed" or not isinstance(payload, dict):
-            errors.append("Could not collect native specialist execution evidence.")
+            detail = payload.get("error") if isinstance(payload, dict) else None
+            errors.append(
+                "Could not collect native specialist execution evidence."
+                + (f" {str(detail)[:1000]}" if detail else "")
+            )
         elif not isinstance(payload.get("agents"), list):
             errors.append("Native specialist results are missing.")
         else:
@@ -428,7 +432,11 @@ def evaluate(events, traceability=None, review_inputs=None, intent_projects=(), 
                     continue
                 seen.add(identity)
                 if agent.get("status") != "completed":
-                    errors.append(f"{role}: native review did not complete.")
+                    detail = agent.get("error")
+                    errors.append(
+                        f"{role}: native review did not complete (state: {agent.get('status')})."
+                        + (f" {str(detail)[:1000]}" if detail else "")
+                    )
                     continue
                 try:
                     schema = TraceableSpecialistReview if traceability else SpecialistReview
