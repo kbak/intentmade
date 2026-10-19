@@ -106,18 +106,27 @@ class AgentExecutionError(RuntimeError):
         )
 
 
+CAPACITY_MESSAGE = "Selected model is at capacity. Please try a different model."
+CAPACITY_BACKOFF = (10, 30)
+
+
 # [impl->req~im-agent-failure-reporting~1]
 def check_agent_response(text, title, attempt, conversation_id, transcript):
     # Older Codex adapters stream HTTP failures as a completed assistant turn.
     # Match the provider's diagnostic prefix, not mentions inside valid JSON or
     # ordinary prose, and never replay that turn to repair a provider failure.
     status = re.match(r"unexpected status ([45]\d\d)\b", text.lstrip(), re.IGNORECASE)
-    if not status:
+    # ACP may append this exact diagnostic directly after streamed progress.
+    # Require a terminal sentence, not a mention in JSON or explanatory prose.
+    capacity = re.search(r"(?:^|(?<=[.!?\n]))[ \t]*" + re.escape(CAPACITY_MESSAGE) + r"\s*\Z", text)
+    if not status and not capacity:
         return
-    http_status = int(status[1])
+    http_status = int(status[1]) if status else None
     auth = http_status == 401
     detail = (
-        "Codex authentication was rejected. Run factoryctl codex-login, then explicitly resume the task."
+        "The selected model is temporarily at capacity. Retained work can resume on the same model."
+        if capacity and not status
+        else "Codex authentication was rejected. Run factoryctl codex-login, then explicitly resume the task."
         if auth
         else f"The agent provider returned HTTP {http_status}. Resolve the provider failure, then explicitly resume the task."
     )
@@ -129,7 +138,11 @@ def check_agent_response(text, title, attempt, conversation_id, transcript):
     details = {
         "kind": "agent_execution_failure",
         "stage": title,
-        "code": "ACPAuthRequired" if auth else "ACPProviderError",
+        "code": "ACPAuthRequired"
+        if auth
+        else "ACPModelCapacity"
+        if capacity and not status
+        else "ACPProviderError",
         "http_status": http_status,
         "detail": detail,
         "response_attempt": attempt + 1,
@@ -303,12 +316,44 @@ def converse(
             else ""
         )
         conversation.send_message(prompt + schema)
-        for attempt in range(2 if response_model else 1):
+        attempt = format_repairs = capacity_retries = 0
+        while True:
             run_with_startup_recovery(conversation, transcript)
             if conversation.state.execution_status.value != "finished":
                 raise RuntimeError(f"Agent stopped with {conversation.state.execution_status}")
             text = get_agent_final_response(conversation.state.events)
-            check_agent_response(text, title, attempt, conversation.id, transcript)
+            try:
+                check_agent_response(text, title, attempt, conversation.id, transcript)
+            except AgentExecutionError as exc:
+                if exc.details["code"] != "ACPModelCapacity" or capacity_retries == len(
+                    CAPACITY_BACKOFF
+                ):
+                    raise
+                delay = CAPACITY_BACKOFF[capacity_retries]
+                capacity_retries += 1
+                measurements.response_validation(
+                    {
+                        **exc.details,
+                        "kind": "agent_capacity_retry",
+                        "retry": capacity_retries,
+                        "delay_seconds": delay,
+                    }
+                )
+                print(
+                    f"{title}: model temporarily at capacity; continuing retained work "
+                    f"in {delay}s (retry {capacity_retries}/{len(CAPACITY_BACKOFF)}).",
+                    flush=True,
+                )
+                time.sleep(delay)
+                conversation.send_message(
+                    "The previous turn was interrupted by temporary model capacity. "
+                    "Continue the authorized task from this conversation and existing workspace. "
+                    "Inspect the last operation's result before continuing; preserve completed "
+                    "work and do not repeat it. Finish any remaining work and return the actual "
+                    "result. No model change or new maintainer decision is required." + schema
+                )
+                attempt += 1
+                continue
             if not response_model:
                 if execution_receipt is not None:
                     execution_receipt.update(
@@ -317,7 +362,7 @@ def converse(
                 return text
             try:
                 result = response_model.model_validate_json(text)
-                if attempt:
+                if format_repairs:
                     measurements.response_validation(
                         {
                             "kind": "structured_response_repaired",
@@ -338,8 +383,9 @@ def converse(
                 details = response_failure(
                     exc, text, response_model, title, attempt, conversation.id, transcript
                 )
-                if attempt:
+                if format_repairs:
                     raise StructuredResponseError(details) from None
+                format_repairs += 1
                 # ACP can aggregate progress text with the final response. Ask the
                 # same reviewer to restate its decision; never guess from prose.
                 conversation.send_message(
@@ -349,6 +395,7 @@ def converse(
                     + ". Preserve your actual decision; never invent a question or approval. "
                     "Do not use tools or add commentary." + schema
                 )
+                attempt += 1
     finally:
         try:
             measurements.record_agent(

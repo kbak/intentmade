@@ -1225,7 +1225,7 @@ Existing assertions: [timeout and startup-recovery regressions](../tests/test_st
 ### Retry only a typed pre-work startup timeout
 `req~im-startup-retry~1`
 
-A typed ACP startup timeout may retry once before agent activity. Authentication, spawn, unknown initialization and prompt failures must not automatically replay work; timeout after agent activity must not retry.
+A typed ACP startup timeout may retry once before agent activity. Authentication, spawn, unknown initialization and prompt failures must not automatically replay work; timeout after agent activity must not retry. The exact terminal capacity diagnostic has a separate bounded continuation rule below; it does not replay the original prompt.
 
 Covers:
 - `intent~im-operate-reliably~1`
@@ -1249,6 +1249,16 @@ classification in the failed task result and measurements. Provider diagnostics
 mentioned inside a valid decision or ordinary prose must not be classified as
 execution failures; genuine malformed decisions retain their bounded format retry.
 
+Recognize the adapter's exact terminal `Selected model is at capacity. Please try
+a different model.` sentence, including when appended directly after streamed
+progress. Preserve its raw response and continue the same conversation, workspace
+and model after 10 seconds, then 30 seconds at most. Instruct the agent to inspect
+its last operation and preserve completed work. Record each retry; do not restart
+the original task or consume/reset the separate format-repair allowance. After
+exhaustion, report `ACPModelCapacity` and retain work for explicit continuation.
+This does not retry HTTP/authentication errors, timeouts or arbitrary prose, or
+waive a valid final decision, controller validation or independent review.
+
 Covers:
 - `intent~im-operate-reliably~1`
 
@@ -1260,8 +1270,10 @@ Implementation: [check_agent_response](../workflows/agent.py), [_execute_build](
 
 Existing assertions: [test_provider_http_failure_stops_without_format_retry](../tests/test_response_protocol.py), [test_provider_diagnostics_inside_decisions_are_not_failures](../tests/test_response_protocol.py), [test_terminal_build_record_preserves_provider_failure](../tests/test_response_protocol.py).
 
-Evidence limit: The compatibility classifier recognizes the adapter's diagnostic
-prefix. It does not infer arbitrary provider failures from model prose or replace
+Evidence limit: The compatibility classifier recognizes the adapter's HTTP
+diagnostic prefix and exact terminal capacity sentence. Diagnostic text inside
+JSON or embedded in other prose is not a capacity signal. It does not infer
+arbitrary provider failures from model prose or replace
 native typed startup/prompt errors. If response storage fails, preserve the
 provider classification and mark the artifact unavailable.
 

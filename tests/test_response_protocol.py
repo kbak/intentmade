@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Literal
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import agent
 import measurements
@@ -135,6 +135,86 @@ class ProtocolTests(unittest.TestCase):
             self.invoke(["Investigate " + diagnostic], model=None), "Investigate " + diagnostic
         )
         self.conversation.run.assert_called_once()
+
+    def test_capacity_after_progress_continues_same_conversation_and_model(self):
+        # [utest~im-capacity-recovery~1->req~im-agent-failure-reporting~1]
+        for prefix in ("", "Completed work.\n", "Completed work."):
+            with self.subTest(prefix=prefix), patch.object(agent.time, "sleep") as sleep:
+                self.conversation.reset_mock()
+                raw = prefix + agent.CAPACITY_MESSAGE
+                with measurements.task(self.root, "task", "feature", {}):
+                    result = self.invoke(
+                        [raw, '{"status":"IMPLEMENTED","summary":"Finished retained work"}']
+                    )
+                self.assertEqual(result.status, "IMPLEMENTED")
+                self.assertEqual(self.conversation.run.call_count, 2)
+                self.conversation.close.assert_called_once()
+                sleep.assert_called_once_with(10)
+                continuation = self.conversation.send_message.call_args.args[0]
+                self.assertIn("existing workspace", continuation)
+                self.assertIn("Inspect the last operation's result", continuation)
+                self.assertNotIn("Restate your final response", continuation)
+                self.assertNotIn("Do not use tools", continuation)
+                events = json.loads((self.root / "metrics.json").read_text())["response_protocol"]
+                self.assertEqual(
+                    [e["kind"] for e in events], ["agent_execution_failure", "agent_capacity_retry"]
+                )
+                retained = json.loads(Path(events[0]["response_artifact"]).read_text())
+                self.assertEqual(retained["raw_response"], raw)
+
+    def test_repeated_capacity_is_bounded_and_retains_provider_error(self):
+        # [utest~im-capacity-exhaustion~1->req~im-agent-failure-reporting~1]
+        with (
+            patch.object(agent.time, "sleep") as sleep,
+            self.assertRaises(agent.AgentExecutionError) as caught,
+        ):
+            self.invoke([agent.CAPACITY_MESSAGE] * 3)
+        self.assertEqual(caught.exception.details["code"], "ACPModelCapacity")
+        self.assertEqual(caught.exception.details["response_attempt"], 3)
+        self.assertIsNone(caught.exception.details["http_status"])
+        self.assertEqual(self.conversation.run.call_count, 3)
+        self.assertEqual(sleep.call_args_list, [call(10), call(30)])
+        self.assertEqual(len(list(self.root.glob("*.failure-*.json"))), 3)
+        self.assertFalse(list(self.root.glob("*.response-*.json")))
+
+    def test_capacity_does_not_consume_or_reset_format_repair(self):
+        good = '{"status":"IMPLEMENTED","summary":"done"}'
+        for responses in (
+            [agent.CAPACITY_MESSAGE, "malformed", good],
+            ["malformed", agent.CAPACITY_MESSAGE, good],
+        ):
+            with self.subTest(responses=responses), patch.object(agent.time, "sleep"):
+                self.conversation.reset_mock()
+                self.assertEqual(self.invoke(responses).status, "IMPLEMENTED")
+                self.assertEqual(self.conversation.run.call_count, 3)
+        self.conversation.reset_mock()
+        with patch.object(agent.time, "sleep"), self.assertRaises(agent.StructuredResponseError):
+            self.invoke(["malformed", agent.CAPACITY_MESSAGE, "still malformed"])
+        self.assertEqual(self.conversation.run.call_count, 3)
+
+    def test_capacity_text_in_decisions_and_prose_is_not_a_provider_error(self):
+        diagnostic = agent.CAPACITY_MESSAGE
+        for value in (
+            json.dumps({"status": "IMPLEMENTED", "summary": diagnostic}),
+            "Investigate " + diagnostic,
+            'The provider said "' + diagnostic + '"',
+            diagnostic + " We retained the work.",
+        ):
+            with self.subTest(value=value), patch.object(agent.time, "sleep") as sleep:
+                self.conversation.reset_mock()
+                self.assertEqual(self.invoke([value], model=None), value)
+                self.conversation.run.assert_called_once()
+                sleep.assert_not_called()
+
+    def test_capacity_retry_does_not_retry_other_provider_errors(self):
+        with (
+            patch.object(agent.time, "sleep") as sleep,
+            self.assertRaises(agent.AgentExecutionError) as caught,
+        ):
+            self.invoke([agent.CAPACITY_MESSAGE, "unexpected status 401 Unauthorized"])
+        self.assertEqual(caught.exception.details["code"], "ACPAuthRequired")
+        sleep.assert_called_once_with(10)
+        self.assertEqual(self.conversation.run.call_count, 2)
 
     def test_provider_failure_survives_unavailable_artifact_storage(self):
         with (
