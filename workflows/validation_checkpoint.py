@@ -184,7 +184,7 @@ def retain(configs, states, task, request, artifact, attempt, results, output, o
     for project, state in states.items():
         saved[project] = {
             key: copy.deepcopy(state[key])
-            for key in ("commit", "summary", "title", "traceability")
+            for key in ("commit", "summary", "change_summary", "title", "traceability")
             if key in state
         }
         source = artifact / project

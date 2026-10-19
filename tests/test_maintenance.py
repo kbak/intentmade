@@ -62,6 +62,7 @@ class MaintenanceTests(unittest.TestCase):
 
     def test_clean_merge_skips_agent_but_runs_validation_and_fresh_review(self):
         scenario, config, states, artifact, counter = self.scenario()
+        states["app"]["change_summary"] = "Preserve the finished feature."
         review = Mock(return_value=run.ReviewResult(verdict="PASS", summary="Reviewed merge"))
         with scenario.activate(
             implement=Mock(side_effect=AssertionError("Unexpected agent"))
@@ -73,6 +74,8 @@ class MaintenanceTests(unittest.TestCase):
             hooks.converse.assert_not_called()
         # [utest~im-maintenance-clean-merge~1->req~im-feedback-lifecycle~1]
         self.assertEqual(result["status"], "PASSED")
+        # [utest->req~im-publication-gate~1]
+        self.assertEqual(states["app"]["change_summary"], "Preserve the finished feature.")
         self.assertEqual(counter.read_text().splitlines(), ["check"])
         review.assert_called_once()
         state = states["app"]
@@ -174,6 +177,7 @@ class MaintenanceTests(unittest.TestCase):
 
     def test_failed_clean_merge_validation_falls_back_to_a_targeted_repair(self):
         scenario, config, states, artifact, counter = self.scenario()
+        states["app"]["change_summary"] = "Stale description before repair"
         config.update(
             repair_attempts=1,
             test_command=f'echo check >> {counter}; test "$(wc -l < {counter})" -gt 1',
@@ -209,6 +213,8 @@ class MaintenanceTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASSED")
         self.assertEqual(counter.read_text().splitlines(), ["check", "check"])
         hooks.converse.assert_called_once()
+        # [utest->req~im-publication-gate~1]
+        self.assertIsNone(states["app"]["change_summary"])
         review.assert_called_once()
         self.assertEqual(
             json.loads((artifact / "maintenance-0.json").read_text())["mode"], "clean_base_update"

@@ -235,7 +235,11 @@ overrides it. Stored branch names remain stable across retries. PR titles and
 commits follow Conventional Commits, with `bug` normalized to `fix`.
 `pr_title_subject_prefix` supplies a required tracker prefix when a title lacks one.
 
-PR descriptions summarize the change and validation. Detailed logs and artifact
-paths stay in Canvas. Group publication creates one draft PR per changed
+PR descriptions combine the worker's `change_summary` (problem and resulting
+behavior) with the controller's recorded validation evidence. The worker's
+operational `summary` stays in task artifacts, so earlier uncommitted/pending
+status does not carry into publication. Retained tasks without `change_summary`
+use the change title. Detailed logs and artifact paths stay in Canvas.
+Group publication creates one draft PR per changed
 repository, sequentially; if interrupted, inspect recorded PR URLs and continue
 with the same group and task ID.

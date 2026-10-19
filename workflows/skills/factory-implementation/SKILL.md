@@ -53,8 +53,14 @@ redo feature discovery, source research or planning. When the caller assigns ful
 validation to the controller, run only useful focused checks here. The controller
 will run the complete frozen checker and fresh independent review after the repair.
 
-Write the summary for a PR reviewer: explain the problem and resulting behavior
+Write `change_summary` for a PR reviewer: explain the problem and resulting behavior
 across all changes since the listed base, including retained work from earlier
-attempts. Omit orchestration details, local artifact paths, tool branding and
-conversation history. Include a concise Conventional Commits title describing
+attempts. Keep this description independent of execution state: omit claims about
+uncommitted work, pending/completed validation or review, publication and issue
+status. The controller adds current validation evidence when publishing. Put
+useful handoff status, checks you ran and remaining limitations in `summary`;
+that operational summary is retained separately and is not the PR description.
+Keep product limitations relevant to reviewers in `change_summary`, and omit
+orchestration details, local artifact paths, tool branding and conversation history.
+Include a concise Conventional Commits title describing
 the resulting change, for example `fix(search): resume indexing after cancellation`.

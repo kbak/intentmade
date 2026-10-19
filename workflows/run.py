@@ -37,6 +37,14 @@ from transfer import export_task, import_task, retain_patch, worker_git
 class ImplementationResult(BaseModel):
     status: Literal["IMPLEMENTED", "NEEDS_INPUT"]
     summary: str
+    change_summary: str | None = Field(
+        default=None,
+        description=(
+            "PR-ready problem and resulting behavior across the full change. "
+            "Exclude execution, commit, review, publication and issue-status claims; "
+            "the controller supplies current validation evidence separately."
+        ),
+    )
     title: str | None = None
     questions: list[str] = Field(default_factory=list)
 
@@ -166,7 +174,7 @@ def publish(
     title = pull_request_title(title or request, config)
     review_evidence = sdlc.pr_evidence(artifact, config, repo)
     body = (
-        (summary or request.splitlines()[0]).strip()[:35000]
+        ((summary or "").strip() or title)[:35000]
         + "\n\n### Validation\n\n- Tests passed.\n- Alibaba code and security review passed.\n"
         + browser_qa.limitations(browser_result or {})
         + sdlc.evidence_block(review_evidence)
@@ -604,6 +612,9 @@ def implementation_attempt(
                     (artifact / f"implementation-{attempt}.md").write_text(implementation.summary)
                     for state in states.values():
                         state["summary"] = implementation.summary
+                        # [impl->req~im-publication-gate~1]
+                        if not (validation_only or clean_base_update):
+                            state["change_summary"] = implementation.change_summary
                         if implementation.title:
                             state["title"] = change_title(implementation.title)
                             state["commit_message"] = state["title"]
@@ -1206,7 +1217,7 @@ def _execute_build(
                         request,
                         credential,
                         issue,
-                        summary=state.get("summary"),
+                        summary=state.get("change_summary"),
                         title=state.get("title"),
                         browser_result=outcome["browser_qa"].get(config["project"]),
                     )

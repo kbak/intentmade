@@ -35,7 +35,9 @@ class ValidationCheckpointTests(unittest.TestCase):
         self.scenario = PipelineScenario(self.root)
         self.implement = Mock(
             return_value=run.ImplementationResult(
-                status="IMPLEMENTED", summary="Retained implementation"
+                status="IMPLEMENTED",
+                summary="Retained implementation; review pending",
+                change_summary="Preserve accepted values across retries.",
             )
         )
         self.review = Mock(return_value=run.ReviewResult(verdict="BLOCKED", summary="Capacity"))
@@ -80,6 +82,10 @@ class ValidationCheckpointTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASSED")
         self.assertEqual(self.counter.read_text().splitlines(), ["check"])
         self.implement.assert_called_once()
+        # [utest->req~im-publication-gate~1]
+        self.assertEqual(
+            self.states["app"]["change_summary"], "Preserve accepted values across retries."
+        )
         self.assertEqual(self.review.call_count, 3)
         self.assertEqual((self.root / "run-1/app/tests-0.log").read_bytes(), original)
         progress = json.loads((self.root / "run-3/stage-progress.json").read_text())

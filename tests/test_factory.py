@@ -393,6 +393,24 @@ class UpstreamTests(unittest.TestCase):
             self.assertEqual(pushed, head)
             self.assertNotEqual(pushed, base)
             self.assertIn("draft", url)
+            # A retained result with no product description uses its title, not
+            # the original task text or an operational handoff.
+            with patch.object(common.issues, "_github_request", side_effect=github):
+                run.publish(
+                    CONFIG,
+                    "feature",
+                    bare,
+                    "factory/feature",
+                    root,
+                    "Old task request; work remains uncommitted",
+                    "fixture-token",
+                    summary="  ",
+                    title="fix(invites): retry failed validation",
+                )
+            self.assertTrue(
+                captured[-1]["body"].startswith("fix(invites): retry failed validation")
+            )
+            self.assertNotIn("uncommitted", captured[-1]["body"])
 
     def test_revoked_approval_or_changed_owner_prevents_any_push(self):
         for issue in (
@@ -584,7 +602,13 @@ class PipelineTests(unittest.TestCase):
                             # On continuation the previous task change must be present.
                             target.write_text(target.read_text() + " implemented")
                         return run.ImplementationResult(
-                            status="IMPLEMENTED", summary="Implemented both"
+                            status="IMPLEMENTED",
+                            summary="Changes remain uncommitted; independent review pending.",
+                            change_summary=(
+                                None
+                                if artifact.name == "next-run-artifact"
+                                else "Retry failed requests in both services without losing data."
+                            ),
                         )
                     self.assertIn("first", prompt)
                     self.assertIn("second", prompt)
@@ -592,6 +616,14 @@ class PipelineTests(unittest.TestCase):
 
                 def publish(config, *args, **kwargs):
                     self.assertEqual(tested[-2:], ["first", "second"])
+                    # [utest->req~im-publication-gate~1]
+                    self.assertEqual(
+                        kwargs["summary"],
+                        None
+                        if artifact.name == "next-run-artifact"
+                        else "Retry failed requests in both services without losing data.",
+                    )
+                    self.assertIn("uncommitted", states[config["project"]]["summary"])
                     if config["project"] == publication_failure:
                         raise RuntimeError("GitHub unavailable")
                     return "https://example.test/" + config["project"]

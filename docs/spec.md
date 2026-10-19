@@ -325,6 +325,14 @@ Existing assertions: [prefix normalization](../tests/test_followup.py),
 
 Build publication requires the current configured tests, applicable browser QA, traceability checks when enabled, and independent review to pass. Failed validation retains work without publishing. Publication creates or updates the task PR; new PRs are drafts. Merge and deployment remain operator actions.
 
+New PR prose uses the worker's separate description of the problem and resulting
+behavior, followed by controller-recorded validation evidence. Operational handoff
+summaries remain in task artifacts and must not become published claims about
+commit, review, publication or issue status. Older retained tasks without a change
+description use the change title rather than their historical handoff summary.
+Validation-only retries and clean base merges preserve the retained change description;
+an implementation repair replaces it, including clearing it when omitted.
+
 Covers:
 - `intent~im-deliver-changes~1`
 
