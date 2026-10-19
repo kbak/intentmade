@@ -219,7 +219,9 @@ def publish(
     return result["html_url"]
 
 
-def build(config, task, request, base, credential="", issue=None, publish_draft=None):
+def build(
+    config, task, request, base, credential="", issue=None, publish_draft=None, *, continuation=None
+):
     return build_group(
         [config],
         task,
@@ -228,6 +230,7 @@ def build(config, task, request, base, credential="", issue=None, publish_draft=
         credential,
         issue=issue,
         publish_draft=publish_draft,
+        continuation=continuation,
     )
 
 
@@ -319,14 +322,17 @@ def build_group(
             answers = validation_checkpoint.responses(continuation["answers"])
             if answers:
                 validation_request += "\n\nMaintainer responses:\n" + "\n\n".join(answers)
-            request += (
-                "\n\nController-retained maintainer responses for this task:\n"
-                + "\n\n".join(continuation["answers"])
-                + "\n\nPrevious stop (diagnostic context):\n"
-                + continuation["failure"]
-                + "\nContinue from the retained implementation. Preserve completed code and proofs; "
-                "apply only the authorized correction, then rerun all required gates."
-            )
+            if continuation.get("initial"):
+                request = validation_request
+            else:
+                request += (
+                    "\n\nController-retained maintainer responses for this task:\n"
+                    + "\n\n".join(continuation["answers"])
+                    + "\n\nPrevious stop (diagnostic context):\n"
+                    + continuation["failure"]
+                    + "\nContinue from the retained implementation. Preserve completed code and proofs; "
+                    "apply only the authorized correction, then rerun all required gates."
+                )
         return execute_build(
             configs,
             task,
@@ -339,6 +345,7 @@ def build_group(
             validation_request=validation_request,
             resume_review=bool(
                 continuation
+                and not continuation.get("initial")
                 and continuation["answers"]
                 and validation_checkpoint.is_retry(continuation["answers"][-1])
             ),
@@ -445,8 +452,12 @@ def implementation_attempt(
         prepare_sources(root, states)
         sdlc.stage(states)
         maintenance_action = maintenance.action_for(configs)
+        retained_task = bool(states) and all(
+            state.get("initial_review", True) is False for state in states.values()
+        )
+        focused_repair = bool(maintenance_action or retained_task or attempt)
         maintenance_contract = root / "maintenance-contract.md"
-        if maintenance_action:
+        if focused_repair:
             maintenance_contract.write_text(contract)
         if attempt and continuation is None:
             prompt += stage_test_evidence(configs, artifact, attempt - 1, root)
@@ -540,6 +551,19 @@ def implementation_attempt(
                                 prompt.removeprefix(contract),
                                 maintenance_action,
                             )
+                    elif focused_repair:
+                        maintenance_detail = "targeted repair"
+                        reporting.progress_stage("implementation", detail=maintenance_detail)
+                        prompt = (
+                            "Continue the retained task. Preserve completed implementation and proofs; "
+                            "repair only merge conflicts, observed failures or the authorized response. "
+                            "Do not repeat feature discovery or regenerate the original plan. "
+                            "Read the complete authoritative request at "
+                            + str(maintenance_contract)
+                            + " as needed. The controller runs the full configured validation and "
+                            "independent review after you return; use focused checks for feedback.\n"
+                            + prompt.removeprefix(contract)
+                        )
                     implementation = (
                         ImplementationResult(
                             status="IMPLEMENTED",
@@ -560,7 +584,7 @@ def implementation_attempt(
                             + input_artifacts.instructions()
                             + sdlc.instructions(states)
                             + traceability.instructions(
-                                trace_runs, states, environments, feedback=not maintenance_action
+                                trace_runs, states, environments, feedback=not focused_repair
                             )
                             + "\nBase-branch merge results (resolve any conflicts, preserving both sides' intended behavior):\n"
                             + "\n".join(s.get("merge_output", "") for s in states.values())

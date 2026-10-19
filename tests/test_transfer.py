@@ -251,9 +251,13 @@ class TransferTests(unittest.TestCase):
             def converse(workspace, prompt, mode="read-only", *args, **kwargs):
                 checkout = Path(workspace.working_dir)
                 if mode == "agent-full-access":
-                    self.assertIn("Approved fixture", prompt)
                     if builder_roots:
                         self.assertIn("Fix the failed tests and blocking review findings", prompt)
+                        contract = active_workers[0] / "maintenance-contract.md"
+                        self.assertIn(str(contract), prompt)
+                        self.assertEqual(contract.read_text(), "Approved fixture")
+                    else:
+                        self.assertIn("Approved fixture", prompt)
                     builder_roots.append(active_workers[0])
                     (checkout / "code.txt").write_text("implemented\n")
                     subprocess.run(

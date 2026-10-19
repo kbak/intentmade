@@ -398,14 +398,6 @@ def _implement_issue(config, issue, credential, resume=None, *, expected=None):
             + "\n\nDiscussion (context, not authorization):\n"
             + json.dumps(discussion)
         )
-        if resume:
-            answers = report.record["answers"] if report else [resume["answer"]]
-            request += "\n\nMaintainer responses for this specification:\n" + "\n\n".join(answers)
-            if report and report.record.get("failure"):
-                request += (
-                    "\n\nPrevious verification findings (context for repair):\n"
-                    + report.record["failure"]
-                )
         base = github(credential, "GET", f"/repos/{repo}/commits/{config['branch']}")["sha"]
         result = build(
             {
@@ -419,6 +411,13 @@ def _implement_issue(config, issue, credential, resume=None, *, expected=None):
             base,
             credential,
             issue=number,
+            continuation={
+                "answers": answers,
+                "failure": (report.record.get("failure") or "") if report else "",
+                "initial": resume.get("submitted") is True,
+            }
+            if resume
+            else None,
         )
         if report:
             urls = [

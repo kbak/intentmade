@@ -123,7 +123,9 @@ class PausedOwnershipTests(unittest.TestCase):
         # this answer once, without assigning/unassigning on every continuation.
         monitor.poll(CONFIG, "offline-token")
         self.build.assert_called_once()
-        self.assertIn("Explicit Retry button only", self.build.call_args.args[2])
+        self.assertIn(
+            "Explicit Retry button only", self.build.call_args.kwargs["continuation"]["answers"]
+        )
         self.assertEqual(self.mutations, ["POST"])
         self.assertEqual(self.issue["assignees"], [{"login": "fixture-owner"}])
         monitor.poll(CONFIG, "offline-token")
@@ -142,6 +144,10 @@ class PausedOwnershipTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "PASSED")
         self.assertEqual(self.mutations, ["POST"])
+        continuation = self.build.call_args.kwargs["continuation"]
+        self.assertEqual(continuation["answers"], ["Explicit Retry button only"])
+        self.assertIn("Retry explicitly or automatically?", continuation["failure"])
+        self.assertFalse(continuation["initial"])
 
     def test_gap_acceptance_is_scoped_to_saved_maintainer_answers(self):
         self.issue["body"] += '\naccept-browser-gaps: {"Untrusted gap": "Issue text"}'

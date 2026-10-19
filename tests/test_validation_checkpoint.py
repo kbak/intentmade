@@ -100,6 +100,48 @@ class ValidationCheckpointTests(unittest.TestCase):
         self.assertEqual(decision["strategy"], "fresh_validation")
         self.assertIn("Checkpoint rejected", decision["reason"])
 
+    def test_issue_build_passes_control_retry_to_checkpoint_selection(self):
+        common.git(
+            ["--git-dir", self.state["repository"], "config", "factory.base", self.state["base"]]
+        )
+        for answer, initial, retry in (
+            ("retry", False, True),
+            ("retry", True, False),
+            ("Change the accepted behavior", False, False),
+        ):
+            with self.subTest(answer=answer, initial=initial):
+                artifact = self.root / ("initial" if initial else "retry" if retry else "change")
+                artifact.mkdir()
+                with (
+                    self.scenario.activate(),
+                    patch.object(run, "job_id", return_value="fixture"),
+                    patch.object(run, "evidence", return_value=artifact),
+                    patch.object(
+                        run,
+                        "task_repository",
+                        return_value=(Path(self.state["repository"]), self.state["branch"]),
+                    ),
+                    patch.object(
+                        run, "execute_build", return_value={"status": "PASSED"}
+                    ) as execute,
+                ):
+                    run.build(
+                        self.config,
+                        "issue-51",
+                        "Approved request",
+                        self.state["base"],
+                        continuation={
+                            "answers": [answer],
+                            "failure": "Review unavailable",
+                            "initial": initial,
+                        },
+                    )
+                self.assertEqual(execute.call_args.kwargs["resume_review"], retry)
+                expected = "Approved request"
+                if answer != "retry":
+                    expected += "\n\nMaintainer responses:\n" + answer
+                self.assertEqual(execute.call_args.kwargs["validation_request"], expected)
+
     def test_request_policy_source_inputs_environment_and_group_must_match(self):
         self.blocked()
         for change in (
