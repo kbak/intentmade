@@ -311,9 +311,9 @@ first and can read the complete records when needed.
 Build the IntentBond wheel and collect its dependencies in an artifact directory.
 The source commit and wheel hash are pinned in
 [docker/intentbond-requirements.txt](../docker/intentbond-requirements.txt).
-Version 0.4.6 alone does not distinguish the newer guidance and fixes from older
+Version 0.5.0 alone does not distinguish the newer guidance and fixes from older
 builds. From a clean IntentBond checkout at
-`d16af5ced4a5ee67907c1abcb8af0aadf5c95f55`, use the locked build dependencies and
+`f3047c510dcd58b8005fdc11ed47b28eaa67867e`, use the locked build dependencies and
 the commit timestamp so the wheel matches that hash:
 
 ```sh
