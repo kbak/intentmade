@@ -303,7 +303,12 @@
         "utest~im-retention-reused-name",
         "utest~im-retention-cli",
         "utest~im-retention-corrupt-receipt",
-        "utest~im-retention-reset"
+        "utest~im-retention-reset",
+        "utest~im-review-validation-large-profile",
+        "utest~im-review-validation-profile-reuse",
+        "utest~im-review-validation-profile-bounds",
+        "utest~im-review-validation-profile-mutation",
+        "utest~im-review-validation-profile-diagnostics"
       ]
     }
   },

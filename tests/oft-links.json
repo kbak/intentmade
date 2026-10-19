@@ -778,5 +778,20 @@
   ],
   "test_automation_retention.RetentionTests.test_reenabling_or_replacing_recipe_restarts_retention": [
     "utest~im-retention-reset~1"
+  ],
+  "test_validation_checkpoint.ValidationCheckpointTests.test_cached_profile_changes_invalidate_an_otherwise_reusable_checkpoint": [
+    "utest~im-review-validation-profile-reuse~1"
+  ],
+  "test_validation_checkpoint.ValidationCheckpointTests.test_profile_failure_logs_the_reason_and_preserves_fresh_validation": [
+    "utest~im-review-validation-profile-diagnostics~1"
+  ],
+  "test_validation_checkpoint.ValidationEnvironmentTests.test_toolchain_files_larger_than_the_upload_limit_are_streamed_and_bound": [
+    "utest~im-review-validation-large-profile~1"
+  ],
+  "test_validation_checkpoint.ValidationEnvironmentTests.test_profile_file_total_entry_and_elapsed_budgets_fail_closed": [
+    "utest~im-review-validation-profile-bounds~1"
+  ],
+  "test_validation_checkpoint.ValidationEnvironmentTests.test_profile_changes_during_and_after_reads_are_rejected": [
+    "utest~im-review-validation-profile-mutation~1"
   ]
 }

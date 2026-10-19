@@ -1,15 +1,19 @@
 """Reuse controller validation after an explicitly retried, incomplete review."""
 
 import copy
+import hashlib
 import json
+import logging
 import os
 import re
 import stat
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import deployment
+import diagnostics
 import input_artifacts as inputs
 import provenance
 import repair_context
@@ -18,6 +22,65 @@ from common import git
 
 POINTER = "factory-validation-checkpoint.json"
 MAX_RECORD = 1024 * 1024
+MAX_PROFILE_FILE = 4 * 1024**3
+MAX_PROFILE_TOTAL = 16 * 1024**3
+MAX_PROFILE_ENTRIES = 100_000
+PROFILE_TIMEOUT = 120
+HASH_CHUNK = 1024 * 1024
+
+
+def profile_stat(info):
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
+def profile_deadline(deadline, path):
+    if time.monotonic() > deadline:
+        raise ValueError(f"Validation profile observation exceeded {PROFILE_TIMEOUT}s: {path}")
+
+
+def profile_inventory(root, deadline):
+    """Bound traversal before reading file contents; never follow discovered links."""
+    pending, entries, total, count = [root], {}, 0, 1
+    while pending:
+        path = pending.pop()
+        profile_deadline(deadline, path)
+        info = path.lstat()
+        regular, directory = stat.S_ISREG(info.st_mode), stat.S_ISDIR(info.st_mode)
+        if not (regular or directory) or (path == root and not directory):
+            raise ValueError(f"Validation profile requires directories and regular files: {path}")
+        entries[path.relative_to(root).as_posix()] = profile_stat(info)
+        if regular:
+            if info.st_size > MAX_PROFILE_FILE:
+                raise ValueError(
+                    f"Validation profile file exceeds {MAX_PROFILE_FILE} bytes: {path}"
+                )
+            total += info.st_size
+            if total > MAX_PROFILE_TOTAL:
+                raise ValueError(
+                    f"Validation profile exceeds {MAX_PROFILE_TOTAL} total bytes: {path}"
+                )
+        else:
+            with os.scandir(path) as children:
+                for child in children:
+                    profile_deadline(deadline, path)
+                    if child.name == "__pycache__" or (
+                        child.name.endswith(".pyc") and not child.is_dir(follow_symlinks=False)
+                    ):
+                        continue
+                    count += 1
+                    if count > MAX_PROFILE_ENTRIES:
+                        raise ValueError(
+                            f"Validation profile exceeds {MAX_PROFILE_ENTRIES} entries: {path}"
+                        )
+                    pending.append(Path(child.path))
+    return entries
 
 
 def responses(answers):
@@ -29,23 +92,39 @@ def is_retry(answer):
     return isinstance(answer, str) and answer.strip().casefold() == "retry"
 
 
+# [impl->req~im-review-validation-reuse~1]
 def tree_identity(root):
     root = Path(root)
-    if not root.is_dir() or root.is_symlink():
-        raise ValueError("Validation profile or runtime directory unavailable")
+    deadline = time.monotonic() + PROFILE_TIMEOUT
+    before = profile_inventory(root, deadline)
     entries = {}
-    for path in sorted(root.rglob("*")):
-        if "__pycache__" in path.parts or path.suffix == ".pyc":
+    for relative, expected in before.items():
+        path = root / relative
+        profile_deadline(deadline, path)
+        mode, size = expected[2:4]
+        if stat.S_ISDIR(mode):
+            entries[relative] = {"directory": True, "mode": stat.S_IMODE(mode)}
             continue
-        info = path.lstat()
-        if stat.S_ISDIR(info.st_mode):
-            continue
-        if not stat.S_ISREG(info.st_mode) or info.st_size > inputs.MAX_FILE:
-            raise ValueError("Validation inputs must be bounded regular files")
-        entries[str(path.relative_to(root))] = {
-            "sha256": inputs.digest(path.read_bytes()),
-            "mode": stat.S_IMODE(info.st_mode),
-        }
+        digest, consumed = hashlib.sha256(), 0
+        # A replaced symlink/FIFO must not redirect or block the content read.
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as source:
+            if profile_stat(os.fstat(source.fileno())) != expected:
+                raise ValueError(f"Validation profile changed before hashing: {path}")
+            while True:
+                profile_deadline(deadline, path)
+                chunk = source.read(min(HASH_CHUNK, size - consumed + 1))
+                if not chunk:
+                    break
+                consumed += len(chunk)
+                if consumed > size:
+                    raise ValueError(f"Validation profile grew while hashing: {path}")
+                digest.update(chunk)
+            if consumed != size or profile_stat(os.fstat(source.fileno())) != expected:
+                raise ValueError(f"Validation profile changed while hashing: {path}")
+        entries[relative] = {"sha256": digest.hexdigest(), "mode": stat.S_IMODE(mode)}
+    if profile_inventory(root, deadline) != before:
+        raise ValueError(f"Validation profile inventory or metadata changed while hashing: {root}")
     return inputs.digest(inputs.encoded(entries))
 
 
@@ -127,8 +206,13 @@ def native_image(catalog, image):
 def observe(configs):
     try:
         return environment(configs)
-    except Exception:
+    except Exception as exc:
         # Unknown environment disables reuse, never the ordinary validation path.
+        logging.getLogger(__name__).warning(
+            "Validation checkpoint reuse disabled: %s: %s",
+            type(exc).__name__,
+            diagnostics.redact(str(exc), ())[:2000],
+        )
         return None
 
 

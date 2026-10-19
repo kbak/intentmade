@@ -51,6 +51,16 @@ Repeated review outages can retain a new checkpoint; concrete review findings
 still trigger bounded repair and new tests. Publication always uses the current
 authorization and fresh review result.
 
+Profile fingerprints include cached toolchains and dependencies. Content hashing
+streams at most 1 MiB per read; each profile/Kit scan permits files up to 4 GiB,
+16 GiB total, and 100,000 entries (including directories). It checks a 120-second
+elapsed budget during traversal and reads. Inventory and metadata are checked
+again after hashing. These limits are separate from the 256 MiB uploaded-file
+limit. Generated Python bytecode remains excluded. Observation failures log
+`Validation checkpoint reuse disabled` with the
+exception type and cause, including the affected path for file errors; ordinary
+validation remains available. Profiles must stay unchanged while work uses them.
+
 Each attempt has distinct artifacts. Repeating an executed attempt within the
 same native run is rejected; dispatch a new run to retry. Failure to save a repair
 record is reported as `continuation_error`. See [operations](operations.md#recover-retained-work)

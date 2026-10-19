@@ -2,9 +2,12 @@
 
 import copy
 import json
+import os
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import common
@@ -243,6 +246,40 @@ class ValidationCheckpointTests(unittest.TestCase):
                 self.assertFalse((Path(self.state["repository"]) / checkpoint.POINTER).exists())
                 self.environment.side_effect = None
 
+    def test_cached_profile_changes_invalidate_an_otherwise_reusable_checkpoint(self):
+        profile = self.root / "profile"
+        profile.mkdir()
+        library = profile / "libLean.a"
+        library.write_bytes(b"accepted library")
+        self.environment.side_effect = lambda configs: {
+            **ENVIRONMENT,
+            "profiles": {"fixture": checkpoint.tree_identity(profile)},
+        }
+        self.blocked()
+        self.blocked(retry=True)
+        # [utest~im-review-validation-profile-reuse~1->req~im-review-validation-reuse~1]
+        self.assertEqual(self.counter.read_text().splitlines(), ["check"])
+        library.write_bytes(b"modified library")
+        self.review.return_value = run.ReviewResult(verdict="PASS", summary="Fresh review")
+        result = self.invoke(retry=True)
+        self.assertEqual(result["status"], "PASSED")
+        self.assertEqual(self.counter.read_text().splitlines(), ["check", "check"])
+        self.assertEqual(self.implement.call_count, 2)
+        decision = json.loads((self.root / "run-3/validation-selection.json").read_text())
+        self.assertEqual(decision["strategy"], "fresh_validation")
+        self.assertIn("environment changed", decision["reason"])
+
+    def test_profile_failure_logs_the_reason_and_preserves_fresh_validation(self):
+        self.environment.side_effect = PermissionError("Cannot read profile/libLean.a")
+        self.review.return_value = run.ReviewResult(verdict="PASS", summary="Fresh review")
+        with self.assertLogs("validation_checkpoint", level="WARNING") as messages:
+            result = self.invoke(retry=True)
+        # [utest~im-review-validation-profile-diagnostics~1->req~im-review-validation-reuse~1]
+        self.assertEqual(result["status"], "PASSED")
+        self.assertEqual(self.counter.read_text().splitlines(), ["check"])
+        self.assertIn("PermissionError: Cannot read profile/libLean.a", messages.output[0])
+        self.assertFalse((Path(self.state["repository"]) / checkpoint.POINTER).exists())
+
     def test_retry_is_control_input_and_substantive_answers_remain_bound(self):
         # [utest~im-review-validation-request~1->req~im-review-validation-reuse~1,req~im-explicit-resume~1]
         self.assertEqual(
@@ -274,6 +311,112 @@ class ValidationCheckpointTests(unittest.TestCase):
 
 
 class ValidationEnvironmentTests(unittest.TestCase):
+    def test_toolchain_files_larger_than_the_upload_limit_are_streamed_and_bound(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            library = root / "libLean.a"
+            # A sparse file exercises the real 256 MiB boundary without a large fixture.
+            with library.open("wb") as handle:
+                handle.truncate(checkpoint.inputs.MAX_FILE + 1)
+            with patch.object(Path, "read_bytes", side_effect=AssertionError("Unbounded read")):
+                first = checkpoint.tree_identity(root)
+                with library.open("r+b") as handle:
+                    handle.seek(-1, os.SEEK_END)
+                    handle.write(b"x")
+                changed = checkpoint.tree_identity(root)
+            # [utest~im-review-validation-large-profile~1->req~im-review-validation-reuse~1]
+            self.assertNotEqual(first, changed)
+            self.assertEqual(library.stat().st_size, checkpoint.inputs.MAX_FILE + 1)
+            self.assertEqual(checkpoint.inputs.MAX_FILE, 256 * 1024 * 1024)
+
+    def test_profile_file_total_entry_and_elapsed_budgets_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "libLean.a").write_bytes(b"12345678")
+            (root / "other").write_bytes(b"12345678")
+            cases = [
+                ("MAX_PROFILE_FILE", 7, "file exceeds 7 bytes"),
+                ("MAX_PROFILE_TOTAL", 15, "exceeds 15 total bytes"),
+                ("MAX_PROFILE_ENTRIES", 2, "exceeds 2 entries"),
+                ("PROFILE_TIMEOUT", -1, "observation exceeded"),
+            ]
+            for name, limit, reason in cases:
+                with self.subTest(name=name), patch.object(checkpoint, name, limit):
+                    # [utest~im-review-validation-profile-bounds~1->req~im-review-validation-reuse~1]
+                    with self.assertRaisesRegex(ValueError, reason) as failure:
+                        checkpoint.tree_identity(root)
+                    self.assertIn(str(root), str(failure.exception))
+
+    def test_profile_changes_during_and_after_reads_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            library = root / "libLean.a"
+            library.write_bytes(b"original")
+            original_open = os.fdopen
+
+            @contextmanager
+            def changing_read(*args, **kwargs):
+                with original_open(*args, **kwargs) as source:
+
+                    def read(size):
+                        self.assertLessEqual(size, checkpoint.HASH_CHUNK)
+                        data = source.read(size)
+                        if data:
+                            before = library.stat()
+                            library.write_bytes(b"modified")
+                            os.utime(library, ns=(before.st_atime_ns, before.st_mtime_ns))
+                        return data
+
+                    yield SimpleNamespace(read=read, fileno=source.fileno)
+
+            with patch.object(checkpoint.os, "fdopen", side_effect=changing_read):
+                # [utest~im-review-validation-profile-mutation~1->req~im-review-validation-reuse~1]
+                with self.assertRaisesRegex(ValueError, "changed while hashing.*libLean.a"):
+                    checkpoint.tree_identity(root)
+
+            inventory = checkpoint.profile_inventory
+            calls = 0
+
+            def changed_inventory(*args):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    (root / "new-directory").mkdir()
+                return inventory(*args)
+
+            with patch.object(checkpoint, "profile_inventory", side_effect=changed_inventory):
+                with self.assertRaisesRegex(ValueError, "inventory or metadata changed"):
+                    checkpoint.tree_identity(root)
+
+    def test_profile_directory_links_special_files_and_replaced_files_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "target"
+            target.mkdir()
+            link = root / "link"
+            link.symlink_to(target, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "regular files.*link"):
+                checkpoint.tree_identity(root)
+            with self.assertRaisesRegex(ValueError, "regular files.*link"):
+                checkpoint.tree_identity(link)
+            link.unlink()
+            os.mkfifo(link)
+            with self.assertRaisesRegex(ValueError, "regular files.*link"):
+                checkpoint.tree_identity(root)
+            link.unlink()
+            library = root / "libLean.a"
+            library.write_bytes(b"accepted")
+            original_open = os.open
+
+            def replaced_open(path, flags):
+                library.unlink()
+                library.symlink_to(target / "outside")
+                return original_open(path, flags)
+
+            with patch.object(checkpoint.os, "open", side_effect=replaced_open):
+                with self.assertRaises(OSError):
+                    checkpoint.tree_identity(root)
+
     def test_profiles_bind_contents_and_modes_and_reject_links(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -285,6 +428,19 @@ class ValidationEnvironmentTests(unittest.TestCase):
             self.assertNotEqual(first, executable)
             script.write_text("exit 1\n")
             self.assertNotEqual(executable, checkpoint.tree_identity(root))
+            current = checkpoint.tree_identity(root)
+            empty = root / "empty"
+            empty.mkdir()
+            self.assertNotEqual(current, checkpoint.tree_identity(root))
+            current = checkpoint.tree_identity(root)
+            empty.chmod(0o700)
+            self.assertNotEqual(current, checkpoint.tree_identity(root))
+            current = checkpoint.tree_identity(root)
+            (root / "ignored.pyc").write_bytes(b"bytecode")
+            self.assertEqual(current, checkpoint.tree_identity(root))
+            (root / "data.pyc").mkdir()
+            (root / "data.pyc/input").write_bytes(b"validation input")
+            self.assertNotEqual(current, checkpoint.tree_identity(root))
             (root / "linked").symlink_to(script)
             with self.assertRaisesRegex(ValueError, "regular files"):
                 checkpoint.tree_identity(root)

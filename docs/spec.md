@@ -809,6 +809,11 @@ its full image ID; Docker Sandboxes uses the unique native catalog entry's ID,
 repository, tag, creation time and size. Unknown or
 changed identities reject reuse. Verify retained evidence bytes and rerun
 IntentBond source/policy matching when enabled, without rerunning its tests.
+Observe profile files in bounded chunks with dedicated per-file, total-byte,
+entry-count and elapsed-time budgets, independent of uploaded-evidence limits.
+Include directory inventory and permissions. Reject links, special files,
+unreadable inputs and files or inventories observed changing during the scan.
+An unavailable observation logs its specific cause and follows fresh validation.
 Copy matched evidence into the new run, retain its origin and label implementation
 and tests `Reused`. Configured browser QA and independent review run fresh;
 all current authorization and publication gates remain mandatory.
