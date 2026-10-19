@@ -254,6 +254,59 @@ If native dispatch acknowledgement is lost, inspect its retained recipe/run befo
 retrying. The scheduler never automatically dispatches the same recipe twice; use
 a fresh explicit answer after resolving an interruption.
 
+### Automation retention
+
+`automation_retention` in operator-owned `deployment.json` controls completed
+one-shot Task and Continue automations. The default is ten days. Repository
+names in `repositories` override the default; null disables retirement globally
+or for that repository. Values are integer days from 1 to 3650, or null:
+
+```json
+{
+  "automation_retention": {
+    "days": 10,
+    "repositories": {"long-audit": 90, "keep-history": null}
+  }
+}
+```
+
+This policy is read from current deployment configuration on each cleanup pass.
+Repository registrations, defaults and captured jobs cannot override it. Normal
+repository scans attempt cleanup at most once daily; a paused/disabled schedule
+needs an explicit maintenance command. Refresh existing workflows with
+`factoryctl configure` when first installing this feature.
+
+The first pass archives metadata and disables a resolved, terminal automation.
+Native history remains available during retention. After the configured interval
+from that pass, cleanup rechecks state, archives the full definition and paginated
+run metadata, and soft-deletes the definition. A new run, re-enabling, or changed
+recipe starts a new retention interval. Failed latest runs, pending/running work,
+questions, publication failures, missing evidence and unused continuations are
+kept for operator inspection. Factory/Resume services, manually submitted Build
+and Review recipes, and unrelated automations are outside this routine.
+
+Preview or apply maintenance without waiting for a scan:
+
+```sh
+./scripts/factoryctl cleanup-automations          # preview all registered repositories
+./scripts/factoryctl cleanup-automations app      # preview one repository
+./scripts/factoryctl cleanup-automations app --apply
+```
+
+Metadata archives and durable dispatch receipts live in the deployment's
+`workspaces/automation-retirement/`. Back up and retain this directory with
+`workspaces/issue-attempts/`: deleting the dispatch receipts can remove protection
+against replaying already completed work. Archives contain native definition/run
+metadata, not copies of uploaded recipe tarballs or worker files. Existing task
+reports, conversations, workspaces and evidence artifacts remain untouched.
+
+After soft deletion, OpenHands hides that definition's history from its normal
+UI/API; inspect the saved JSON archive instead. This is list maintenance, with no
+run-row or artifact purge and no significant disk reclamation. Factory dispatch
+and cleanup share repository locks. Avoid using native **Run now** concurrently
+with maintenance: the native API offers no atomic conditional deletion, so its
+last state check cannot exclude a simultaneous manual dispatch outside the factory.
+
 ### Separate instances
 
 One Canvas can manage multiple repositories and groups. Independent tasks use

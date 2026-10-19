@@ -1277,6 +1277,42 @@ arbitrary provider failures from model prose or replace
 native typed startup/prompt errors. If response storage fails, preserve the
 provider classification and mark the artifact unavailable.
 
+### Retire completed task automations
+`req~im-automation-retention~1`
+
+Use the current deployment-owned automation retention policy, with a ten-day
+default, optional per-repository day overrides, and null to disable retirement.
+During repository scans, at most once daily, disable resolved terminal Task and
+Continue recipes. Retain their native history for the configured interval after
+retirement begins, then archive their definition and complete run metadata before
+soft deletion. Provide an explicit preview/apply command for operator maintenance.
+
+Preserve permanent Factory/Resume services and unrelated automations. Pending or
+running runs, unresolved task reports, failed latest runs, unused definitions,
+missing completion evidence and ambiguous continuations must prevent retirement.
+A changed recipe, re-enabling or a new run restarts retention. Serialize cleanup
+with factory scans and explicit submissions, and recheck native state and reports
+before deleting. Unavailable or inconsistent evidence must prevent deletion.
+
+Preserve task reports, conversations, workspaces, run records and artifacts; this
+policy cleans the automation list, not stored execution evidence. Retain a durable
+dispatch identity before deletion so neither successful deletion nor an ambiguous
+response permits automatic replay. An explicit new answer remains eligible for a
+new recipe. Explain that deleted native automation history becomes inaccessible
+through the normal API/UI even though its metadata and run rows are retained.
+
+Covers:
+- `intent~im-operate-reliably~1`
+
+Needs: impl, utest
+
+Documentation: [automation retention](configuration.md#automation-retention).
+
+Implementation: [automation_retention](../workflows/automation_retention.py),
+[native_queue](../workflows/native_queue.py).
+
+Existing assertions: [retirement lifecycle and recovery](../tests/test_automation_retention.py).
+
 ### Keep report assistant state separate from task state
 `req~im-report-status~1`
 

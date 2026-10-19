@@ -731,5 +731,52 @@
   ],
   "test_review_completion.ReviewCompletionTests.test_collection_and_native_failure_reasons_reach_blocked_result": [
     "utest~im-native-review-diagnostics~1"
+  ],
+  "test_automation_retention.RetentionTests.test_preview_disable_and_exact_ten_day_boundary_preserve_archive": [
+    "utest~im-retention-lifecycle~1"
+  ],
+  "test_automation_retention.RetentionTests.test_unresolved_or_ambiguous_work_never_changes": [
+    "utest~im-retention-unresolved~1"
+  ],
+  "test_automation_retention.RetentionTests.test_permanent_unmanaged_and_other_repository_definitions_are_untouched": [
+    "utest~im-retention-selection~1"
+  ],
+  "test_automation_retention.RetentionTests.test_current_policy_override_opt_out_and_repointed_registration": [
+    "utest~im-retention-current-policy~1"
+  ],
+  "test_automation_retention.RetentionTests.test_history_pagination_sees_active_run_on_later_page": [
+    "utest~im-retention-pagination~1"
+  ],
+  "test_automation_retention.RetentionTests.test_failed_archival_prevents_mutation_and_changed_run_restarts_retention": [
+    "utest~im-retention-evidence~1"
+  ],
+  "test_automation_retention.RetentionTests.test_late_dispatch_or_report_change_blocks_delete": [
+    "utest~im-retention-recheck~1"
+  ],
+  "test_automation_retention.RetentionTests.test_retirement_and_lost_delete_acknowledgement_cannot_replay_recipe": [
+    "utest~im-retention-no-replay~1",
+    "utest~im-retention-no-replay-queue~1"
+  ],
+  "test_automation_retention.RetentionTests.test_daily_schedule_and_locking_do_not_block_tasks": [
+    "utest~im-retention-scheduling~1"
+  ],
+  "test_automation_retention.RetentionTests.test_incomplete_inventory_and_unavailable_reports_preserve_definition": [
+    "utest~im-retention-incomplete~1"
+  ],
+  "test_automation_retention.PolicyTests.test_policy_validation_and_operator_authority": [
+    "utest~im-retention-policy~1",
+    "utest~im-retention-authority~1"
+  ],
+  "test_automation_retention.RetentionTests.test_reused_continuation_name_keeps_each_archived_definition": [
+    "utest~im-retention-reused-name~1"
+  ],
+  "test_factoryctl.StartupTests.test_retirement_cli_forwards_preview_and_apply": [
+    "utest~im-retention-cli~1"
+  ],
+  "test_automation_retention.RetentionTests.test_corrupt_dispatch_receipt_cannot_allow_replay": [
+    "utest~im-retention-corrupt-receipt~1"
+  ],
+  "test_automation_retention.RetentionTests.test_reenabling_or_replacing_recipe_restarts_retention": [
+    "utest~im-retention-reset~1"
   ]
 }

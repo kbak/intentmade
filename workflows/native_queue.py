@@ -4,6 +4,7 @@ import hashlib
 import json
 import sys
 
+import automation_retention
 import deployment
 from common import ROOT, api
 
@@ -25,7 +26,7 @@ def enqueue(config, work, *, on_start=lambda: None):
     native = registration()
     # The caller holds the short repository poll lock. An existing recipe,
     # including an ambiguous failed dispatch, requires inspection or a new reply.
-    if any(item["name"] == name for item in native.records()):
+    if automation_retention.retired(name) or any(item["name"] == name for item in native.records()):
         return False
     on_start()
     job = {"config": config, "scheduled_task": work}

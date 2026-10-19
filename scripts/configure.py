@@ -455,6 +455,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
     sub.add_parser("configure").add_argument("--paused", action="store_true")
+    cleanup = sub.add_parser("cleanup-automations")
+    cleanup.add_argument("project", nargs="?")
+    cleanup.add_argument(
+        "--apply", action="store_true", help="Apply retirement; default is preview"
+    )
     sub.add_parser("github-login")
     sub.add_parser("codex-login")
     sub.add_parser("codex-logout")
@@ -532,6 +537,13 @@ if __name__ == "__main__":
             Path(args.output).write_text(package)
         else:
             print(package, end="")
+    elif args.action == "cleanup-automations":
+        from automation_retention import sweep
+
+        configured = projects()
+        selected = [configured[args.project]] if args.project else configured.values()
+        for config in selected:
+            print(json.dumps(sweep(config, dry_run=not args.apply), indent=2))
     elif args.action == "configure":
         configure(args.paused)
     elif args.action == "review":

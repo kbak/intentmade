@@ -17,6 +17,7 @@ FIELDS = {
     "cedar",
     "run_timeout_seconds",
     "concurrency",
+    "automation_retention",
 }
 LEGACY_FIELDS = {"worker_runtime", "resource_limits"}
 CURRENT_RUN_TIMEOUT = ContextVar("factory_run_timeout", default=None)
@@ -42,6 +43,27 @@ def validate_concurrency(value):
     for limit in [result["max_tasks"], result["max_tasks_per_repository"], *repositories.values()]:
         if type(limit) is not int or not 1 <= limit <= 128:
             raise ValueError("concurrency limits must be integers from 1 to 128")
+    return result
+
+
+# [impl->req~im-automation-retention~1]
+def validate_automation_retention(value):
+    if not isinstance(value, dict) or set(value) - {"days", "repositories"}:
+        raise ValueError("automation_retention must contain days and repository overrides")
+    result = {"days": 10, "repositories": {}, **value}
+    repositories = result["repositories"]
+    if not isinstance(repositories, dict) or any(
+        not isinstance(name, str) or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}", name)
+        for name in repositories
+    ):
+        raise ValueError(
+            "automation_retention.repositories must map registered project names to days"
+        )
+    if any(
+        days is not None and (type(days) is not int or not 1 <= days <= 3650)
+        for days in [result["days"], *repositories.values()]
+    ):
+        raise ValueError("automation_retention days must be null or an integer from 1 to 3650")
     return result
 
 
@@ -101,6 +123,8 @@ def settings(config_dir=None):
     agent_profile = options.get("worker_agent_profile", "factory-codex")
     if not isinstance(agent_profile, str) or not agent_profile.strip():
         raise ValueError("worker_agent_profile must name a saved OpenHands agent profile")
+    if "automation_retention" in defaults:
+        raise ValueError("Set automation_retention in deployment.json")
     if "concurrency" in defaults:
         raise ValueError("Set concurrency in deployment.json")
     if "implementation_workflows" in defaults:
@@ -125,6 +149,9 @@ def settings(config_dir=None):
         if isinstance(path, str) and path.strip() and not Path(path).is_absolute():
             runtime[key] = str((host_directory / path).resolve())
     return {
+        "automation_retention": validate_automation_retention(
+            options.get("automation_retention", {})
+        ),
         "concurrency": validate_concurrency(options.get("concurrency", {})),
         "run_timeout_seconds": validate_run_timeout(options.get("run_timeout_seconds", 7200)),
         "worker_agent_profile": agent_profile,
