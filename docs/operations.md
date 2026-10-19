@@ -134,6 +134,11 @@ of output. Work and approval remain intact, and recovery requires an explicit
 `resume:` reply. These are Canvas conversation notices, not an email or OS push
 notification channel; paused scans cannot deliver them until polling resumes.
 
+The exact terminal model-capacity diagnostic retries the same model and retained
+conversation after 10 seconds and, if necessary, 30 seconds. Completed work is
+preserved; exhausted capacity is reported explicitly and requires continuation.
+These retries do not spend the separate JSON format-repair allowance.
+
 Provider HTTP failures are reported before structured-response validation. A
 Codex HTTP 401 requires `./scripts/factoryctl codex-login`, followed by an
 explicit retry. Other HTTP failures require resolving the provider problem
