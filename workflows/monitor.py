@@ -944,6 +944,9 @@ if __name__ == "__main__":
                     raise RuntimeError("PR changed during review; report marked stale")
                 outcome("COMPLETED", "PR review and verdict published to GitHub")
             else:
+                from automation_retention import scheduled_cleanup
+
+                scheduled_cleanup(config)
                 with lock(config["project"] + ".poll", blocking=bool(job.get("resume_replies"))):
                     poll(
                         config, token(), replies_only=bool(job.get("resume_replies")), dispatch=True

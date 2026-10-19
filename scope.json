@@ -286,7 +286,24 @@
         "utest~im-task-concurrency-scan",
         "utest~im-task-concurrency-submission",
         "utest~im-task-concurrency-continuation",
-        "utest~im-task-concurrency-metadata"
+        "utest~im-task-concurrency-metadata",
+        "utest~im-retention-lifecycle",
+        "utest~im-retention-unresolved",
+        "utest~im-retention-selection",
+        "utest~im-retention-current-policy",
+        "utest~im-retention-pagination",
+        "utest~im-retention-evidence",
+        "utest~im-retention-recheck",
+        "utest~im-retention-no-replay",
+        "utest~im-retention-no-replay-queue",
+        "utest~im-retention-scheduling",
+        "utest~im-retention-incomplete",
+        "utest~im-retention-policy",
+        "utest~im-retention-authority",
+        "utest~im-retention-reused-name",
+        "utest~im-retention-cli",
+        "utest~im-retention-corrupt-receipt",
+        "utest~im-retention-reset"
       ]
     }
   },

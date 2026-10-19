@@ -24,5 +24,9 @@
     "max_tasks": 2,
     "max_tasks_per_repository": 2,
     "repositories": {}
+  },
+  "automation_retention": {
+    "days": 10,
+    "repositories": {}
   }
 }

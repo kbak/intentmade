@@ -167,6 +167,11 @@ without opening logs or adding GitHub reporting solely for status visibility.
 Lost execution should become a visible interruption requiring attention, even
 when the configured run budget is many hours. Preserve retained work and let the
 operator decide when to retry.
+Completed task automations should leave the active list under configurable
+retention, while unfinished work, recovery evidence and duplicate-dispatch
+protection remain available. Operators should be able to choose a different
+retention interval for a deployment or repository.
+
 Conversation activity should stay compact: routine commands and successful
 approval checks belong in expandable groups, while failures and input needed
 remain visible. Full command and output details should be available on demand.

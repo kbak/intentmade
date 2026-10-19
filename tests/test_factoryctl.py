@@ -82,6 +82,46 @@ class StartupTests(unittest.TestCase):
         self.idle.start()
         self.addCleanup(self.idle.stop)
 
+    def test_retirement_cli_forwards_preview_and_apply(self):
+        # [utest~im-retention-cli~1->req~im-automation-retention~1]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            compose = {
+                "services": {
+                    "canvas": {
+                        "volumes": [
+                            {
+                                "type": "bind",
+                                "source": str(root / "workspaces"),
+                                "target": "/workspaces",
+                            },
+                            {"type": "bind", "source": str(root), "target": "/opt/factory/config"},
+                        ]
+                    }
+                }
+            }
+            for arguments in ([], ["app"], ["app", "--apply"]):
+                with (
+                    patch("sys.argv", ["factoryctl", "cleanup-automations", *arguments]),
+                    patch("subprocess.check_output", return_value=json.dumps(compose)),
+                    patch("subprocess.run", return_value=Mock()) as run,
+                ):
+                    runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts/factoryctl"))
+                self.assertEqual(
+                    list(run.call_args.args[0]),
+                    [
+                        "docker",
+                        "compose",
+                        "exec",
+                        "-T",
+                        "canvas",
+                        "python",
+                        "/opt/factory/configure.py",
+                        "cleanup-automations",
+                        *arguments,
+                    ],
+                )
+
     def test_plan_and_submit_forward_documents_without_container_path_assumptions(self):
         # [utest~im-sdlc-cli-handoff~1->req~im-portable-plan~2]
         with tempfile.TemporaryDirectory() as temporary:

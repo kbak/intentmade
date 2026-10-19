@@ -97,6 +97,7 @@ p.add_argument(
         "open",
         "logs",
         "configure",
+        "cleanup-automations",
         "codex-login",
         "codex-logout",
         "submit",
@@ -227,6 +228,8 @@ elif a.action == "up":
         "--wait-timeout",
         "300",
     )
+elif a.action == "cleanup-automations":
+    native("cleanup-automations", *a.args)
 elif a.action == "configure":
     credential = run("gh", "auth", "token", capture_output=True, text=True).stdout
     native("github-login", input=credential, text=True)

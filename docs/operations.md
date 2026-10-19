@@ -166,3 +166,12 @@ third-party wheels against [a hash lock](../docker/traceability-requirements.txt
 OS packages installed through apt retain the distribution's signed update path.
 Pins prevent unreviewed dependency changes; review and test security updates
 before advancing them.
+
+## Retire old automation definitions
+
+Completed Task and Continue recipes follow the deployment's
+[automation retention policy](configuration.md#automation-retention), with a
+10-day default and per-repository overrides. Use
+`factoryctl cleanup-automations [PROJECT]` to preview or add `--apply` to perform
+maintenance. Retained metadata and dispatch receipts must remain in backups;
+artifact and workspace retention is separate.
