@@ -215,6 +215,13 @@ do not establish scheduling fairness or a performance speedup on a live deployme
 
 Only recorded failed or waiting tasks with a new explicit user resume: answer may continue. Consumed answers and ordinary chat messages must not redispatch work; pausing a repository schedule disables immediate reply dispatch.
 
+Resuming a retained issue or manual task uses focused repair instructions even
+without a published-PR maintenance receipt. The worker preserves completed work
+and uses targeted checks; it is not instructed to repeat the full feedback suite.
+The controller owns full validation once per attempt, followed by independent
+review, unless a verified review-retry checkpoint permits validation reuse.
+The same rule applies to bounded repair attempts within a run.
+
 Single-repository manual submissions, including accepted planning packages, must
 resume in their existing report thread without requiring an issue snapshot or
 an already published PR. Retain the submitted specification, bases, configuration

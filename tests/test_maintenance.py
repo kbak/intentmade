@@ -263,24 +263,35 @@ class MaintenanceTests(unittest.TestCase):
                 self.assertTrue(record["implementation_agent"])
 
     def test_traceability_maintenance_runs_only_one_controller_check(self):
-        scenario = TraceabilityScenario(self, self.root)
-        head = scenario.states["pilot"]["base"]
-        scenario.config["repair_pr"] = {
-            "number": 42,
-            "head": head,
-            "base": head,
-            "behind": False,
-            "failures": {"unit": "failure"},
-        }
-        result = scenario.invoke()
-        # [utest~im-maintenance-single-validation~1->req~im-feedback-lifecycle~1,req~im-trace-source-gate~1]
-        self.assertEqual(result["status"], "PASSED")
-        self.assertEqual(len(scenario.attempts), 1)
-        self.assertNotIn("-m traceability.invocation", scenario.attempts[0])
-        self.assertIn("Maintenance validation is assigned to the controller", scenario.attempts[0])
-        index = json.loads(
-            (scenario.artifact / "pilot/traceability-invocations-0/index.json").read_text()
-        )
-        self.assertEqual(index["feedback_iterations"], 0)
-        self.assertEqual(index["controller_checks"], 1)
-        self.assertEqual(len(scenario.review_prompts), 1)
+        # [utest~im-maintenance-single-validation~1->req~im-feedback-lifecycle~1,req~im-trace-source-gate~1,req~im-explicit-resume~1]
+        for published in (True, False):
+            with self.subTest(published=published):
+                root = self.root / str(published)
+                root.mkdir()
+                scenario = TraceabilityScenario(self, root)
+                if published:
+                    head = scenario.states["pilot"]["base"]
+                    scenario.config["repair_pr"] = {
+                        "number": 42,
+                        "head": head,
+                        "base": head,
+                        "behind": False,
+                        "failures": {"unit": "failure"},
+                    }
+                else:
+                    scenario.states["pilot"]["initial_review"] = False
+                result = scenario.invoke()
+                self.assertEqual(result["status"], "PASSED")
+                self.assertEqual(len(scenario.attempts), 1)
+                self.assertNotIn("-m traceability.invocation", scenario.attempts[0])
+                self.assertIn(
+                    "Maintenance validation is assigned to the controller", scenario.attempts[0]
+                )
+                if not published:
+                    self.assertTrue(scenario.attempts[0].startswith("Continue the retained task."))
+                index = json.loads(
+                    (scenario.artifact / "pilot/traceability-invocations-0/index.json").read_text()
+                )
+                self.assertEqual(index["feedback_iterations"], 0)
+                self.assertEqual(index["controller_checks"], 1)
+                self.assertEqual(len(scenario.review_prompts), 1)

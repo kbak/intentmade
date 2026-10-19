@@ -82,6 +82,15 @@ Failed tasks retain their branches and evidence. Continue a manual build with
 the same `--task` ID, or use `retry-issue` for an issue after resolving the failure.
 A changed repository registration or base branch requires a new task ID.
 
+Retained-task continuations and bounded repairs assign full validation to the
+controller. The implementation worker uses focused checks, including when an
+issue continuation has no published-PR maintenance receipt. Advancing the base
+commit still requires validation of the merged candidate; it does not require
+both worker and controller to run the complete suite.
+Issue retries pass their recorded answers through the same checkpoint selection
+as manual-task continuations. A bare `retry` does not change the approved request;
+new submissions and substantive answers cannot request review-only reuse.
+
 Single-repository manual builds also accept a fresh `resume: YOUR ANSWER` in their
 existing report thread. The controller retains the original submission and bases,
 reuses its task branch, and reruns validation and independent read-only review.
