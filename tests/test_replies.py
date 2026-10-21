@@ -176,8 +176,10 @@ class RuntimeHookTests(unittest.TestCase):
         class Service:
             stored = SimpleNamespace(id="conversation")
 
-            async def send_message(self, message, run=False, _from_goal_loop=False):
-                order.append(("persist", run, _from_goal_loop))
+            async def send_message(
+                self, message, run=False, _from_goal_loop=False, *, run_slot=None
+            ):
+                order.append(("persist", run, _from_goal_loop, run_slot))
                 return "persisted"
 
         async def notify(conversation_id, message):
@@ -185,9 +187,20 @@ class RuntimeHookTests(unittest.TestCase):
 
         self.hook.install(Service)
         self.hook.install(Service)
+        slot = object()
         with patch.object(self.hook, "message_received", side_effect=notify):
-            result = asyncio.run(Service().send_message(self.message(), True, _from_goal_loop=True))
+            result = asyncio.run(
+                Service().send_message(self.message(), True, _from_goal_loop=True, run_slot=slot)
+            )
         self.assertEqual(result, "persisted")
-        self.assertEqual(order, [("persist", True, True), ("notify", "conversation")])
+        self.assertEqual(order, [("persist", True, True, slot), ("notify", "conversation")])
         with self.assertRaises(RuntimeError):
             self.hook.install(SimpleNamespace(send_message=lambda: None))
+
+    def test_hook_installs_on_pinned_native_event_service(self):
+        from openhands.agent_server.event_service import EventService
+
+        original = EventService.send_message
+        with patch.object(EventService, "send_message", original):
+            self.hook.install(EventService)
+            self.assertTrue(EventService.send_message.factory_reply_hook)

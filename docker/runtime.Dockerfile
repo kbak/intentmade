@@ -57,6 +57,7 @@ COPY --chmod=755 runtime/agent-server /usr/local/bin/openhands-agent-server
 COPY runtime/patch_run_outcomes.py /opt/factory/patch_run_outcomes.py
 RUN python /opt/factory/patch_run_outcomes.py
 COPY runtime/reply_hook.py /opt/agent-canvas/tools/factory_reply_hook.py
+RUN FACTORY_REPLY_DISPATCH=1 PYTHONPATH=/opt/agent-canvas/tools python -c 'import factory_reply_hook'
 RUN python - <<'PY'
 from pathlib import Path
 path = Path('/opt/agent-canvas/entrypoint.sh')
