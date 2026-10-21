@@ -55,12 +55,15 @@ def install(service_type):
         "message",
         "run",
         "_from_goal_loop",
+        "run_slot",
     ]:
         raise RuntimeError("Pinned Canvas send_message signature changed; review reply integration")
 
     @functools.wraps(original)
-    async def send_message(self, message, run=False, _from_goal_loop=False):
-        result = await original(self, message, run, _from_goal_loop=_from_goal_loop)
+    async def send_message(self, message, run=False, _from_goal_loop=False, *, run_slot=None):
+        result = await original(
+            self, message, run, _from_goal_loop=_from_goal_loop, run_slot=run_slot
+        )
         await message_received(str(self.stored.id), message)
         return result
 
