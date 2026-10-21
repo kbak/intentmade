@@ -11,6 +11,7 @@ from typing import Literal
 
 import authorization
 import browser_qa
+import ci_evidence
 import deployment
 import diagnostics
 import execution
@@ -468,6 +469,7 @@ def implementation_attempt(
         maintenance_contract = root / "maintenance-contract.md"
         if focused_repair:
             maintenance_contract.write_text(contract)
+        prompt += ci_evidence.stage(artifact, root)
         if attempt and continuation is None:
             prompt += stage_test_evidence(configs, artifact, attempt - 1, root)
         trace_runs = traceability.prepare(configs, states, root, artifact, attempt)

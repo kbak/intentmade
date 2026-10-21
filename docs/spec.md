@@ -783,6 +783,12 @@ for verified [review retries](#reuse-validated-work-after-an-incomplete-review),
 and fresh independent review before publication. Retain head/base identities, conflict paths
 and the chosen maintenance mode. Failure and stale-revision gates remain mandatory.
 
+For failed CI, the controller collects annotations and job logs independently,
+retains redacted logs (with explicit download limits), and gives every failing
+check an identified diagnostic excerpt. Stage the retained logs into each repair
+worker so excerpts do not become its only evidence. Report retrieval failures
+with their source and HTTP status; GitHub credentials remain in the controller.
+
 Covers:
 - `intent~im-review-changes~1`
 
