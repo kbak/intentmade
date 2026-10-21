@@ -140,6 +140,11 @@ and actual execution, while seeing missing checks and accepted limitations.
 Evidence should describe the source, policy and runtime that were checked, and
 remain inspectable after the worker is gone.
 
+Operators can choose automatic continuation when unavailable infrastructure is
+the only remaining browser verification gap. Retain those checks as unverified
+and carry their limitations into review and publication, without repeated requests
+for approval of the same unavailable dependencies.
+
 Needs: req
 
 Rationale: successful commands, complete links and plausible reports alone do

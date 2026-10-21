@@ -106,6 +106,7 @@ class FeedbackTests(unittest.TestCase):
                     "branch": PR["head"]["ref"],
                     "base_branch": "main",
                     "request": "Approved spec",
+                    "answers": ['accept-browser-gaps: {"Live Telegram": "No disposable session"}'],
                 }
                 followup.save(self.config, record)
                 action = {
@@ -133,7 +134,7 @@ class FeedbackTests(unittest.TestCase):
                     validation_request,
                     resume_review,
                 ):
-                    self.assertEqual(validation_request, "Approved spec")
+                    self.assertIn("Approved spec", validation_request)
                     self.assertFalse(resume_review)
                     self.assertEqual(
                         followup.read(self.config, 42)["feedback"]["review:1"]["status"], "STARTED"
@@ -141,6 +142,10 @@ class FeedbackTests(unittest.TestCase):
                     self.assertIn("Approved spec", request)
                     self.assertIn("Handle the empty response", request)
                     self.assertEqual(configs[0]["repair_pr"], action)
+                    self.assertEqual(
+                        configs[0]["accepted_browser_gaps"],
+                        {"Live Telegram": "No disposable session"},
+                    )
                     if failure:
                         raise RuntimeError("Validation failed")
                     states["example"]["commit"] = "head"

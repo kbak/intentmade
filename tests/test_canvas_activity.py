@@ -41,12 +41,12 @@ const between = (start, end) => {
 const O = e => e.kind === 'ActionEvent';
 const D = e => e.kind === 'ObservationEvent';
 const k = e => e.kind === 'UserRejectObservation';
-const group = new Function('O','D','k','vi','Te','or', helpers
-  + between('var ma=', ',ga=') + ';return ha;')(
+const group = new Function('M','O','A','we','Oi','gr', helpers
+  + between('var Sa=', ',wa=') + ';return Ca;')(
     O, D, k, () => false, () => false, () => null);
-const stats = new Function('e','t','O','Se','zi','D','k', helpers
-  + between('let u=t??e,d=e.filter(O)', 'let b=g?')
-  + 'return {total:m,completed:h,running:g,title:y};');
+const stats = new Function('e','t','M','me','Yi','O','A', helpers
+  + between('let u=t??e,d=e.filter(M)', 'let b=_?')
+  + 'return {total:h,completed:g,running:_,title:y};');
 const summarize = events => stats(events, events, O,
   e => e.kind === 'AgentErrorEvent', e => ({title:e.title}), D, k);
 const acp = (id, status='completed', extra={}) => ({
@@ -91,7 +91,7 @@ assert.equal(group([completed, {...native, action:{kind:'FinishAction'}}])[1].ki
 
 const contentFunctions = between('var V=1e3,', ',U=');
 const {title, details} = new Function(helpers + contentFunctions
-  + ';return {title:en, details:un};')();
+  + ';return {title:fn, details:xn};')();
 const longTitle = 'python - <<\'PY\'\n' + 'print("context")\n'.repeat(40);
 const bigOutput = 'LOG\n'.repeat(600) + 'END_OF_COMPLETE_OUTPUT';
 const raw = acp('full', 'completed', {

@@ -5,9 +5,11 @@ import json
 import re
 import time
 
+import browser_qa
+import ci_evidence
+import diagnostics
 import execution
 import feedback
-import httpx
 import input_artifacts
 import reporting
 import sdlc
@@ -47,6 +49,19 @@ def save(config, record):
     path = directory(config) / f"{int(record['number'])}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, json.dumps(record, indent=2), mode=0o644)
+
+
+# [impl->req~im-browser-gap-acceptance~1]
+def accepted_browser_gaps(config, record):
+    """Carry issue acceptance into PR maintenance only for its unchanged specification."""
+    answers = []
+    if record.get("issue") and record.get("snapshot"):
+        report = reporting.read_report(config, record["task"]) or {}
+        if report.get("snapshot") == record["snapshot"]:
+            answers.extend(report.get("answers", []))
+    # New PR replies replace prior issue acceptance, including an explicit {}.
+    answers.extend(record.get("answers", []))
+    return browser_qa.accepted_gaps(answers)
 
 
 def track(config, task, repository, branch, pr, request, issue=None):
@@ -366,46 +381,52 @@ def failure_context(config, pr, credential, artifact):
             if check.get("conclusion") not in FAILED or check["id"] in seen:
                 continue
             seen.add(check["id"])
-            text = (
+            heading = (
                 check["name"]
                 + ": "
                 + str(check.get("conclusion"))
                 + "\n"
-                + json.dumps(check.get("output") or {})
+                + "Check: "
+                + str(check["id"])
+                + "\nCommit: "
+                + sha
+                + "\nDetails: "
+                + (check.get("details_url") or "unavailable")
             )
+            details = [json.dumps(check.get("output") or {})]
             try:
                 annotations = issues._github_paginate(
                     credential,
                     f"/repos/{config['repository']}/check-runs/{check['id']}/annotations",
                 )
-                text += "\nAnnotations:\n" + json.dumps(annotations)
-                job = re.fullmatch(
-                    re.escape(f"https://github.com/{config['repository']}/actions/runs/")
-                    + r"\d+/job/(\d+)",
-                    check.get("details_url") or "",
-                )
-                if job:
-                    response = httpx.get(
-                        f"https://api.github.com/repos/{config['repository']}/actions/jobs/{job[1]}/logs",
-                        headers={"Authorization": "Bearer " + credential},
-                        follow_redirects=False,
-                        timeout=30,
-                    )
-                    if response.status_code in (301, 302, 303, 307, 308):
-                        url = response.headers["location"]
-                        if not url.startswith("https://"):
-                            raise ValueError("Unexpected log download URL")
-                        # Do not forward GitHub credentials to signed log storage.
-                        response = httpx.get(url, follow_redirects=True, timeout=60)
-                    response.raise_for_status()
-                    text += "\nJob log:\n" + response.text[-30000:]
+                details.append("Annotations:\n" + json.dumps(annotations))
             except Exception as exc:
-                text += "\nSome CI log details were unavailable: " + type(exc).__name__
-            if credential:
-                text = text.replace(credential, "[REDACTED]")
+                details.append(ci_evidence.unavailable("Check annotations", exc))
+            job = re.fullmatch(
+                re.escape(f"https://github.com/{config['repository']}/actions/runs/")
+                + r"\d+/job/(\d+)",
+                check.get("details_url") or "",
+                re.IGNORECASE,
+            )
+            if job:
+                try:
+                    details.append(
+                        "Job log:\n" + ci_evidence.job_log(config["repository"], job[1], credential)
+                    )
+                except Exception as exc:
+                    details.append(ci_evidence.unavailable("Job log", exc))
+            heading = diagnostics.redact(heading, [credential])
+            details = diagnostics.redact("\n".join(details), [credential])
+            text = heading + "\n" + details
             (artifact / f"check-{check['id']}.log").write_text(text)
-            sections.append(text)
-    return "\n\n".join(sections)[-60000:]
+            sections.append((heading, details))
+    # Allocate an excerpt to every failed check; a verbose final job must not
+    # silently remove the first job's identity and failure from the repair prompt.
+    budget = max(256, 60000 // max(1, len(sections)))
+    return "\n\n".join(
+        heading + "\n" + ci_evidence.summary(details, max(128, budget - len(heading)))
+        for heading, details in sections
+    )
 
 
 # [impl->req~im-feedback-lifecycle~1]
@@ -545,7 +566,11 @@ def maintain(config, pr, action, credential):
                         "Corrected the PR title; waiting for CI to rerun.",
                     )
                     return True
-            build_config = {**config, "repair_pr": action}
+            build_config = {
+                **config,
+                "repair_pr": action,
+                "accepted_browser_gaps": accepted_browser_gaps(config, record),
+            }
             request = record.get("request") or ""
             issue = record.get("issue")
             if issue:

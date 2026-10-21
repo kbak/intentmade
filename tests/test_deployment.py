@@ -59,6 +59,29 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(resource_limits.settings(), resource_limits.DEFAULTS)
         deployment.check_issue_authorization(CONFIG)
 
+    def test_browser_infrastructure_policy_is_explicit_and_validated(self):
+        qa = {"paths": ["frontend/**"], "start_command": "true", "url": "http://localhost"}
+        self.write("repositories/example.json", {"browser_qa": qa})
+        self.assertNotIn(
+            "infrastructure_policy", common.projects(self.config)["example"]["browser_qa"]
+        )
+        for policy in ("block", "continue", True, None, "skip", {}, []):
+            with self.subTest(policy=policy):
+                self.write(
+                    "repositories/example.json",
+                    {"browser_qa": {**qa, "infrastructure_policy": policy}},
+                )
+                if policy in ("block", "continue"):
+                    self.assertEqual(
+                        common.projects(self.config)["example"]["browser_qa"][
+                            "infrastructure_policy"
+                        ],
+                        policy,
+                    )
+                else:
+                    with self.assertRaisesRegex(ValueError, "browser_qa.infrastructure_policy"):
+                        common.projects(self.config)
+
     def test_run_timeout_default_override_groups_and_validation(self):
         # [utest~im-timeout-configuration~1->req~im-run-timeout~1]
         self.assertEqual(deployment.run_timeout(), 7200)

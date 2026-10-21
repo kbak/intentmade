@@ -78,7 +78,8 @@ actual results are supplied. Lack of an optional scanner alone does not make
 source review incomplete; disclose that coverage limitation in the summary.
 
 Controller-supplied browser evidence may report `ACCEPTED_GAPS`: named unavailable
-infrastructure checks accepted by the maintainer for this task. Preserve these
+infrastructure checks accepted by the maintainer for this task or by the repository's
+configured automatic infrastructure policy. Preserve these
 as unverified coverage in your summary; their absence alone does not block review.
 Assess source and available tests normally. This acceptance does not cover
 observed defects, failed required tests, unavailable review source, or required

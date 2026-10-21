@@ -76,6 +76,7 @@
         "utest"
       ],
       "required_artifacts": [
+        "utest~im-ci-evidence",
         "utest~im-test-failure-summary",
         "utest~im-task-outcome-propagation",
         "utest~im-review-intent-publication",
@@ -309,7 +310,10 @@
         "utest~im-review-validation-profile-reuse",
         "utest~im-review-validation-profile-bounds",
         "utest~im-review-validation-profile-mutation",
-        "utest~im-review-validation-profile-diagnostics"
+        "utest~im-review-validation-profile-diagnostics",
+        "utest~im-browser-automatic-gaps",
+        "utest~im-browser-maintenance-gaps",
+        "utest~im-browser-pr-gap-evidence"
       ]
     }
   },

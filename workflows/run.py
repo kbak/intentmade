@@ -11,6 +11,7 @@ from typing import Literal
 
 import authorization
 import browser_qa
+import ci_evidence
 import deployment
 import diagnostics
 import execution
@@ -214,13 +215,18 @@ def publish(
             credential, config["repository"], branch, config["branch"], title, body
         )
     )
-    if repair and review_evidence:
-        github(
-            credential,
-            "PATCH",
-            f"/repos/{config['repository']}/pulls/{repair['number']}",
-            body={"body": sdlc.update_pr_evidence(result.get("body") or "", review_evidence)},
-        )
+    if repair:
+        original_body = result.get("body") or ""
+        updated_body = browser_qa.update_pr_limitations(original_body, browser_result)
+        if review_evidence:
+            updated_body = sdlc.update_pr_evidence(updated_body, review_evidence)
+        if updated_body != original_body:
+            github(
+                credential,
+                "PATCH",
+                f"/repos/{config['repository']}/pulls/{repair['number']}",
+                body={"body": updated_body},
+            )
     (artifact / "pull-request.json").write_text(json.dumps(result, indent=2))
     from followup import track
 
@@ -468,6 +474,7 @@ def implementation_attempt(
         maintenance_contract = root / "maintenance-contract.md"
         if focused_repair:
             maintenance_contract.write_text(contract)
+        prompt += ci_evidence.stage(artifact, root)
         if attempt and continuation is None:
             prompt += stage_test_evidence(configs, artifact, attempt - 1, root)
         trace_runs = traceability.prepare(configs, states, root, artifact, attempt)

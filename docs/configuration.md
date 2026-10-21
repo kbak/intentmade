@@ -155,10 +155,21 @@ and the image files remain in the artifacts.
 
 `PASS` requires passed checks and valid retained screenshots. An observed defect
 enters the normal bounded repair loop. Missing infrastructure or evidence,
-unverified behavior, or source modifications during QA produce `NEEDS_INPUT`.
+unverified behavior, or source modifications during QA produce `NEEDS_INPUT`
+unless the infrastructure-gap policy below applies.
 The final commit must pass tests, applicable browser QA and independent review
 before publication. `browser_qa: null` disables this stage; path patterns define
 its scope, so include shared files that affect your UI as needed.
+
+Set `browser_qa.infrastructure_policy` to `"continue"` to automatically proceed
+when unavailable services, integrations, devices or accounts are the only remaining
+blocked checks. The default is `"block"`. The controller still requires available
+checks to pass, valid retained screenshots, and unchanged source. It records
+`ACCEPTED_GAPS`, identifies repository policy as the acceptance source, and includes
+each unverified check and its reason in review and publication. It does not retry
+the task or request per-check approval for these gaps. Startup failures, missing
+evidence, checks merely left untested, observed defects, failing tests and incomplete
+independent review still block publication.
 
 For a paused issue, a maintainer can explicitly accept named infrastructure gaps
 in a `resume:` reply or `retry-issue --answer-file` response. Include this line
@@ -169,7 +180,8 @@ accept-browser-gaps: {"Live notification delivery": "No disposable test account 
 ```
 
 Acceptance belongs only to that issue's unchanged specification and survives
-retries. A later directive replaces it; `{}` revokes it. Ordinary issue text and
+retries and repairs of its published PR. A later directive replaces it; `{}` revokes
+the task-scoped acceptance (it does not override repository policy). Ordinary issue text and
 worker claims cannot grant acceptance. The pause report supplies the exact
 `resume: accept-browser-gaps: {...}` reply when only eligible infrastructure gaps
 remain. Plain `resume: go ahead` and `resume: retry` restart the task without

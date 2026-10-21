@@ -195,8 +195,13 @@ other repositories, merge the PR or deploy the project.
 
 ### CI repairs
 
-Published PRs are monitored for CI failures. Repairs receive annotations and
-available job logs, update against the current base, and run configured tests
+Published PRs are monitored for CI failures. The controller independently collects
+annotations and job logs, keeping up to 8 MiB per job with explicit truncation.
+Repairs receive an excerpt from every failed check and the retained, redacted logs
+in their workspace. Retrieval errors identify the source and HTTP status;
+workers do not receive GitHub credentials. CI producers must print detailed
+findings to job logs if they otherwise publish only a web summary.
+Repairs update against the current base and run configured tests
 and independent review before pushing. Each worker and reviewer can read the
 retained test command and complete logs. Concurrent changes to the PR head,
 branch ownership, or base withhold publication.
