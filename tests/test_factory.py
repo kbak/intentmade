@@ -493,12 +493,20 @@ class PipelineTests(unittest.TestCase):
                 seed, bare, artifact = root / "seed", root / "task.git", root / "artifact"
                 artifact.mkdir()
                 state = seed_repository(seed, bare, files={"code.txt": "base"})
+                output = (
+                    "\x1b[31m FAIL \x1b[39m setup.test.tsx > shares account\n"
+                    "TestingLibraryElementError: missing Share button\n"
+                    + "\x1b[36m<div>\x1b[39m\n"
+                    * 3000
+                    if exit_code
+                    else "test evidence"
+                )
                 scenario = PipelineScenario(
                     root,
                     executor=lambda command, cwd, **kwargs: (
                         local_git_command(command, cwd)
                         if command.startswith("git ")
-                        else SimpleNamespace(exit_code=exit_code, stdout="test evidence", stderr="")
+                        else SimpleNamespace(exit_code=exit_code, stdout=output, stderr="")
                     ),
                 )
 
@@ -525,7 +533,7 @@ class PipelineTests(unittest.TestCase):
                     patch.object(run, "publish") as publish,
                 ):
                     # [utest~im-factory-PipelineTests-failed_tests_or_review_keep_branch_and_never_publish~1->req~im-publication-gate~1]
-                    with self.assertRaises(RuntimeError):
+                    with self.assertRaises(RuntimeError) as failure:
                         run.execute_build(
                             [config],
                             "task",
@@ -537,6 +545,15 @@ class PipelineTests(unittest.TestCase):
                             {"example": state},
                         )
                     publish.assert_not_called()
+                log = artifact / "example/tests-0.log"
+                self.assertEqual(log.read_text(), output)
+                if exit_code:
+                    message = str(failure.exception)
+                    self.assertIn("setup.test.tsx > shares account", message)
+                    self.assertIn("missing Share button", message)
+                    self.assertIn(str(log), message)
+                    self.assertNotIn("\x1b", message)
+                    self.assertNotIn("<div>", message)
                 self.assertEqual(
                     common.git(["--git-dir", str(bare), "show", "factory/task:code.txt"]).stdout,
                     "implemented",

@@ -417,6 +417,11 @@ the existing repair path. Success still requires current controller checks and
 fresh independent review. Exhaustion retains the source and concrete failure.
 
 Run implementation and configured validation with at most the configured repair attempts after the initial attempt. Repairs retain the original approved request and failed-check context. Exhausted test failures stop before independent review; blocked review infrastructure does not spend a code repair attempt.
+Bounded test summaries remove terminal formatting before truncation, preserve
+recognized failure names, errors and suite totals, and identify the complete
+retained log. Large DOM dumps must not displace these diagnostics. Unknown
+runner formats retain bounded beginning/end output; summaries do not replace
+full logs or change validation outcomes.
 An explicit retry of incomplete review may reuse the successful validation
 checkpoint under [review-validation-reuse](#reuse-validated-work-after-an-incomplete-review).
 

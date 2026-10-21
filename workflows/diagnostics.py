@@ -8,6 +8,30 @@ import subprocess
 from pathlib import Path
 from uuid import uuid4
 
+from rich.text import Text
+
+
+# [impl->req~im-bounded-repair~1]
+def test_summary(project, output, log_path):
+    """Keep failure identities visible when a runner prints a large diagnostic dump."""
+    # Decode before selecting/truncating so excerpts cannot begin inside an ANSI code.
+    plain = Text.from_ansi(output).plain
+    lines = plain.splitlines()
+    diagnostic = re.compile(
+        r"^\s*(?:FAIL(?:ED)?\b|ERROR\b|E\s+\S|[\w.]*Error:|[\w.]*Exception:"
+        r"|Test Files\s|Tests\s|❯\s+\S+:\d+|npm (?:ERR!|error)\b)"
+        r"|\b\d+ (?:failed|passed|skipped)(?:[, |]|$)"
+    )
+    selected = [line for line in lines if diagnostic.search(line)]
+    # Unknown runner formats still expose their final output. Full logs are authoritative.
+    excerpt = "\n".join(selected) if selected else plain.strip()
+    limit = 4000
+    if len(excerpt) > limit:
+        marker = "\n... excerpt truncated; see full log ...\n"
+        half = (limit - len(marker)) // 2
+        excerpt = excerpt[:half] + marker + excerpt[-half:]
+    return f"{project}:\nFull log: {log_path}\n{excerpt}"
+
 
 def redact(text, secrets):
     values = set()

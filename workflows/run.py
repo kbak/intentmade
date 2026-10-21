@@ -12,6 +12,7 @@ from typing import Literal
 import authorization
 import browser_qa
 import deployment
+import diagnostics
 import execution
 import input_artifacts
 import maintenance
@@ -663,13 +664,15 @@ def implementation_attempt(
                                 )
                         results[project] = result.exit_code
                         output = result.stdout + result.stderr
-                        test_output.append(project + ":\n" + output[-10000:])
                         log_name = (
                             f"traceability-check-{attempt}.log"
                             if project in trace_runs
                             else f"tests-{attempt}.log"
                         )
                         (repo_artifact / log_name).write_text(output)
+                        test_output.append(
+                            diagnostics.test_summary(project, output, repo_artifact / log_name)
+                        )
                 finally:
                     errors = []
                     for project, state in states.items():
@@ -717,7 +720,11 @@ def implementation_attempt(
                     shutil.copyfile(log, artifact / project / f"tests-{attempt}.log")
                     if results[project] != 0:
                         output = log.read_text(errors="replace")
-                        test_output.append(project + ":\n" + output[-10000:])
+                        test_output.append(
+                            diagnostics.test_summary(
+                                project, output, artifact / project / f"tests-{attempt}.log"
+                            )
+                        )
                 # Keep human-report changes and the scope in retained records.
                 # Review receives its scope separately; repairs already have the
                 # approved task, frozen scope and complete staged test logs.

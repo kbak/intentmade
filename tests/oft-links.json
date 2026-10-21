@@ -1,4 +1,7 @@
 {
+  "test_recovery.RecoveryTests.test_test_summaries_preserve_failures_before_large_dumps": [
+    "utest~im-test-failure-summary~1"
+  ],
   "test_approval.ApprovalHistoryTests.test_title_and_body_edits_after_or_during_approval_second_fail_closed": [
     "utest~im-approval-ApprovalHistoryTests-title_and_body_edits_after_or_during_approval_second_fail_closed~1"
   ],

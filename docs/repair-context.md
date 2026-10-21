@@ -7,6 +7,12 @@ inputs, and observed worker image/code/model. It includes reported completed wor
 changed paths, a bounded failure excerpt, remaining actions, and evidence hashes.
 Reported progress is not proof of correctness.
 
+Test summaries show recognized failure names, errors and suite totals without
+terminal colour codes, alongside the full log path. Large DOM dumps stay in
+the complete log instead of crowding out the error. For unrecognized output,
+the summary includes bounded beginning/end excerpts. Repairs still receive the
+complete logs, and the configured command's exit code determines test success.
+
 ## Reuse and fallback
 
 A controller-owned pointer in each retained bare task repository locates the

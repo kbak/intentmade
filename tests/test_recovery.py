@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import cleanup
+import diagnostics
 import httpx
 import reporting
 import run
@@ -16,6 +17,51 @@ from openhands.sdk.workspace import RemoteWorkspace
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_test_summaries_preserve_failures_before_large_dumps(self):
+        # [utest~im-test-failure-summary~1->req~im-bounded-repair~1]
+        cases = [
+            (
+                "\x1b[31m FAIL \x1b[39m setup.test.tsx > shares the chosen account\n"
+                'TestingLibraryElementError: Unable to find "Share this account"\n'
+                + "\x1b[36m<div>\x1b[39m\n" * 3000
+                + " ❯ setup.test.tsx:27:26\n Test Files  1 failed | 259 passed (260)\n",
+                [
+                    "FAIL  setup.test.tsx",
+                    'Unable to find "Share this account"',
+                    "setup.test.tsx:27:26",
+                    "1 failed | 259 passed",
+                ],
+            ),
+            (
+                "E   AssertionError: expected 200, got 401\n"
+                + "warning detail\n" * 3000
+                + "FAILED tests/test_auth.py::test_login\n1 failed, 3 passed in 0.1s\n",
+                [
+                    "AssertionError: expected 200, got 401",
+                    "FAILED tests/test_auth.py::test_login",
+                    "1 failed, 3 passed",
+                ],
+            ),
+            ("short output\n", ["short output"]),
+            (
+                "first diagnostic\n" + "unknown output\n" * 3000 + "last diagnostic\n",
+                ["first diagnostic", "last diagnostic", "excerpt truncated"],
+            ),
+            (
+                "FAIL first test\n" + "AssertionError: detail\n" * 3000 + "Tests 3001 failed\n",
+                ["FAIL first test", "Tests 3001 failed", "excerpt truncated"],
+            ),
+        ]
+        for output, expected in cases:
+            with self.subTest(expected=expected):
+                summary = diagnostics.test_summary("example", output, "/retained/tests-1.log")
+                for text in expected:
+                    self.assertIn(text, summary)
+                self.assertIn("/retained/tests-1.log", summary)
+                self.assertNotIn("\x1b", summary)
+                self.assertNotIn("<div>", summary)
+                self.assertLessEqual(len(summary), 4100)
+
     def test_intermediate_native_workspace_cannot_complete_factory_run(self):
         with (
             patch.dict(

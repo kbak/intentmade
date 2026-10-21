@@ -76,6 +76,7 @@
         "utest"
       ],
       "required_artifacts": [
+        "utest~im-test-failure-summary",
         "utest~im-task-outcome-propagation",
         "utest~im-review-intent-publication",
         "utest~im-review-harness-replay",
