@@ -29,11 +29,16 @@ not prove the affected authenticated workflow works. Report any mocked data
 explicitly and mark unverified live behavior BLOCKED. Do not invent evidence.
 
 For a BLOCKED check, set `blocker_kind` to `infrastructure` only when a named
-unavailable service, integration or account prevents execution. Other missing
+unavailable service, integration, device or account prevents execution. Name the
+specific unavailable prerequisite and the evidence that it is unavailable. A check
+that was merely not attempted is not an infrastructure gap; complete available
+checks before returning. Other missing
 verification or evidence uses `verification`. Keep accepted infrastructure gaps
 BLOCKED in your response and reuse their exact supplied check names when the
 same dependencies remain unavailable. The parent controller applies the
-maintainer's task-scoped acceptance after validating the evidence and checkout.
+maintainer's task-scoped acceptance or configured automatic infrastructure policy
+after validating the evidence and checkout. Report the same honest checks regardless
+of the acceptance policy.
 Acceptance never turns an observed defect into a gap or excuses available checks.
 
 After three materially different attempts at one verification approach, switch

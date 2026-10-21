@@ -875,7 +875,7 @@ Evidence limit: Scripted checks do not establish UI correctness; the real Chromi
 ### Make accepted browser gaps explicit
 `req~im-browser-gap-acceptance~1`
 
-Only explicit named infrastructure-gap directives from maintainer continuations can grant acceptance for the unchanged issue specification. The last directive replaces prior acceptance and {} revokes it. Accepted checks remain BLOCKED in evidence; startup/evidence/source failures, observed defects, failed tests and incomplete review still block publication.
+By default, only explicit named infrastructure-gap directives from maintainer continuations grant acceptance for the unchanged issue specification, including its PR repairs. The last directive replaces prior acceptance and {} revokes it. A repository can instead select `browser_qa.infrastructure_policy=continue` to proceed automatically when all remaining blocked checks name unavailable infrastructure, available checks passed, and screenshots and source integrity validate. Record whether acceptance came from maintainer replies or repository policy. Accepted checks remain BLOCKED in evidence and their limitations reach independent review and publication; startup/evidence/source failures, incomplete available checks, observed defects, failed tests and incomplete review still block publication.
 
 Covers:
 - `intent~im-trust-evidence~1`
@@ -884,7 +884,7 @@ Needs: impl, utest
 
 Documentation: [docs/configuration.md](../docs/configuration.md).
 
-Implementation: [accepted_gaps](../workflows/browser_qa.py), [accept_infrastructure_gaps](../workflows/browser_qa.py), [_execute_build](../workflows/run.py).
+Implementation: [accepted_gaps](../workflows/browser_qa.py), [accept_infrastructure_gaps](../workflows/browser_qa.py), [accepted_browser_gaps](../workflows/followup.py), [_execute_build](../workflows/run.py).
 
 Existing assertions: [test_only_explicit_named_gap_directives_grant_and_replace_acceptance](../tests/test_browser_qa.py), [test_acceptance_preserves_unverified_checks_and_rejects_other_failures](../tests/test_browser_qa.py), [test_accepted_gaps_reach_review_and_publication_but_do_not_waive_tests_or_review](../tests/test_browser_qa.py).
 

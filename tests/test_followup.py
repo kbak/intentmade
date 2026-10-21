@@ -124,6 +124,30 @@ class FollowupTests(unittest.TestCase):
         self.assertIsNone(self.plan(pr=pr))
         self.assertEqual(followup.read(CONFIG, 42)["status"], "NEEDS_INPUT")
 
+    def test_browser_acceptance_survives_pr_repairs_only_for_matching_issue(self):
+        # [utest~im-browser-maintenance-gaps~1->req~im-browser-gap-acceptance~1]
+        directive = 'accept-browser-gaps: {"Live Telegram": "No disposable session"}'
+        record = {**self.record, "issue": 42, "snapshot": {"body": "approved"}}
+        report = {"snapshot": record["snapshot"], "answers": [directive]}
+        for snapshot, replies, expected in (
+            (record["snapshot"], [], {"Live Telegram": "No disposable session"}),
+            (record["snapshot"], ["retry"], {"Live Telegram": "No disposable session"}),
+            (record["snapshot"], ["accept-browser-gaps: {}"], {}),
+            ({"body": "changed"}, [], {}),
+            (None, [], {}),
+        ):
+            with (
+                self.subTest(snapshot=snapshot, replies=replies),
+                patch.object(
+                    followup.reporting, "read_report", return_value={**report, "snapshot": snapshot}
+                ),
+            ):
+                self.assertEqual(
+                    followup.accepted_browser_gaps(CONFIG, {**record, "answers": replies}), expected
+                )
+        with patch.object(followup.reporting, "read_report", return_value=report):
+            self.assertEqual(followup.accepted_browser_gaps(CONFIG, self.record), {})
+
     def test_draft_base_updates_are_eligible_but_pending_ci_alone_waits(self):
         followup.save(CONFIG, self.record)
         self.assertIsNone(self.plan({"unit": "pending"}))

@@ -5,6 +5,7 @@ import json
 import re
 import time
 
+import browser_qa
 import ci_evidence
 import diagnostics
 import execution
@@ -48,6 +49,19 @@ def save(config, record):
     path = directory(config) / f"{int(record['number'])}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, json.dumps(record, indent=2), mode=0o644)
+
+
+# [impl->req~im-browser-gap-acceptance~1]
+def accepted_browser_gaps(config, record):
+    """Carry issue acceptance into PR maintenance only for its unchanged specification."""
+    answers = []
+    if record.get("issue") and record.get("snapshot"):
+        report = reporting.read_report(config, record["task"]) or {}
+        if report.get("snapshot") == record["snapshot"]:
+            answers.extend(report.get("answers", []))
+    # New PR replies replace prior issue acceptance, including an explicit {}.
+    answers.extend(record.get("answers", []))
+    return browser_qa.accepted_gaps(answers)
 
 
 def track(config, task, repository, branch, pr, request, issue=None):
@@ -552,7 +566,11 @@ def maintain(config, pr, action, credential):
                         "Corrected the PR title; waiting for CI to rerun.",
                     )
                     return True
-            build_config = {**config, "repair_pr": action}
+            build_config = {
+                **config,
+                "repair_pr": action,
+                "accepted_browser_gaps": accepted_browser_gaps(config, record),
+            }
             request = record.get("request") or ""
             issue = record.get("issue")
             if issue:

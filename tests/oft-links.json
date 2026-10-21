@@ -799,5 +799,14 @@
   ],
   "test_validation_checkpoint.ValidationEnvironmentTests.test_profile_changes_during_and_after_reads_are_rejected": [
     "utest~im-review-validation-profile-mutation~1"
+  ],
+  "test_browser_qa.BrowserQATests.test_repository_policy_continues_only_evidenced_infrastructure_gaps": [
+    "utest~im-browser-automatic-gaps~1"
+  ],
+  "test_followup.FollowupTests.test_browser_acceptance_survives_pr_repairs_only_for_matching_issue": [
+    "utest~im-browser-maintenance-gaps~1"
+  ],
+  "test_browser_qa.BrowserQATests.test_pr_repairs_refresh_gap_limitations_and_preserve_author_text": [
+    "utest~im-browser-pr-gap-evidence~1"
   ]
 }

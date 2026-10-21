@@ -149,6 +149,36 @@ class BrowserQATests(unittest.TestCase):
                         "Not verified: No disposable session", browser_qa.limitations(result)
                     )
 
+    def test_repository_policy_continues_only_evidenced_infrastructure_gaps(self):
+        # [utest~im-browser-automatic-gaps~1->req~im-browser-gap-acceptance~1]
+        for problem in (None, "verification", "failure", "evidence", "no_pass", "no_blocked"):
+            result = self.gap_result()
+            if problem == "verification":
+                result["checks"][-1]["blocker_kind"] = "verification"
+            elif problem == "failure":
+                result["checks"][0]["status"] = "FAIL"
+            elif problem == "evidence":
+                result["screenshots"] = []
+            elif problem == "no_pass":
+                result["checks"] = result["checks"][1:]
+            elif problem == "no_blocked":
+                result["checks"] = result["checks"][:1]
+            with self.subTest(problem=problem):
+                before = copy.deepcopy(result)
+                browser_qa.accept_infrastructure_gaps(result, {}, policy="continue")
+                if problem:
+                    self.assertEqual(result, before)
+                else:
+                    self.assertEqual(result["status"], "ACCEPTED_GAPS")
+                    self.assertEqual(result["checks"], before["checks"])
+                    self.assertEqual(result["reported_status"], "BLOCKED")
+                    self.assertEqual(
+                        result["gap_acceptance_sources"], {"Live Telegram": "repository_policy"}
+                    )
+                    self.assertIn("Repository policy:", browser_qa.limitations(result))
+                    self.assertNotIn("Maintainer acceptance:", browser_qa.limitations(result))
+                    self.assertEqual(browser_qa.gap_resume_hint(result, {}), "")
+
     def test_accepted_gaps_reach_review_and_publication_but_do_not_waive_tests_or_review(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -166,14 +196,18 @@ class BrowserQATests(unittest.TestCase):
                     "branch": "task",
                 }
             }
-            qa = self.gap_result()
-            browser_qa.accept_infrastructure_gaps(qa, {"Live Telegram": "No disposable session"})
-            for test_code, verdict in (
-                (0, "PASS"),
-                (1, "PASS"),
-                (0, "CHANGES_REQUESTED"),
-                (0, "BLOCKED"),
+            for (test_code, verdict), policy in itertools.product(
+                ((0, "PASS"), (1, "PASS"), (0, "CHANGES_REQUESTED"), (0, "BLOCKED")),
+                ("block", "continue"),
             ):
+                artifact = root / f"{test_code}-{verdict}-{policy}"
+                artifact.mkdir()
+                qa = self.gap_result()
+                browser_qa.accept_infrastructure_gaps(
+                    qa,
+                    {"Live Telegram": "No disposable session"} if policy == "block" else {},
+                    policy=policy,
+                )
                 with (
                     self.subTest(test_code=test_code, verdict=verdict),
                     patch.object(
@@ -199,7 +233,7 @@ class BrowserQATests(unittest.TestCase):
                                 "",
                                 None,
                                 True,
-                                root,
+                                artifact,
                                 copy.deepcopy(states),
                             )
                         publish.assert_not_called()
@@ -211,7 +245,7 @@ class BrowserQATests(unittest.TestCase):
                             "",
                             None,
                             True,
-                            root,
+                            artifact,
                             copy.deepcopy(states),
                         )
                         self.assertEqual(result["validation"], "PASSED_WITH_GAPS")
@@ -233,6 +267,56 @@ class BrowserQATests(unittest.TestCase):
             self.assertIn("/tmp/captures", servers[0].args)
             self.assertIn("factory-browser-qa", restored.agent_context.to_acp_prompt_context())
             self.assertFalse(agent.worker_agent("read-only", "factory-review").mcp_config)
+
+    def test_pr_repairs_refresh_gap_limitations_and_preserve_author_text(self):
+        # [utest~im-browser-pr-gap-evidence~1->req~im-browser-gap-acceptance~1]
+        qa = self.gap_result()
+        browser_qa.accept_infrastructure_gaps(qa, {}, policy="continue")
+        before = "Author description.\n\n### Validation\n\nTests passed."
+        after = "\n\n<!-- other-evidence -->\nCloses #42\n"
+        for section in (
+            "",
+            browser_qa.limitations(qa),
+            "\n\n### Accepted verification gaps\n\n- Old gap\n",
+        ):
+            original = before + section + after
+            updated = browser_qa.update_pr_limitations(original, qa)
+            self.assertTrue(updated.startswith(before))
+            self.assertIn(after, updated)
+            self.assertEqual(updated.count("### Accepted verification gaps"), 1)
+            self.assertNotIn("Old gap", updated)
+            self.assertIn("Repository policy:", updated)
+            self.assertEqual(browser_qa.update_pr_limitations(updated, qa), updated)
+            self.assertNotIn(
+                "Accepted verification gaps",
+                browser_qa.update_pr_limitations(updated, {"status": "PASS"}),
+            )
+            self.assertEqual(browser_qa.update_pr_limitations(original, None), original)
+
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch.object(run.issues, "_push_branch"),
+            patch.object(run.sdlc, "pr_evidence", return_value=None),
+            patch("followup.verify_revision"),
+            patch("followup.track"),
+            patch.object(
+                run, "github", return_value={"html_url": "https://example.test/pr", "body": before}
+            ) as github,
+        ):
+            run.publish(
+                {"repository": "org/repo", "repair_pr": {"number": 42}},
+                "task",
+                "/retained",
+                "branch",
+                Path(temp),
+                "Approved",
+                "credential",
+                browser_result=qa,
+            )
+        self.assertEqual(github.call_args.args[1], "PATCH")
+        self.assertIn(
+            "Not verified: No disposable session", github.call_args.kwargs["body"]["body"]
+        )
 
     def test_pass_requires_actual_checks_and_named_evidence(self):
         for body in (
@@ -368,14 +452,18 @@ class BrowserQATests(unittest.TestCase):
                     ],
                 }
             )
-            for accepted, failure in itertools.product(
-                (False, True), (None, "source", "startup", "screenshot")
+            for acceptance, failure in itertools.product(
+                ("none", "maintainer", "policy"), (None, "source", "startup", "screenshot")
             ):
+                accepted = acceptance != "none"
                 (checkout / "app.html").write_text("Original")
                 Image.new("RGB", (32, 32), "red").save(captures / "screen.png")
                 config["browser_qa"]["start_command"] = "false" if failure == "startup" else "true"
                 config["accepted_browser_gaps"] = (
-                    {"Live Telegram": "No disposable session"} if accepted else {}
+                    {"Live Telegram": "No disposable session"} if acceptance == "maintainer" else {}
+                )
+                config["browser_qa"]["infrastructure_policy"] = (
+                    "continue" if acceptance == "policy" else "block"
                 )
 
                 def verify_gap(*args, **kwargs):

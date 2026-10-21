@@ -15,6 +15,8 @@ from pydantic import BaseModel, Field, model_validator
 from transfer import worker_git
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
+GAPS_START = "<!-- factory-browser-gaps:start -->"
+GAPS_END = "<!-- factory-browser-gaps:end -->"
 
 
 class BrowserCheck(BaseModel):
@@ -100,15 +102,26 @@ def infrastructure_gaps(result):
 
 
 # [impl->req~im-browser-gap-acceptance~1]
-def accept_infrastructure_gaps(result, accepted):
+def accept_infrastructure_gaps(result, accepted, *, policy="block"):
     """Called only after startup, evidence retention and source integrity succeed."""
     blocked = infrastructure_gaps(result)
-    if not blocked or any(c["name"] not in accepted for c in blocked):
+    if not blocked or (policy != "continue" and any(c["name"] not in accepted for c in blocked)):
         return
     result.update(
         status="ACCEPTED_GAPS",
         reported_status="BLOCKED",
-        accepted_gaps={c["name"]: accepted[c["name"]] for c in blocked},
+        accepted_gaps={
+            c["name"]: accepted.get(
+                c["name"],
+                "Continue automatically with this infrastructure check unverified under "
+                "browser_qa.infrastructure_policy=continue; document the limitation.",
+            )
+            for c in blocked
+        },
+        gap_acceptance_sources={
+            c["name"]: "maintainer" if c["name"] in accepted else "repository_policy"
+            for c in blocked
+        },
     )
 
 
@@ -143,12 +156,36 @@ def limitations(result):
     accepted = result.get("accepted_gaps", {})
     if not accepted:
         return ""
-    return "\n\n### Accepted verification gaps\n\n" + "\n".join(
+    checks = "\n".join(
         f"- **{check['name']}** — Not verified: {check['observed']} "
-        f"Maintainer acceptance: {accepted[check['name']]}"
+        + (
+            "Repository policy: "
+            if result.get("gap_acceptance_sources", {}).get(check["name"]) == "repository_policy"
+            else "Maintainer acceptance: "
+        )
+        + accepted[check["name"]]
         for check in result["checks"]
         if check["name"] in accepted
     )
+    return f"\n\n{GAPS_START}\n### Accepted verification gaps\n\n{checks}\n{GAPS_END}"
+
+
+def update_pr_limitations(body, result):
+    """Refresh factory-owned coverage without replacing the author's PR description."""
+    if result is None:
+        return body
+    section = re.compile(re.escape(GAPS_START) + r".*?" + re.escape(GAPS_END), re.DOTALL)
+    # Older factory PRs predate the delimiters. Their generated gap section ends
+    # before the next heading, evidence block or issue-closing reference.
+    legacy = re.compile(
+        r"^### Accepted verification gaps\n.*?(?=^#{1,6} |^<!--|^Closes #|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    if section.search(body):
+        return section.sub(lambda _: limitations(result).strip(), body)
+    if legacy.search(body):
+        return legacy.sub(lambda _: limitations(result).strip() + "\n\n", body)
+    return body + limitations(result)
 
 
 def selected(config, state):
@@ -282,7 +319,9 @@ def run(workspace, config, state, request, output, destination):
             raise RuntimeError(
                 "QA modified the source checkout; evidence does not verify the retained commit"
             )
-        accept_infrastructure_gaps(result, accepted)
+        accept_infrastructure_gaps(
+            result, accepted, policy=settings.get("infrastructure_policy", "block")
+        )
         hint = gap_resume_hint(result, accepted)
         if hint:
             result["resume_hint"] = hint

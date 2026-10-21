@@ -1,9 +1,9 @@
 """Extend pinned Canvas grouping to ACP without changing persisted events.
 
-Canvas 1.27.1 already groups native actions, but excludes ACP tool calls.
+Canvas 1.29.0 already groups native actions, but excludes ACP tool calls.
 Patch only its shipped presentation bundle; refuse upstream drift at build time.
 The source counterparts are group-events.ts, event-group.tsx and
-get-acp-tool-call-content.ts at OpenHands/OpenHands f07aebdf5cdd71f4a05ebcf30f8bef5e4e3b70b9.
+get-acp-tool-call-content.ts at OpenHands/OpenHands 9057a57f4a7b5a74e93989090edaffc21e3554ff.
 """
 
 import argparse
@@ -12,8 +12,8 @@ import re
 import subprocess
 from pathlib import Path
 
-BUNDLE = "messages-Bw7OFsea.js"
-ORIGINAL_SHA256 = "abcd3d463cf66ff650baf806f219fb67f3b22f2a52b540174c65e9373c0a64f8"
+BUNDLE = "messages-1nU0NArR.js"
+ORIGINAL_SHA256 = "0e9d31cefbd13ebae7ba9d147ecf6fe6c331dceac3251cf5726635f04fef1a21"
 
 # [impl->req~im-canvas-activity~1]
 # Keep pending/unknown states and errors visible. Guardian in-progress events
@@ -35,22 +35,22 @@ function factoryCompactTitle(title) {
 
 REPLACEMENTS = (
     (
-        "ma=(e,t)=>{if(O(e))",
-        "ma=(e,t)=>{if(factoryIsACP(e))return factoryRoutineACP(e);if(O(e))",
+        "Sa=(e,t)=>{if(M(e))",
+        "Sa=(e,t)=>{if(factoryIsACP(e))return factoryRoutineACP(e);if(M(e))",
     ),
     (
         "a.events.length>=t?r.push({kind:`group`",
         "(a.events.length>=t||a.events.some(factoryIsACP))?r.push({kind:`group`",
     ),
     (
-        "p=d.filter(e=>!f?.has(e.tool_call_id)),m=e.length",
+        "p=d.filter(e=>!f?.has(e.tool_call_id)),h=e.length",
         "p=[...d.filter(e=>!f?.has(e.tool_call_id)),"
-        "...e.filter(e=>factoryIsACP(e)&&e.status===`in_progress`)],m=e.length",
+        "...e.filter(e=>factoryIsACP(e)&&e.status===`in_progress`)],h=e.length",
     ),
-    ("v&&(O(v)?y=zi(v).title", "v&&((O(v)||factoryIsACP(v))?y=zi(v).title"),
+    ("v&&(M(v)?y=Yi(v).title", "v&&((M(v)||factoryIsACP(v))?y=Yi(v).title"),
     (
-        "en=e=>{let t=e.title,n=e.tool_kind;",
-        "en=e=>{let t=factoryCompactTitle(e.title),n=e.tool_kind;",
+        "fn=e=>{let t=e.title,n=e.tool_kind;",
+        "fn=e=>{let t=factoryCompactTitle(e.title),n=e.tool_kind;",
     ),
     # Show the complete original title inside details if its label was shortened.
     # Use the upstream fenced-code formatter, including its backtick escaping.
@@ -62,7 +62,7 @@ REPLACEMENTS = (
     ),
     # Details are opt-in. Preserve full ACP output there, including diff/text
     # content, instead of silently cutting it off after the first 1,000 chars.
-    ("nn=e=>e.length>1e3?`${e.slice(0,V)}...`:e", "nn=e=>e"),
+    ("mn=e=>e.length>1e3?`${e.slice(0,V)}...`:e", "mn=e=>e"),
 )
 
 

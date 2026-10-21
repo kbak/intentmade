@@ -91,6 +91,10 @@ def projects(config_dir=None):
                     raise ValueError(f"{name}: browser_qa.{key} must contain file patterns")
             if not isinstance(qa.get("instructions", ""), str):
                 raise ValueError(f"{name}: browser_qa.instructions must be text")
+            if qa.get("infrastructure_policy", "block") not in ("block", "continue"):
+                raise ValueError(
+                    f"{name}: browser_qa.infrastructure_policy must be block or continue"
+                )
         if config["repository"]:
             config["repository"] = issues.normalize_repo(config["repository"])
         if "traceability" in config:

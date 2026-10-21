@@ -27,8 +27,10 @@ PROFILE = {
     "id": "00000000-0000-4000-8000-000000000001",
     "revision": 7,
     "condenser": {"type": "noop", "enabled": False},
-    "enable_sub_agents": True,
-    "enable_switch_llm_tool": True,
+    "tools": [
+        {"name": name}
+        for name in ("terminal", "file_editor", "task_tracker", "task_tool_set", "switch_llm")
+    ],
     "mcp_server_refs": ["operator-server"],
 }
 LLM = {"model": "openai/fixture", "api_key": "dummy-native-key", "base_url": "http://127.0.0.1:1"}
@@ -61,7 +63,30 @@ class NativeHarnessTests(unittest.TestCase):
         self.assertNotIn("dummy-native-key", json.dumps(selected.identity))
         self.assertNotIn("CODEX_AUTH_JSON", str(reviewer.model_dump()))
         # Stage overrides must not mutate the captured profile for later builders.
-        self.assertTrue(selected.settings.enable_sub_agents)
+        self.assertEqual(
+            [tool.name for tool in selected.settings.tools],
+            [tool["name"] for tool in PROFILE["tools"]],
+        )
+
+    def test_saved_legacy_tool_switches_use_native_profile_migrations(self):
+        for version in (2, 3):
+            with self.subTest(schema_version=version):
+                payload = {
+                    **PROFILE,
+                    "schema_version": version,
+                    "enable_sub_agents": True,
+                    "enable_switch_llm_tool": True,
+                }
+                if version == 2:
+                    payload.pop("tools")
+                with patch.object(harness, "api", return_value={"config": LLM}):
+                    selected = harness.resolve(payload, PROFILE["name"])
+                tools = [tool.name for tool in selected.settings.tools]
+                self.assertIn("task_tool_set", tools)
+                self.assertIn("switch_llm", tools)
+                self.assertEqual(selected.identity["revision"], PROFILE["revision"])
+                self.assertEqual(selected.settings.llm.model, LLM["model"])
+                self.assertTrue(payload["enable_sub_agents"], "Do not mutate saved profiles")
 
     def test_native_builder_disables_switching_for_default_and_explicit_tool_lists(self):
         from openhands.sdk import Tool
