@@ -1,10 +1,14 @@
 # Execution provenance
 
-Each native DockerWorkspace start records the requested image tag separately from
+Each worker start records intended configuration separately from observed identity.
+DockerWorkspace records the requested image tag separately from
 its actual container ID, image ID, repository digests, platform, root filesystem
 layers and Docker daemon ID. The observation inspects the **container**, then its
 immutable image ID, on the daemon that launched it. A tag retarget cannot substitute
-a newer image. The controller and worker each report their own Python, SQLite,
+a newer image. Docker Sandboxes instead records the native `image_digest` and
+sandbox name; unavailable Docker-specific fields remain null. See
+[VM worker identity](docker-sandboxes.md#worker-identity) for supported constraints.
+The controller and worker each report their own Python, SQLite,
 installed SDK/workspace/Agent Server/automation/checker/adapter package versions,
 Codex/ACP versions, OFT JAR hash and installed factory workflow fingerprint.
 
@@ -22,7 +26,9 @@ runtime identities remain null. No full environment, Docker config or credential
 store is serialized. Keep credentials out of command arguments, which are part of
 the declared execution record.
 
-A repository may require observed identities in its controller configuration:
+A repository may require observed identities in its controller configuration.
+This example requires DockerWorkspace observations; its daemon-ID requirement
+would fail closed on Docker Sandboxes:
 
 ```json
 {"required_environment": {

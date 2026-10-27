@@ -1,5 +1,16 @@
 # Documentation
 
+## Understand the system
+
+- [Architecture](architecture.md) — current components, control/execution planes, Docker and VM layouts, lifecycle and future scaling boundaries.
+- [Threat model](threat-model.md) — protected assets, invariants, source-backed controls, attacker scenarios and proposed tenant test properties.
+- [Security policy](../SECURITY.md) — operator responsibilities, deployment assumptions and vulnerability reporting.
+
+Keep requirements in [spec.md](spec.md), intent in [intent.md](intent.md), and
+commands/configuration in the relevant guide below. Architecture explains how
+the pieces fit; the threat model explains what each boundary must protect.
+Link to those authoritative homes rather than copying their full contracts.
+
 ## Use the factory
 
 - [Getting started](getting-started.md) — install, authenticate, and open Canvas.
@@ -10,7 +21,6 @@
 - [Reviews](reviews.md) — independent review, GitHub verdicts, and optional security audits.
 - [Agents](agents.md) — model selection, roles, and workflow skills.
 - [Operations](operations.md) — updates, backups, recovery, and observability.
-- [Security](../SECURITY.md) — deployment assumptions, trust boundaries, and reporting.
 
 ## Requirements and evidence
 

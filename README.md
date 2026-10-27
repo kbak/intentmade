@@ -19,7 +19,7 @@ Canvas provides chat, schedules, run history, and logs.
 4. **Publish** — open a draft PR with validation results. Merge and deploy manually.
 
 Scheduled workflows can also pick up approved GitHub issues, maintain the
-factory's PRs, and respond to review requests. Each task has its own Docker daemon
+factory's PRs, and respond to review requests. Each worker environment has its own Docker daemon
 for integration tests. [IntentBond](https://github.com/kbak/intentbond) optionally
 connects requirements, code, and verification throughout the workflow.
 
@@ -98,6 +98,8 @@ multi-tenant controller boundary.
 
 ## Documentation
 
+- [Architecture](docs/architecture.md): control and execution planes, runtimes, task lifecycle and extension points.
+- [Threat model](docs/threat-model.md): assets, invariants, trust boundaries and proposed tenant isolation.
 - [Intent](docs/intent.md) and [specification](docs/spec.md): outcomes, requirements and supporting code/tests.
 - [Configuration](docs/configuration.md): repositories, test profiles, browser QA, and groups.
 - [Reviews](docs/reviews.md): review policy, evidence, and GitHub verdicts.

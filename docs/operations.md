@@ -42,18 +42,12 @@ under `artifacts/`. Back up this directory and the Compose native state volume
 together. Keep runtime data and `.env` out of Git, and preserve volumes during
 routine shutdowns (`down`, without `-v`).
 
-With DockerWorkspace, workers receive the Codex credential. Docker Sandboxes
-uses a host credential proxy instead. The GitHub credential stays in the parent
-workflow. Implementation, triage and independent review run in separate
-disposable workers. DockerWorkspace builders retain public internet access and
-Docker tests; their access to the management daemon, other jobs and the host's
-private networks is blocked. These containers share the Docker host's Linux
-kernel. Docker Sandboxes uses separate VMs and the selected Kit's network policy;
-allowed hostnames can resolve to private addresses. Read its
-[network limitations](docker-sandboxes.md#network-policy) before enabling it.
-See [SECURITY.md](../SECURITY.md) for the single-operator trust model, retained
-state and update procedure. Normal completion and handled failures clean up job
-resources; a host crash can require manual cleanup.
+DockerWorkspace workers receive the selected Codex credential or native LLM
+profile; Docker Sandboxes workers use a host credential proxy. GitHub publication
+credentials stay in the parent. See [the runtime comparison](architecture.md#default-dockerworkspace-backend)
+and [security policy](../SECURITY.md) for isolation and operator responsibilities.
+Normal completion and handled failures clean up job resources; a host crash can
+require manual cleanup. Retain failed source/evidence before removing leftovers.
 
 ## Update the runtime and workflows
 

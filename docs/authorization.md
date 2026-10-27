@@ -1,6 +1,6 @@
 # Controller authorization with Cedar
 
-Cedar 4.13.0 is the sole decision maker for ten controller gates over current facts.
+Cedar 4.13.0 is the sole decision maker for eleven controller gates over current facts.
 Docker Sandboxes, agent conversations, evidence validation, repair and GitHub publication
 continue through the existing runtime. No temporal engine or event store is needed.
 
@@ -20,6 +20,7 @@ The [policy](../runtime/cedar/policy.cedar) and
 | [`resume:event`](#continuation-event-rule) | Persisted user message differs from the consumed answer |
 | [`resume:answer`](#continuation-answer-rule) | Explicit, nonempty answer is newer than the question |
 | [`resume:dispatch`](#continuation-dispatch-rule) | Native continuation scheduler is enabled |
+| [`continuation:accept`](#follow-up-pr-identity-rule) | Open PR matches the retained head, branch, base branch and repository |
 | [`validation:complete`](#validation-completion-rule) | Validated tests, review, browser QA and traceability permit publication |
 
 All gates share [authorization.py](../workflows/authorization.py), one process
