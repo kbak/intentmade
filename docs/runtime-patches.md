@@ -1,14 +1,14 @@
 # Runtime patch review
 
-The runtime pins Canvas 1.29.0 by image digest, with OpenHands SDK/Workspace/Agent
-Server/Tools 1.56.0 and Automation 1.23.1. The Python packages are layered over
+The runtime pins Canvas 1.35.0 by image digest, with OpenHands SDK/Workspace/Agent
+Server/Tools 1.59.0 and Automation 1.26.1. The Python packages are layered over
 the Canvas image with wheel hashes in `docker/openhands-requirements.txt`, without
 resolving new third-party dependencies; `pip check` validates the base dependency
 set. Review patches against the installed source
 when updating that pin; version guards and exact source matches deliberately
 stop the build on drift.
 
-| Integration | Decision for Canvas 1.29.0 | Reason |
+| Integration | Decision for Canvas 1.35.0 | Reason |
 | --- | --- | --- |
 | Unicode automation downloads | Removed | Automation now sanitizes names, supplies an ASCII fallback and encodes Unicode with `filename*`. The regression exercises the installed upstream route, including compatibility characters. |
 | Review permissions and project trust | Reduced | ACP 2.2.2 supplies the native read-only sandbox; the patch only disables escalation and automatic project trust. SDK's permission bridge still needs its read-only denial. The launcher uses ACP's `DISABLE_MCP_CONFIG_FILTERING=true` option so ignored repository configuration cannot suppress explicit factory MCP servers. |
@@ -21,14 +21,12 @@ stop the build on drift.
 | PR archive bounds | Retained | This patches the Extensions 0.29.0 downloader, which still reads the response and archive member list without the factory's resource bounds. The Canvas update does not change its pinned source. |
 | Python Agent Server launcher | Retained | Canvas still invokes `openhands-agent-server`; the factory wrapper ensures both controller and workers execute the patched Python packages and register the read-only report tool. |
 | Canvas reply hook | Retained | The upstream entrypoint imports `canvas_ui_tool`; the factory additionally needs its existing reply dispatcher. |
-| Canvas ACP activity | Retained | Canvas still groups only native action events and truncates ACP details. The patch extends native groups to routine ACP calls, preserves attention states and full details, and keeps upstream title-prefix removal. |
+| Canvas ACP activity | Reduced | Canvas now groups ACP activity and supplies live summaries. The factory retains explicit attention boundaries for pending, unknown, error and active guardian states, single-call grouping, compact labels and full expandable output. |
 
-The factory's npm lock selects Codex ACP 2.2.2 and its compatible Codex 0.160.1,
-independently of Canvas's bundled ACP 1.10.0. Playwright remains pinned at 0.0.80.
-Updating Canvas does not implicitly change these separately selected dependencies.
-SDK 1.56's version diagnostic still compares against its bundled ACP 1.10.0 and
-logs a mismatch for this explicit override. The runtime installs the locked
-adapter during the image build; the warning does not indicate a runtime download.
+The factory's npm lock selects Codex ACP 2.2.2 and its compatible Codex 0.160.1.
+Canvas 1.35.0 also bundles ACP 2.2.2. Playwright remains pinned at 0.0.80.
+The runtime still installs the factory's integrity-locked tool tree during the
+image build; updating Canvas does not implicitly change these dependencies.
 
 The [regression suite and native probes](../tests/README.md) check the installed
 runtime. Source matches establish patch applicability, not behavioral correctness.
@@ -39,14 +37,16 @@ SDK 1.56 removes the old tool-enable fields. Saved schema-2/3 profiles use
 upstream migrations; current profiles select tools explicitly. The regressions
 exercise both formats and verify that stage overrides preserve captured settings.
 
-Canvas 1.29.0 ships SDK 1.56.0 and Automation 1.22.0; the factory layers
-Automation 1.23.1 over that base. The SDK permission, startup, workspace and
-plugin-isolation gaps and the Automation callback gap remain in these released
-sources. Their exact patch anchors still apply. Canvas strips redundant ACP
-title prefixes upstream; the factory preserves that behavior while retaining
-compact activity groups and complete expandable output. Its presentation patch
-and installed-function regressions target the new digest-pinned bundle.
-Canvas releases now live in [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands/releases/tag/v1.29.0);
+Canvas 1.35.0 ships SDK 1.59.0 and Automation 1.26.1, matching the
+factory's hash-locked Python packages. The SDK permission, startup, workspace
+and plugin-isolation gaps and the Automation callback gap remain in these
+released sources; their exact patch anchors still apply. Canvas now supplies
+native ACP grouping, live activity and summaries. The factory keeps explicit
+completion counts beside the native title, without replacing running-title
+selection. The remaining presentation
+patch spans the grouping and event-content bundles, with both digests checked
+before any writes and the full import graph reversioned for browser caches.
+Canvas releases now live in [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands/releases/tag/v1.35.0);
 the former `OpenHands/agent-canvas` repository is archived.
 
 Extensions helpers are independently pinned to release 0.29.0. Both issue and

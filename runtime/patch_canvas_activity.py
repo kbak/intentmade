@@ -1,9 +1,10 @@
 """Extend pinned Canvas grouping to ACP without changing persisted events.
 
-Canvas 1.29.0 already groups native actions, but excludes ACP tool calls.
+Canvas 1.35.0 groups native and ACP activity. Retain the factory's attention
+boundaries, compact labels and complete expandable details.
 Patch only its shipped presentation bundle; refuse upstream drift at build time.
-The source counterparts are group-events.ts, event-group.tsx and
-get-acp-tool-call-content.ts at OpenHands/OpenHands 9057a57f4a7b5a74e93989090edaffc21e3554ff.
+The source counterparts are group-events.ts and get-acp-tool-call-content.ts
+at OpenHands/OpenHands v1.35.0.
 """
 
 import argparse
@@ -12,8 +13,8 @@ import re
 import subprocess
 from pathlib import Path
 
-BUNDLE = "messages-1nU0NArR.js"
-ORIGINAL_SHA256 = "0e9d31cefbd13ebae7ba9d147ecf6fe6c331dceac3251cf5726635f04fef1a21"
+GROUP_BUNDLE = "use-shared-conversation-teFPR8Jf.js"
+CONTENT_BUNDLE = "event-group-BwEbL1FU.js"
 
 # [impl->req~im-canvas-activity~1]
 # Keep pending/unknown states and errors visible. Guardian in-progress events
@@ -31,45 +32,70 @@ function factoryCompactTitle(title) {
   const text = title.replace(/\s+/g, " ").trim();
   return text.length > 80 ? text.slice(0, 79) + "…" : text;
 }
+function factoryActivityCounts(events, allEvents = events) {
+  const resolved = new Set(allEvents.filter(event =>
+    event.kind === "AgentErrorEvent").map(event => event.tool_call_id));
+  const observed = new Set(allEvents.filter(event =>
+    event.kind === "ObservationEvent" || event.kind === "UserRejectObservation"
+  ).map(event => event.action_id));
+  const running = events.filter(event => factoryIsACP(event)
+    ? event.status === "in_progress" || event.status === "pending"
+    : event.kind === "ActionEvent" && !resolved.has(event.tool_call_id)
+      && !observed.has(event.id)).length;
+  const completed = events.filter(event => factoryIsACP(event)
+    ? event.status === "completed"
+    : event.kind === "ObservationEvent" || event.kind === "UserRejectObservation"
+      || (event.kind === "HookExecutionEvent" && event.success)).length;
+  return {total: events.length, completed, running};
+}
 """
 
-REPLACEMENTS = (
-    (
-        "Sa=(e,t)=>{if(M(e))",
-        "Sa=(e,t)=>{if(factoryIsACP(e))return factoryRoutineACP(e);if(M(e))",
+BUNDLES = {
+    GROUP_BUNDLE: (
+        "81626c71c14f219f279ce05bae72c4c3917ff9f3205fb26ec25b95cb17190307",
+        (
+            ("z(e)?e.status!==`failed`", "z(e)?factoryRoutineACP(e)"),
+            (
+                "s.session||s.reasoning?.length||s.events.length>=e",
+                "s.session||s.reasoning?.length||s.events.length>=e||s.events.some(factoryIsACP)",
+            ),
+        ),
     ),
-    (
-        "a.events.length>=t?r.push({kind:`group`",
-        "(a.events.length>=t||a.events.some(factoryIsACP))?r.push({kind:`group`",
+    CONTENT_BUNDLE: (
+        "6c2ac1295ddc1a09ed852c17cba6a1305830ec3814e0ee1ed2fa3d87e8daafa0",
+        (
+            # Native summaries no longer show completion counts. Keep those
+            # beside the native title, including while a call is in progress.
+            (
+                "let T=_e(C?.timestamp,f?.language)",
+                "const factoryCounts=factoryActivityCounts(e,v);"
+                "if(factoryCounts.total)S=(0,k.jsxs)(k.Fragment,{children:[S,"
+                "` (${factoryCounts.completed}/${factoryCounts.total})`]});"
+                "let T=_e(C?.timestamp,f?.language)",
+            ),
+            (
+                "at=e=>{let t=e.title,n=e.tool_kind;",
+                "at=e=>{let t=factoryCompactTitle(e.title),n=e.tool_kind;",
+            ),
+            # Preserve the original title using upstream's safe fenced formatter.
+            (
+                "l=o.filter(e=>e.type===`text`),u=[];if(t===`execute`",
+                "l=o.filter(e=>e.type===`text`),u=[];"
+                "if(factoryCompactTitle(e.title)!==e.title)u.push(H(e.title));"
+                "if(t===`execute`",
+            ),
+            # Expanded details must retain complete text and diff output.
+            ("U=e=>e.length>1e3?`${e.slice(0,R)}...`:e", "U=e=>e"),
+        ),
     ),
-    (
-        "p=d.filter(e=>!f?.has(e.tool_call_id)),h=e.length",
-        "p=[...d.filter(e=>!f?.has(e.tool_call_id)),"
-        "...e.filter(e=>factoryIsACP(e)&&e.status===`in_progress`)],h=e.length",
-    ),
-    ("v&&(M(v)?y=Yi(v).title", "v&&((M(v)||factoryIsACP(v))?y=Yi(v).title"),
-    (
-        "fn=e=>{let t=e.title,n=e.tool_kind;",
-        "fn=e=>{let t=factoryCompactTitle(e.title),n=e.tool_kind;",
-    ),
-    # Show the complete original title inside details if its label was shortened.
-    # Use the upstream fenced-code formatter, including its backtick escaping.
-    (
-        "s=a.filter(e=>e.type===`text`),c=[];if(t===`execute`",
-        "s=a.filter(e=>e.type===`text`),c=[];"
-        "if(factoryCompactTitle(e.title)!==e.title)c.push(H(e.title));"
-        "if(t===`execute`",
-    ),
-    # Details are opt-in. Preserve full ACP output there, including diff/text
-    # content, instead of silently cutting it off after the first 1,000 chars.
-    ("mn=e=>e.length>1e3?`${e.slice(0,V)}...`:e", "mn=e=>e"),
-)
+}
 
 
-def patch_bundle(source):
-    if hashlib.sha256(source.encode()).hexdigest() != ORIGINAL_SHA256:
+def patch_bundle(source, bundle=GROUP_BUNDLE):
+    digest, replacements = BUNDLES[bundle]
+    if hashlib.sha256(source.encode()).hexdigest() != digest:
         raise RuntimeError("Pinned Canvas activity bundle changed; review the upstream update")
-    for old, new in REPLACEMENTS:
+    for old, new in replacements:
         if source.count(old) != 1:
             raise RuntimeError("Pinned Canvas activity anchor changed; review the upstream update")
         source = source.replace(old, new, 1)
@@ -78,18 +104,20 @@ def patch_bundle(source):
 
 def install(frontend, node):
     assets = frontend / "assets"
-    path = assets / BUNDLE
-    patched = patch_bundle(path.read_text())
-    subprocess.run([node, "--input-type=module", "--check"], input=patched, text=True, check=True)
+    patched = {name: patch_bundle((assets / name).read_text(), name) for name in BUNDLES}
+    for source in patched.values():
+        subprocess.run(
+            [node, "--input-type=module", "--check"], input=source, text=True, check=True
+        )
     # Vite filenames are immutable cache keys. Reversion the JS import graph
     # together, including the HTML entrypoints, so an existing browser loads the
     # changed component on the next deployment without a manual cache clear.
-    version = hashlib.sha256(patched.encode()).hexdigest()[:12]
+    version = hashlib.sha256("".join(patched.values()).encode()).hexdigest()[:12]
     names = {p.name: f"{p.stem}-factory-{version}.js" for p in assets.glob("*.js")}
     pattern = re.compile("|".join(re.escape(name) for name in names))
     updates = {}
     for source in [*assets.glob("*.js"), *frontend.rglob("*.html")]:
-        text = patched if source == path else source.read_text()
+        text = patched.get(source.name, source.read_text())
         target = source.with_name(names[source.name]) if source.suffix == ".js" else source
         updates[target] = pattern.sub(lambda match: names[match[0]], text)
     for target, text in updates.items():

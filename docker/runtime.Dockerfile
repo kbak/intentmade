@@ -3,7 +3,7 @@ WORKDIR /build
 COPY runtime/cedar/ ./
 RUN cargo test --release --locked && cargo build --release --locked
 
-FROM ghcr.io/openhands/agent-canvas:1.29.0@sha256:b2f742a9ec1b263e44f6ffaf9a1d04b17491c56de022d8e10d48c7cc05a56b6c
+FROM ghcr.io/openhands/agent-canvas:1.35.0@sha256:955b06d6fc577876daa2dccce93c18957a828c6c010e0e9b15e7abf227a6b99a
 USER root
 COPY --from=cedar-build /build/target/release/intentmade-cedar /opt/factory/cedar/intentmade-cedar
 COPY runtime/cedar/policy.cedar runtime/cedar/schema.cedarschema /opt/factory/cedar/
