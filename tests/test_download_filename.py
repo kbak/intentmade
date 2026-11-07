@@ -39,8 +39,9 @@ class DownloadFilenameTests(unittest.TestCase):
             "Response": Response,
             "_get_org_automation": AsyncMock(),
             "parse_internal_upload_id": lambda path: "upload",
-            "select": Mock(),
-            "TarballUpload": Mock(),
+            "get_org_upload": AsyncMock(
+                return_value=SimpleNamespace(storage_path="retained-upload", deleted_at=None)
+            ),
         }
         exec(
             compile(
@@ -50,10 +51,7 @@ class DownloadFilenameTests(unittest.TestCase):
             ),
             namespace,
         )
-        session = SimpleNamespace(execute=AsyncMock(return_value=Mock()))
-        session.execute.return_value.scalars.return_value.first.return_value = SimpleNamespace(
-            storage_path="retained-upload"
-        )
+        session = SimpleNamespace()
         storage = Mock()
         storage.read.return_value = b"unchanged tarball bytes\x00\xff"
         names = [
@@ -67,7 +65,7 @@ class DownloadFilenameTests(unittest.TestCase):
         for name in names:
             with self.subTest(name=name):
                 namespace["_get_org_automation"].return_value = SimpleNamespace(
-                    name=name, tarball_path="oh-internal://uploads/id"
+                    name=name, org_id="org", tarball_path="oh-internal://uploads/id"
                 )
                 response = asyncio.run(
                     namespace["download_automation_tarball"](
@@ -87,6 +85,7 @@ class DownloadFilenameTests(unittest.TestCase):
                         unquote(header.split("filename*=UTF-8''", 1)[1]), safe + ".tar"
                     )
                 self.assertNotIn("/", header)
+                namespace["get_org_upload"].assert_awaited_with(session, "upload", "org")
         storage.read.assert_called_with("retained-upload")
 
 

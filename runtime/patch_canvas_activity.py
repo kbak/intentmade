@@ -1,10 +1,10 @@
 """Extend pinned Canvas grouping to ACP without changing persisted events.
 
-Canvas 1.35.0 groups native and ACP activity. Retain the factory's attention
+Canvas 1.37.0 groups native and ACP activity. Retain the factory's attention
 boundaries, compact labels and complete expandable details.
 Patch only its shipped presentation bundle; refuse upstream drift at build time.
 The source counterparts are group-events.ts and get-acp-tool-call-content.ts
-at OpenHands/OpenHands v1.35.0.
+at OpenHands/OpenHands v1.37.0.
 """
 
 import argparse
@@ -13,8 +13,8 @@ import re
 import subprocess
 from pathlib import Path
 
-GROUP_BUNDLE = "use-shared-conversation-teFPR8Jf.js"
-CONTENT_BUNDLE = "event-group-BwEbL1FU.js"
+GROUP_BUNDLE = "use-shared-conversation-CYDmc-N3.js"
+CONTENT_BUNDLE = "event-group-D497VdGK.js"
 
 # [impl->req~im-canvas-activity~1]
 # Keep pending/unknown states and errors visible. Guardian in-progress events
@@ -52,40 +52,40 @@ function factoryActivityCounts(events, allEvents = events) {
 
 BUNDLES = {
     GROUP_BUNDLE: (
-        "81626c71c14f219f279ce05bae72c4c3917ff9f3205fb26ec25b95cb17190307",
+        "b60c8e490ad7472210ebf887f807f581d20a85701106d384e0b7ee23afb30bf3",
         (
-            ("z(e)?e.status!==`failed`", "z(e)?factoryRoutineACP(e)"),
+            ("R(e)?e.status!==`failed`", "R(e)?factoryRoutineACP(e)"),
             (
-                "s.session||s.reasoning?.length||s.events.length>=e",
-                "s.session||s.reasoning?.length||s.events.length>=e||s.events.some(factoryIsACP)",
+                "l.session||l.reasoning?.length||l.events.length>=e",
+                "l.session||l.reasoning?.length||l.events.length>=e||l.events.some(factoryIsACP)",
             ),
         ),
     ),
     CONTENT_BUNDLE: (
-        "6c2ac1295ddc1a09ed852c17cba6a1305830ec3814e0ee1ed2fa3d87e8daafa0",
+        "631046399f94fa5b1a904f2770a68f444e165a4b78c871cb99d5d7eec06dde0c",
         (
             # Native summaries no longer show completion counts. Keep those
             # beside the native title, including while a call is in progress.
             (
-                "let T=_e(C?.timestamp,f?.language)",
-                "const factoryCounts=factoryActivityCounts(e,v);"
-                "if(factoryCounts.total)S=(0,k.jsxs)(k.Fragment,{children:[S,"
+                "let E=ye(T?.timestamp,p?.language)",
+                "const factoryCounts=factoryActivityCounts(e,S);"
+                "if(factoryCounts.total)w=(0,O.jsxs)(O.Fragment,{children:[w,"
                 "` (${factoryCounts.completed}/${factoryCounts.total})`]});"
-                "let T=_e(C?.timestamp,f?.language)",
+                "let E=ye(T?.timestamp,p?.language)",
             ),
             (
-                "at=e=>{let t=e.title,n=e.tool_kind;",
-                "at=e=>{let t=factoryCompactTitle(e.title),n=e.tool_kind;",
+                "ft=e=>{let t=e.title,n=e.tool_kind;",
+                "ft=e=>{let t=factoryCompactTitle(e.title),n=e.tool_kind;",
             ),
             # Preserve the original title using upstream's safe fenced formatter.
             (
-                "l=o.filter(e=>e.type===`text`),u=[];if(t===`execute`",
-                "l=o.filter(e=>e.type===`text`),u=[];"
-                "if(factoryCompactTitle(e.title)!==e.title)u.push(H(e.title));"
+                "l=s.filter(e=>e.type===`text`),u=[];if(t===`execute`",
+                "l=s.filter(e=>e.type===`text`),u=[];"
+                "if(factoryCompactTitle(e.title)!==e.title)u.push(V(e.title));"
                 "if(t===`execute`",
             ),
             # Expanded details must retain complete text and diff output.
-            ("U=e=>e.length>1e3?`${e.slice(0,R)}...`:e", "U=e=>e"),
+            ("H=e=>e.length>1e3?`${e.slice(0,L)}...`:e", "H=e=>e"),
         ),
     ),
 }

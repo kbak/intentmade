@@ -45,13 +45,14 @@ const O = e => e.kind === 'ActionEvent';
 const D = e => e.kind === 'ObservationEvent';
 const k = e => e.kind === 'UserRejectObservation';
 const isACP = e => e.kind === 'ACPToolCallEvent';
-const group = new Function('F','I','L','z','P','Ke','be','ve','N','Q','Rn', helpers
-  + between('var pr=', ',hr=') + ';return mr;')(
+const group = new Function('P','F','I','R','N','me','Ze','fe','M','Q','H','tt','$e', helpers
+  + between('var vr=', ',br=') + ';return yr;')(
     O, D, k, isACP, e => e.kind === 'HookExecutionEvent',
     () => false, () => false, e => e.kind === 'MessageEvent',
-    e => e.kind === 'StreamingDeltaEvent', () => '', () => null);
-const running = new Function('e','v','ne','y','w',
-  between('let t=new Set(v.filter(ne)', ';S=n?', contentSource) + ';return n;');
+    e => e.kind === 'StreamingDeltaEvent', () => '', () => '', () => null,
+    events => new Map(events.filter(O).map(event => [event.id, event])));
+const running = new Function('e','S','te','g','ne',
+  between('let t=new Set(S.filter(te)', ';w=n?', contentSource) + ';return n;');
 const live = events => running(events, events, e => e.kind === 'AgentErrorEvent', O, isACP);
 const counts = new Function(helpers + ';return factoryActivityCounts;')();
 const acp = (id, status='completed', extra={}) => ({
@@ -96,9 +97,9 @@ assert.equal(counts([native], [native, {kind:'ObservationEvent',action_id:native
 assert.equal(live([native, {kind:'AgentErrorEvent',tool_call_id:native.tool_call_id}]), undefined);
 assert.equal(group([completed, {...native, action:{kind:'FinishAction'}}])[1].kind, 'single');
 
-const contentFunctions = between('var R=1e3,', ',W=', contentSource);
+const contentFunctions = between('var L=1e3,', ',U=', contentSource);
 const {title, details} = new Function(helpers + contentFunctions
-  + ';return {title:at, details:pt};')();
+  + ';return {title:ft, details:bt};')();
 const longTitle = 'python - <<\'PY\'\n' + 'print("context")\n'.repeat(40);
 const bigOutput = 'LOG\n'.repeat(600) + 'END_OF_COMPLETE_OUTPUT';
 const raw = acp('full', 'completed', {
@@ -119,10 +120,10 @@ assert.equal(raw.title, longTitle);
 assert.equal(raw.raw_output, bigOutput);
 // The shipped React group still starts collapsed and uses its native accessible
 // toggle and opt-in child rendering; the patch changes no DOM ownership.
-assert.match(contentSource, /\[p,m\]=M.useState\(!1\),h=o\?\?p/);
+assert.match(contentSource, /\[m,ee\]=A.useState\(!1\),h=c\?\?m/);
 assert.match(contentSource, /"aria-expanded":h/);
-assert.match(contentSource, /h&&\(0,k.jsx\)\(`div`,\{id:g,role:`region`/);
-assert.ok(contentSource.includes('factoryCounts=factoryActivityCounts(e,v)'));
+assert.match(contentSource, /h&&\(0,O.jsx\)\(`div`,\{id:b,role:`region`/);
+assert.ok(contentSource.includes('factoryCounts=factoryActivityCounts(e,S)'));
 assert.ok(contentSource.includes('(${factoryCounts.completed}/${factoryCounts.total})'));
 console.log(JSON.stringify({grouping:'pass', attention:'pass', details:'pass'}));
 """

@@ -55,7 +55,7 @@ def main():
                 count = phase["calls"]
                 phase["calls"] += 1
                 if stage == "review":
-                    assert names == {"factory_reader", "think", "finish"}, names
+                    assert names == {"factory_reader", "finish"}, names
                     if count == 0:
                         name, args = (
                             "factory_reader",
@@ -106,9 +106,27 @@ def main():
                     ],
                     "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
                 }
-                body = json.dumps(response).encode()
+                if request.get("stream"):
+                    message = response["choices"][0]["message"]
+                    message["tool_calls"][0]["index"] = 0
+                    chunk = {
+                        **response,
+                        "object": "chat.completion.chunk",
+                        "choices": [{"index": 0, "delta": message, "finish_reason": None}],
+                    }
+                    end = {
+                        **chunk,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+                    }
+                    body = (
+                        f"data: {json.dumps(chunk)}\n\ndata: {json.dumps(end)}\n\ndata: [DONE]\n\n"
+                    ).encode()
+                    content_type = "text/event-stream"
+                else:
+                    body = json.dumps(response).encode()
+                    content_type = "application/json"
                 self.send_response(200)
-                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)

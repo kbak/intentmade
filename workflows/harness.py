@@ -7,7 +7,9 @@ from urllib.parse import quote
 import deployment
 from common import api
 from openhands.sdk import LLM
-from openhands.sdk.profiles import resolve_agent_profile, validate_agent_profile
+from openhands.sdk.launch import LaunchStores
+from openhands.sdk.launch import resolve as resolve_launch
+from openhands.sdk.profiles import validate_agent_profile
 from pydantic import BaseModel, SecretStr
 
 CURRENT = ContextVar("factory_agent_profile", default=None)
@@ -71,12 +73,10 @@ def resolve(payload, name, roots=()):
             raise ValueError("The Codex worker profile must allow CODEX_AUTH_JSON")
     # Saved tools/MCP/secrets do not grant new stage permissions. Only explicitly
     # supplied workflow MCP servers and the selected model credential cross over.
-    settings = resolve_agent_profile(
+    settings = resolve_launch(
         profile.model_copy(update={"mcp_server_refs": []}),
-        llm_store=CanvasLLMStore(),
-        mcp_config={},
-        available_skills=[],
-    )
+        LaunchStores(llm_profiles=CanvasLLMStore(), mcp_config={}, skills=lambda: []),
+    ).settings
     if profile.agent_kind == "acp":
         settings.acp_command = ["codex-acp"]
         settings.acp_args = []

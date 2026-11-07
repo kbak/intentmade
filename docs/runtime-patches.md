@@ -1,14 +1,14 @@
 # Runtime patch review
 
-The runtime pins Canvas 1.35.0 by image digest, with OpenHands SDK/Workspace/Agent
-Server/Tools 1.59.0 and Automation 1.26.1. The Python packages are layered over
+The runtime pins Canvas 1.37.0 by image digest, with OpenHands SDK/Workspace/Agent
+Server/Tools 1.60.2 and Automation 1.30.2. The Python packages are layered over
 the Canvas image with wheel hashes in `docker/openhands-requirements.txt`, without
 resolving new third-party dependencies; `pip check` validates the base dependency
 set. Review patches against the installed source
 when updating that pin; version guards and exact source matches deliberately
 stop the build on drift.
 
-| Integration | Decision for Canvas 1.35.0 | Reason |
+| Integration | Decision for Canvas 1.37.0 | Reason |
 | --- | --- | --- |
 | Unicode automation downloads | Removed | Automation now sanitizes names, supplies an ASCII fallback and encodes Unicode with `filename*`. The regression exercises the installed upstream route, including compatibility characters. |
 | Review permissions and project trust | Reduced | ACP 2.2.2 supplies the native read-only sandbox; the patch only disables escalation and automatic project trust. SDK's permission bridge still needs its read-only denial. The launcher uses ACP's `DISABLE_MCP_CONFIG_FILTERING=true` option so ignored repository configuration cannot suppress explicit factory MCP servers. |
@@ -24,7 +24,7 @@ stop the build on drift.
 | Canvas ACP activity | Reduced | Canvas now groups ACP activity and supplies live summaries. The factory retains explicit attention boundaries for pending, unknown, error and active guardian states, single-call grouping, compact labels and full expandable output. |
 
 The factory's npm lock selects Codex ACP 2.2.2 and its compatible Codex 0.160.1.
-Canvas 1.35.0 also bundles ACP 2.2.2. Playwright remains pinned at 0.0.80.
+Canvas 1.37.0 also bundles ACP 2.2.2. Playwright remains pinned at 0.0.80.
 The runtime still installs the factory's integrity-locked tool tree during the
 image build; updating Canvas does not implicitly change these dependencies.
 
@@ -37,16 +37,23 @@ SDK 1.56 removes the old tool-enable fields. Saved schema-2/3 profiles use
 upstream migrations; current profiles select tools explicitly. The regressions
 exercise both formats and verify that stage overrides preserve captured settings.
 
-Canvas 1.35.0 ships SDK 1.59.0 and Automation 1.26.1, matching the
-factory's hash-locked Python packages. The SDK permission, startup, workspace
-and plugin-isolation gaps and the Automation callback gap remain in these
+SDK 1.60 replaces `resolve_agent_profile` with `launch.resolve` and `LaunchStores`.
+The factory uses that resolver with its existing Canvas LLM store, an empty MCP
+map and an empty skill catalog; stage permissions still override the resolved
+settings. The native agent now includes only `FinishTool` by default, and rejected
+LLM-store settings surface as `LaunchStoreError`. Profile and reviewer regressions
+cover these upstream changes.
+
+Canvas 1.37.0 ships SDK 1.60.1 and Automation 1.30.1; the factory layers
+the hash-locked 1.60.2 and 1.30.2 patch releases over that image. The SDK
+permission, startup, workspace and plugin-isolation gaps and the Automation callback gap remain in these
 released sources; their exact patch anchors still apply. Canvas now supplies
 native ACP grouping, live activity and summaries. The factory keeps explicit
 completion counts beside the native title, without replacing running-title
 selection. The remaining presentation
 patch spans the grouping and event-content bundles, with both digests checked
 before any writes and the full import graph reversioned for browser caches.
-Canvas releases now live in [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands/releases/tag/v1.35.0);
+Canvas releases now live in [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands/releases/tag/v1.37.0);
 the former `OpenHands/agent-canvas` repository is archived.
 
 Extensions helpers are independently pinned to release 0.29.0. Both issue and

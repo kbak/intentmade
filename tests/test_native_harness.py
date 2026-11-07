@@ -17,6 +17,7 @@ import review
 import sandbox
 from factory_reader import ReadAction, Reader
 from openhands.sdk.agent import Agent
+from openhands.sdk.launch import LaunchStoreError
 from pydantic import ValidationError
 from review_fixture import specialist
 
@@ -56,7 +57,7 @@ class NativeHarnessTests(unittest.TestCase):
         reviewer = agent.worker_agent("read-only", "factory-review", {"untrusted": {}})
         # [utest~im-native_harness-NativeHarnessTests-profile_resolution_preserves_model_but_stage_overrides_tools_and_credentials-2~1->req~im-native-read-only~1]
         self.assertEqual([tool.name for tool in reviewer.tools], ["factory_reader"])
-        self.assertEqual(reviewer.include_default_tools, ["FinishTool", "ThinkTool"])
+        self.assertEqual(reviewer.include_default_tools, ["FinishTool"])
         self.assertEqual(reviewer.mcp_config, {})
         self.assertFalse(reviewer.agent_context.load_project_skills)
         self.assertIn("alibaba-reviewer", [s.name for s in reviewer.agent_context.skills])
@@ -154,7 +155,7 @@ class NativeHarnessTests(unittest.TestCase):
         with patch.object(
             harness, "api", return_value={"config": {**LLM, "auth_type": "subscription"}}
         ):
-            with self.assertRaisesRegex(ValueError, "API-backed LLM profile"):
+            with self.assertRaisesRegex(LaunchStoreError, "API-backed LLM profile"):
                 harness.resolve(PROFILE, PROFILE["name"])
         with (
             patch.object(harness, "profile_name", return_value="factory-native"),
