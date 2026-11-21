@@ -48,8 +48,8 @@ attaching logs or handoff exports.
 - Read the [intent](docs/intent.md) and affected [specification requirements](docs/spec.md).
   Follow their links to code and assertions; keep intent, promises, links and
   evidence consistent. Preserve IDs for continuing promises, including document
-  moves. Use the matching packaged IntentBond guidance and the root
-  [checking scope](scope.json); ordinary development does not repeat recovery.
+  moves. Use the matching packaged IntentBond guidance and the
+  [checking scope](.intentbond/scope.json); ordinary development does not repeat recovery.
 - Prefer upstream mechanisms and shared helpers. Check both the pinned implementation
   and released upstream replacements before adding glue or a runtime patch; retain
   custom behavior only for a concrete requirement gap, and remove it when a

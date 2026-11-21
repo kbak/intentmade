@@ -57,7 +57,8 @@ not enable the factory's checks automatically.
 
 A portable scope can live in the project repository or in separate
 configuration. A project-owned scope travels with the project: standalone
-`ib check` reads the root `scope.json` from the baseline commit. A separately
+`ib check` reads `.intentbond/scope.json` from the baseline commit. Baselines with
+only the legacy root `scope.json` remain supported. A separately
 maintained scope can also be used standalone with `--scope`, provided its test
 dependencies and environment are available.
 
@@ -67,7 +68,7 @@ The factory can capture a scope from an operator-selected project Git commit:
 {
   "traceability_scope_git": {
     "revision": "0123456789abcdef0123456789abcdef01234567",
-    "path": "scope.json"
+    "path": ".intentbond/scope.json"
   }
 }
 ```
@@ -311,9 +312,8 @@ first and can read the complete records when needed.
 Build the IntentBond wheel and collect its dependencies in an artifact directory.
 The source commit and wheel hash are pinned in
 [docker/intentbond-requirements.txt](../docker/intentbond-requirements.txt).
-Version 0.5.0 alone does not distinguish the newer guidance and fixes from older
-builds. From a clean IntentBond checkout at
-`d6a04b50ddf70c102240624b98649d50907078e9`, use the locked build dependencies and
+From a clean IntentBond 0.5.1 checkout at
+`778c9c9c0acd78fb8c63a58c39c1a99992e4807c`, use the locked build dependencies and
 the commit timestamp so the wheel matches that hash:
 
 ```sh

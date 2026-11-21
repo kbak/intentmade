@@ -447,12 +447,14 @@ class RepositoryPolicyTests(unittest.TestCase):
         from traceability.scope_identity import capture_git, export
 
         data = (Path(__file__).parent / "fixtures/traceability-scope.json").read_bytes()
-        (self.seed / "scope.json").write_bytes(data)
+        policy = self.seed / ".intentbond/scope.json"
+        policy.parent.mkdir()
+        policy.write_bytes(data)
         self.commit()
         pinned = common.git(["rev-parse", "HEAD"], cwd=self.seed).stdout.strip()
-        (self.seed / "scope.json").write_text("{}")
+        policy.write_text("{}")
         self.commit()
-        declaration = {"revision": pinned, "path": "scope.json"}
+        declaration = {"revision": pinned, "path": ".intentbond/scope.json"}
         scope, source = capture_git(self.seed, declaration)
         # [utest~im-sdlc-repository-policy~1->req~im-repository-policy~1]
         self.assertEqual(scope, json.loads(data))
@@ -460,7 +462,9 @@ class RepositoryPolicyTests(unittest.TestCase):
             {"traceability_scope": scope, "traceability_scope_source": source}
         )
         self.assertEqual(captured, data)
-        self.assertEqual(identity["source_file"]["reference"], f"git:{pinned}:scope.json")
+        self.assertEqual(
+            identity["source_file"]["reference"], f"git:{pinned}:.intentbond/scope.json"
+        )
         for value in (
             {**declaration, "revision": "HEAD"},
             {**declaration, "path": "../scope.json"},
@@ -469,7 +473,7 @@ class RepositoryPolicyTests(unittest.TestCase):
         ):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 capture_git(self.seed, value)
-        (self.seed / "link.json").symlink_to("scope.json")
+        (self.seed / "link.json").symlink_to(".intentbond/scope.json")
         self.commit()
         revision = common.git(["rev-parse", "HEAD"], cwd=self.seed).stdout.strip()
         with self.assertRaisesRegex(ValueError, "regular Git file"):

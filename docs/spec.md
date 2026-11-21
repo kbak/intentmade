@@ -5,7 +5,7 @@ technical contract defines the required behavior and constraints, with links to
 implementation and tests. Each requirement declares which intent it supports through OFT `Covers`.
 A document move or added intent link does not change a promise or its revision.
 
-The [scope](../scope.json) is the maintained checking policy. The
+The [scope](../.intentbond/scope.json) is the maintained checking policy. The
 [traceability guide](traceability.md) describes how IntentBond checks
 this repository and what those checks establish.
 
