@@ -64,7 +64,7 @@ def main():
             f"Original source and citation records: {bundle}\nWorking repository: {bundle / 'draft' if args.isolated else repo}\n"
             f"Read {bundle / 'recovery.json'} and {bundle / 'instructions.md'} for the mode and artifact locations. "
             "Read the retained inventory and original source; create native OFT requirements, source/test "
-            "coverage comments, scope.json, and claims.json according to the recovery skill. "
+            "coverage comments, .intentbond/scope.json, and claims.json according to the recovery skill. "
             "Include existing properties, candidate invariants, and prioritized missing checks "
             "in the feature table or claim notes for test improvements after requirements review. "
             "Follow the shared skill's documentation-editing and review rules. "

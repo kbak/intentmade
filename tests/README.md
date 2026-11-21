@@ -71,7 +71,7 @@ import json
 import sys
 from pathlib import Path
 
-scope = json.loads(Path("scope.json").read_text())
+scope = json.loads(Path(".intentbond/scope.json").read_text())
 command = scope["tests"]["command"]
 command[command.index("--image") + 1] = sys.argv[1]
 Path(sys.argv[2]).write_text(json.dumps(scope, indent=2) + "\n")
@@ -91,7 +91,7 @@ the regression command above with `intentmade:traceability-test`. The
 suite requires IntentBond and its OFT JAR to run the opt-in cases. The
 ordinary image skips those cases.
 
-The maintained `scope.json` uses `scripts/check_factory.py` with an immutable
+The maintained `.intentbond/scope.json` uses `scripts/check_factory.py` with an immutable
 traceability image ID. This checks `/opt/factory/runtime-build.json` against the
 captured runtime files, Docker build recipe, ignore policy and upstream lock
 before starting tests. Rebuild and review the image pin after those inputs change.

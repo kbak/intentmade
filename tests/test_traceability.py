@@ -378,7 +378,8 @@ class TraceabilityPipelineTests(unittest.TestCase):
             path.write_text(
                 path.read_text().replace("# [utest->req~session-expiration~1]", "# removed")
             )
-            (root / "scope.json").write_text('{"required_coverage":{"req":["impl"]}}')
+            (root / ".intentbond").mkdir(exist_ok=True)
+            (root / ".intentbond/scope.json").write_text('{"required_coverage":{"req":["impl"]}}')
 
         # [utest~im-traceability-TraceabilityPipelineTests-candidate_cannot_weaken_the_frozen_floor~1->req~im-trace-source-gate~1]
         with self.assertRaises(RuntimeError):
